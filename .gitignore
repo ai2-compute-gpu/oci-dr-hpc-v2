@@ -46,4 +46,7 @@ Thumbs.db
 *.tmp
 *.temp
 
+# Project documentation
+CL*E.md
+
 .idea
