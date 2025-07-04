@@ -49,4 +49,8 @@ Thumbs.db
 # Project documentation
 CL*E.md
 
+# Build artifacts
+*.deb
+*.rpm
+
 .idea
