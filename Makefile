@@ -37,7 +37,7 @@ rpm: build install-fpm
 		--version $(VERSION) \
 		--iteration $(RELEASE) \
 		--architecture $(ARCH) \
-		--description "Oracle Cloud Infrastructure (OCI GPU Diagnostic and Repair tool for HPC environments" \
+		--description "Oracle Cloud Infrastructure - OCI GPU Diagnostic and Repair tool for HPC environments" \
 		--url "https://www.oracle.com/ai-infrastructure/" \
 		--license "Oracle" \
 		--maintainer "Bob R Booth <bob.r.booth@oracle.com>" \
@@ -53,10 +53,10 @@ deb: build install-fpm
 		--version $(VERSION) \
 		--iteration $(RELEASE) \
 		--architecture amd64 \
-		--description "Oracle Cloud Infrastructure Diagnostic and Repair tool for HPC environments" \
-		--url "https://oracle.com" \
+		--description "Oracle Cloud Infrastructure - OCI GPU Diagnostic and Repair tool for HPC environments" \
+		--url "https://www.oracle.com/ai-infrastructure/" \
 		--license "Oracle" \
-		--maintainer "Oracle <support@oracle.com>" \
+		--maintainer "Bob R Booth <bob.r.booth@oracle.com>" \
 		--depends libc6 \
 		--package $(DIST_DIR) \
 		$(BUILD_DIR)/$(APP_NAME)=/usr/bin/$(APP_NAME)
