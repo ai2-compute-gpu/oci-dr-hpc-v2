@@ -48,11 +48,17 @@ func initConfig() {
 	if cfgFile != "" {
 		viper.SetConfigFile(cfgFile)
 	} else {
+		// Add system-wide config path first
+		viper.AddConfigPath("/etc")
+		viper.SetConfigName("oci-dr-hpc")
+		
+		// Add user config path second (higher priority)
 		home, err := os.UserHomeDir()
 		cobra.CheckErr(err)
 		viper.AddConfigPath(home)
-		viper.SetConfigType("yaml")
 		viper.SetConfigName(".oci-dr-hpc")
+		
+		viper.SetConfigType("yaml")
 	}
 
 	viper.AutomaticEnv()

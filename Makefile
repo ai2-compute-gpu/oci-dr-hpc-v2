@@ -43,7 +43,8 @@ rpm: build install-fpm
 		--maintainer "Bob R Booth <bob.r.booth@oracle.com>" \
 		--depends glibc \
 		--package $(DIST_DIR) \
-		$(BUILD_DIR)/$(APP_NAME)=/usr/bin/$(APP_NAME)
+		$(BUILD_DIR)/$(APP_NAME)=/usr/bin/$(APP_NAME) \
+		oci-dr-hpc.yaml=/etc/oci-dr-hpc.yaml
 
 deb: build install-fpm
 	@echo "Building DEB package with FPM..."
@@ -59,7 +60,8 @@ deb: build install-fpm
 		--maintainer "Bob R Booth <bob.r.booth@oracle.com>" \
 		--depends libc6 \
 		--package $(DIST_DIR) \
-		$(BUILD_DIR)/$(APP_NAME)=/usr/bin/$(APP_NAME)
+		$(BUILD_DIR)/$(APP_NAME)=/usr/bin/$(APP_NAME) \
+		oci-dr-hpc.yaml=/etc/oci-dr-hpc.yaml
 
 clean:
 	@echo "Cleaning build artifacts..."
