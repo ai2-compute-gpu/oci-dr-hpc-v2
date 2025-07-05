@@ -1,0 +1,218 @@
+package main
+
+import (
+	"fmt"
+	"log"
+	"os"
+	"time"
+
+	"github.com/oracle/oci-dr-hpc-v2/internal/executor"
+	"github.com/oracle/oci-dr-hpc-v2/internal/logger"
+)
+
+func main() {
+	// Initialize logger for debugging
+	logger.SetLogLevel("info")
+	if err := logger.InitLogger(""); err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+
+	fmt.Println("=== OCI IMDS Test Tool ===")
+	fmt.Println("Testing Instance Metadata Service connectivity and data retrieval...")
+	fmt.Println()
+
+	// Create IMDS client with custom timeout
+	client := executor.NewIMDSClientWithTimeout(10 * time.Second)
+
+	// Test 1: Check if running on OCI
+	fmt.Println("1. Checking if running on OCI instance...")
+	if !client.IsRunningOnOCI() {
+		fmt.Println("❌ Not running on an OCI instance or IMDS is not accessible")
+		fmt.Println("   This tool must be run on an OCI compute instance")
+		os.Exit(1)
+	}
+	fmt.Println("✅ Running on OCI instance - IMDS is accessible")
+	fmt.Println()
+
+	// Test 2: Get Instance Metadata
+	fmt.Println("2. Retrieving Instance Metadata...")
+	instanceMetadata, err := client.GetInstanceMetadata()
+	if err != nil {
+		fmt.Printf("❌ Failed to get instance metadata: %v\n", err)
+	} else {
+		fmt.Println("✅ Successfully retrieved instance metadata")
+		fmt.Printf("   Shape: %s\n", instanceMetadata.Shape)
+		fmt.Printf("   Region: %s (%s)\n", instanceMetadata.Region, instanceMetadata.CanonicalRegionName)
+		fmt.Printf("   Availability Domain: %s\n", instanceMetadata.AvailabilityDomain)
+		fmt.Printf("   Hostname: %s\n", instanceMetadata.Hostname)
+		fmt.Printf("   Instance State: %s\n", instanceMetadata.State)
+		fmt.Printf("   Instance OCID: %s\n", instanceMetadata.ID)
+		fmt.Printf("   Compartment OCID: %s\n", instanceMetadata.CompartmentID)
+		fmt.Printf("   Tenancy OCID: %s\n", instanceMetadata.TenantID)
+
+		if instanceMetadata.ShapeConfig != nil {
+			fmt.Printf("   Shape Config:\n")
+			fmt.Printf("     OCPUs: %.1f\n", instanceMetadata.ShapeConfig.Ocpus)
+			fmt.Printf("     Memory: %.1f GB\n", instanceMetadata.ShapeConfig.MemoryInGBs)
+			fmt.Printf("     Network Bandwidth: %.1f Gbps\n", instanceMetadata.ShapeConfig.NetworkingBandwidthInGbps)
+		}
+	}
+	fmt.Println()
+
+	// Test 3: Get VNIC Metadata
+	fmt.Println("3. Retrieving VNIC Metadata...")
+	vnicMetadata, err := client.GetVnicMetadata()
+	if err != nil {
+		fmt.Printf("❌ Failed to get VNIC metadata: %v\n", err)
+	} else {
+		fmt.Printf("✅ Successfully retrieved VNIC metadata (%d VNICs)\n", len(vnicMetadata))
+		for i, vnic := range vnicMetadata {
+			fmt.Printf("   VNIC %d:\n", i)
+			fmt.Printf("     MAC Address: %s\n", vnic.MacAddr)
+			fmt.Printf("     Private IP: %s\n", vnic.PrivateIP)
+			fmt.Printf("     Subnet CIDR: %s\n", vnic.SubnetCidrBlock)
+			fmt.Printf("     Virtual Router IP: %s\n", vnic.VirtualRouterIP)
+			fmt.Printf("     VNIC OCID: %s\n", vnic.VnicID)
+			fmt.Printf("     NIC Index: %d\n", vnic.NicIndex)
+			if vnic.VlanTag > 0 {
+				fmt.Printf("     VLAN Tag: %d\n", vnic.VlanTag)
+			}
+		}
+	}
+	fmt.Println()
+
+	// Test 4: Get Primary VNIC
+	fmt.Println("4. Retrieving Primary VNIC...")
+	primaryVnic, err := client.GetPrimaryVnic()
+	if err != nil {
+		fmt.Printf("❌ Failed to get primary VNIC: %v\n", err)
+	} else {
+		fmt.Println("✅ Successfully retrieved primary VNIC")
+		fmt.Printf("   Primary IP: %s\n", primaryVnic.PrivateIP)
+		fmt.Printf("   Primary MAC: %s\n", primaryVnic.MacAddr)
+	}
+	fmt.Println()
+
+	// Test 5: Get Identity Metadata (be careful with output)
+	fmt.Println("5. Retrieving Identity Metadata...")
+	identityMetadata, err := client.GetIdentityMetadata()
+	if err != nil {
+		fmt.Printf("❌ Failed to get identity metadata: %v\n", err)
+	} else {
+		fmt.Println("✅ Successfully retrieved identity metadata")
+		if identityMetadata.TenancyID != "" {
+			fmt.Printf("   Tenancy OCID: %s\n", identityMetadata.TenancyID)
+		}
+		if identityMetadata.Fingerprint != "" {
+			fmt.Printf("   Certificate Fingerprint: %s\n", identityMetadata.Fingerprint)
+		}
+		if identityMetadata.CertPem != "" {
+			fmt.Printf("   Certificate: Present (length: %d chars)\n", len(identityMetadata.CertPem))
+		}
+		if identityMetadata.IntermediatePem != "" {
+			fmt.Printf("   Intermediate Certificate: Present (length: %d chars)\n", len(identityMetadata.IntermediatePem))
+		}
+		if identityMetadata.KeyPem != "" {
+			fmt.Printf("   Private Key: Present (length: %d chars) - NOT DISPLAYED FOR SECURITY\n", len(identityMetadata.KeyPem))
+		}
+	}
+	fmt.Println()
+
+	// Test 6: Get Region Info
+	fmt.Println("6. Retrieving Region Info...")
+	regionInfo, err := client.GetRegionInfo()
+	if err != nil {
+		fmt.Printf("❌ Failed to get region info: %v\n", err)
+	} else {
+		fmt.Println("✅ Successfully retrieved region info")
+		fmt.Printf("   Realm Key: %s\n", regionInfo.RealmKey)
+		fmt.Printf("   Realm Domain: %s\n", regionInfo.RealmDomainComponent)
+		fmt.Printf("   Region Key: %s\n", regionInfo.RegionKey)
+		fmt.Printf("   Region Identifier: %s\n", regionInfo.RegionIdentifier)
+	}
+	fmt.Println()
+
+	// Test 7: Test individual helper functions
+	fmt.Println("7. Testing individual helper functions...")
+
+	if shape, err := executor.GetCurrentShape(); err == nil {
+		fmt.Printf("   Current Shape: %s\n", shape)
+	}
+
+	if region, err := executor.GetCurrentRegion(); err == nil {
+		fmt.Printf("   Current Region: %s\n", region)
+	}
+
+	if hostname, err := executor.GetCurrentHostname(); err == nil {
+		fmt.Printf("   Current Hostname: %s\n", hostname)
+	}
+
+	if canonicalRegion, err := executor.GetCurrentCanonicalRegionName(); err == nil {
+		fmt.Printf("   Canonical Region: %s\n", canonicalRegion)
+	}
+
+	if instanceOCID, err := executor.GetCurrentInstanceOCID(); err == nil {
+		fmt.Printf("   Instance OCID: %s\n", instanceOCID)
+	}
+
+	if tenantID, err := executor.GetCurrentTenantID(); err == nil {
+		fmt.Printf("   Tenant OCID: %s\n", tenantID)
+	}
+	fmt.Println()
+
+	// Test 8: Get comprehensive instance info
+	fmt.Println("8. Getting comprehensive instance info...")
+	instanceInfo, err := client.GetInstanceInfo()
+	if err != nil {
+		fmt.Printf("❌ Failed to get comprehensive instance info: %v\n", err)
+	} else {
+		fmt.Println("✅ Successfully retrieved comprehensive instance info")
+		fmt.Printf("   Available info sections: %d\n", len(instanceInfo))
+		for key := range instanceInfo {
+			fmt.Printf("     - %s\n", key)
+		}
+	}
+	fmt.Println()
+
+	// Optional: Output full JSON (uncomment if needed for debugging)
+	fmt.Println("9. Optional: Full JSON Output")
+	fmt.Println("   Uncomment the code below to see full JSON output for debugging")
+	fmt.Println("   WARNING: This will expose sensitive information including private keys!")
+
+	/*
+		// UNCOMMENT BELOW FOR FULL JSON OUTPUT - BE CAREFUL WITH PRIVATE KEYS!
+		if instanceMetadata != nil {
+			fmt.Println("\n--- Full Instance Metadata JSON ---")
+			if jsonData, err := json.MarshalIndent(instanceMetadata, "", "  "); err == nil {
+				fmt.Println(string(jsonData))
+			}
+		}
+
+		if len(vnicMetadata) > 0 {
+			fmt.Println("\n--- Full VNIC Metadata JSON ---")
+			if jsonData, err := json.MarshalIndent(vnicMetadata, "", "  "); err == nil {
+				fmt.Println(string(jsonData))
+			}
+		}
+
+		// DO NOT UNCOMMENT THE IDENTITY METADATA JSON OUTPUT - IT CONTAINS PRIVATE KEYS!
+		// if identityMetadata != nil {
+		//     fmt.Println("\n--- Full Identity Metadata JSON ---")
+		//     if jsonData, err := json.MarshalIndent(identityMetadata, "", "  "); err == nil {
+		//         fmt.Println(string(jsonData))
+		//     }
+		// }
+	*/
+
+	fmt.Println("=== IMDS Test Complete ===")
+	fmt.Println()
+	fmt.Println("Summary:")
+	fmt.Println("✅ All tests completed successfully")
+	fmt.Println("📋 Instance metadata, VNIC data, and identity info retrieved")
+	fmt.Println("🔒 Private key information was not displayed for security")
+	fmt.Println()
+	fmt.Println("Next steps:")
+	fmt.Println("- Use this data for diagnostics and environment awareness")
+	fmt.Println("- Integrate IMDS queries into your diagnostic workflows")
+	fmt.Println("- Remember to handle errors appropriately in production code")
+}

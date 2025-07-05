@@ -4,7 +4,7 @@ Oracle Cloud Infrastructure Diagnostic and Repair tool for HPC environments with
 
 ## Overview
 
-A Go-based CLI application that performs diagnostic and repair operations for HPC environments, specifically designed for Oracle Cloud Infrastructure GPU and RDMA configurations.
+A Go-based CLI application that performs diagnostic and repair operations for HPC environments, specifically designed for Oracle Cloud Infrastructure GPU and RDMA configurations. Includes support for querying instance metadata (IMDS), GPU, RDMA, and system diagnostics.
 
 ## OCI Support Email
 For support and issues, please contact: [bob.r.booth@oracle.com](mailto:bob.r.booth@oracle.com)
@@ -18,7 +18,7 @@ For support and issues, please contact: [bob.r.booth@oracle.com](mailto:bob.r.bo
 ├── internal/      # Internal application logic
 │   ├── common/    # Common utilities and shared code
 │   ├── config/    # Configuration management (Viper)
-│   ├── executor/  # Command execution (nvidia-smi, lspci, dmesg, mlxlink)
+│   ├── executor/  # Command execution (IMDS, nvidia-smi, lspci, dmesg, mlxlink)
 │   ├── level1_tests/ # Level 1 diagnostic tests
 │   ├── level2_tests/ # Level 2 diagnostic tests
 │   ├── level3_tests/ # Level 3 diagnostic tests
@@ -37,7 +37,7 @@ For support and issues, please contact: [bob.r.booth@oracle.com](mailto:bob.r.bo
 ## Requirements
 
 ### System Requirements
-- **Operating Systems**: Oracle Linux 9.5, Ubuntu 22.04
+- **Operating Systems**: Oracle Linux 9.5, Oracle Linux 8, Ubuntu 22.04
 - **Go Version**: 1.21.5 or higher
 - **Architecture**: x86_64
 
@@ -107,6 +107,9 @@ sudo dpkg -i dist/oci-dr-hpc-v2_*.deb
 # Show help
 oci-dr-hpc-v2 --help
 
+# Show version
+oci-dr-hpc-v2 --version
+
 # Run with verbose output
 oci-dr-hpc-v2 --verbose
 
@@ -123,6 +126,18 @@ oci-dr-hpc-v2 --config /path/to/config.yaml
 - `--output string`: Output format (json|table|friendly), default: table
 - `--verbose`: Enable verbose output
 - `--version`: Show version information
+
+## Instance Metadata Service (IMDS) Support
+
+This tool can query Oracle Cloud Infrastructure's Instance Metadata Service (IMDSv2) to retrieve instance, VNIC, and identity metadata. This is used for environment awareness and diagnostics.
+
+- **Instance Metadata**: Shape, region, compartment, tags, etc.
+- **VNIC Metadata**: Network interface details
+- **Identity Metadata**: Instance certificates, tenancy OCID, fingerprint
+
+See [`docs/imds.md`](docs/imds.md) for detailed field descriptions and sample outputs.
+
+> **Security Note:** The identity metadata includes `key.pem`, which is a private key for the instance. **Never expose or log this value.**
 
 ## Configuration
 
@@ -263,6 +278,7 @@ For detailed documentation, see `internal/shapes/README.md`.
 
 Additional documentation is available in the `docs/` directory:
 
+- **IMDS/Metadata**: `docs/imds.md` - OCI Instance Metadata Service details and field reference
 - **Installation Notes**: `docs/installation_notes_ol8.md` - Oracle Linux 8 installation guide
 - **NVIDIA SMI**: `docs/nvidia-smi-doc.md` - NVIDIA SMI command documentation
 - **OCI Shapes**: `docs/oci_shapes.md` - OCI shape specifications and configurations
