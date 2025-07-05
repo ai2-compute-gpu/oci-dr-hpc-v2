@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/oracle/oci-dr-hpc-v2/internal/config"
 	"github.com/oracle/oci-dr-hpc-v2/internal/logger"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -65,5 +66,13 @@ func initConfig() {
 
 	if err := viper.ReadInConfig(); err == nil {
 		logger.Info("Using config file:", viper.ConfigFileUsed())
+		
+		// Initialize logger with config
+		cfg, err := config.LoadConfig()
+		if err == nil && cfg.Logging.File != "" {
+			if err := logger.InitLogger(cfg.Logging.File); err != nil {
+				logger.Error("Failed to initialize file logging:", err)
+			}
+		}
 	}
 }
