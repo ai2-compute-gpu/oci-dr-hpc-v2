@@ -3,10 +3,13 @@
 package logger
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
+	"time"
 )
 
 var (
@@ -37,14 +40,14 @@ func InitLogger(logFilePath string) error {
 		errorWriter := io.MultiWriter(os.Stderr, logFile)
 		debugWriter := io.MultiWriter(os.Stdout, logFile)
 
-		infoLogger = log.New(infoWriter, "INFO: ", log.Ldate|log.Ltime|log.LUTC|log.Lshortfile)
-		errorLogger = log.New(errorWriter, "ERROR: ", log.Ldate|log.Ltime|log.LUTC|log.Lshortfile)
-		debugLogger = log.New(debugWriter, "DEBUG: ", log.Ldate|log.Ltime|log.LUTC|log.Lshortfile)
+		infoLogger = log.New(infoWriter, "", 0)
+		errorLogger = log.New(errorWriter, "", 0)
+		debugLogger = log.New(debugWriter, "", 0)
 	} else {
 		// Default to stdout/stderr only
-		infoLogger = log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime|log.LUTC|log.Lshortfile)
-		errorLogger = log.New(os.Stderr, "ERROR: ", log.Ldate|log.Ltime|log.LUTC|log.Lshortfile)
-		debugLogger = log.New(os.Stdout, "DEBUG: ", log.Ldate|log.Ltime|log.LUTC|log.Lshortfile)
+		infoLogger = log.New(os.Stdout, "", 0)
+		errorLogger = log.New(os.Stderr, "", 0)
+		debugLogger = log.New(os.Stdout, "", 0)
 	}
 
 	return nil
@@ -67,32 +70,54 @@ func CloseLogFile() error {
 	return nil
 }
 
+// getCallerInfo returns the filename and line number of the caller
+func getCallerInfo() string {
+	_, file, line, ok := runtime.Caller(3)
+	if !ok {
+		return "unknown:0"
+	}
+	return fmt.Sprintf("%s:%d", filepath.Base(file), line)
+}
+
+// formatMessage creates a formatted log message with timestamp, level, caller info
+func formatMessage(level string, msg string) string {
+	now := time.Now().UTC()
+	caller := getCallerInfo()
+	return fmt.Sprintf("%s: %s %s: %s", level, now.Format("2006/01/02 15:04:05"), caller, msg)
+}
+
 // Info logs an info message
 func Info(v ...interface{}) {
-	infoLogger.Println(v...)
+	msg := fmt.Sprint(v...)
+	infoLogger.Println(formatMessage("INFO", msg))
 }
 
 // Error logs an error message
 func Error(v ...interface{}) {
-	errorLogger.Println(v...)
+	msg := fmt.Sprint(v...)
+	errorLogger.Println(formatMessage("ERROR", msg))
 }
 
 // Debug logs a debug message
 func Debug(v ...interface{}) {
-	debugLogger.Println(v...)
+	msg := fmt.Sprint(v...)
+	debugLogger.Println(formatMessage("DEBUG", msg))
 }
 
 // Infof logs a formatted info message
 func Infof(format string, v ...interface{}) {
-	infoLogger.Printf(format, v...)
+	msg := fmt.Sprintf(format, v...)
+	infoLogger.Println(formatMessage("INFO", msg))
 }
 
 // Errorf logs a formatted error message
 func Errorf(format string, v ...interface{}) {
-	errorLogger.Printf(format, v...)
+	msg := fmt.Sprintf(format, v...)
+	errorLogger.Println(formatMessage("ERROR", msg))
 }
 
 // Debugf logs a formatted debug message
 func Debugf(format string, v ...interface{}) {
-	debugLogger.Printf(format, v...)
+	msg := fmt.Sprintf(format, v...)
+	debugLogger.Println(formatMessage("DEBUG", msg))
 }
