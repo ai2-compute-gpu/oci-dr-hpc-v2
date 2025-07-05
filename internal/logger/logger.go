@@ -198,6 +198,8 @@ func shouldLog(level string) bool {
 		return targetLevel == "info" || targetLevel == "error"
 	case "error":
 		return targetLevel == "error"
+	case "silent", "none":
+		return false // Log nothing
 	default:
 		return true // Default to logging everything
 	}

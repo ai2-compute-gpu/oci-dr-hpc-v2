@@ -93,8 +93,9 @@ func initConfig() {
 	viper.BindEnv("logging.level", "OCI_DR_HPC_LOGGING_LEVEL")
 	viper.BindEnv("logging.file", "OCI_DR_HPC_LOGGING_FILE")
 
+	var configFileUsed string
 	if err := viper.ReadInConfig(); err == nil {
-		logger.Info("Using config file:", viper.ConfigFileUsed())
+		configFileUsed = viper.ConfigFileUsed()
 	}
 	
 	// Always try to load config (from file or env vars)
@@ -110,6 +111,11 @@ func initConfig() {
 			if err := logger.InitLoggerWithLevel(cfg.Logging.File, cfg.Logging.Level); err != nil {
 				logger.Error("Failed to initialize file logging:", err)
 			}
+		}
+		
+		// Show config file used after log level is set
+		if configFileUsed != "" {
+			logger.Info("Using config file:", configFileUsed)
 		}
 	}
 }
