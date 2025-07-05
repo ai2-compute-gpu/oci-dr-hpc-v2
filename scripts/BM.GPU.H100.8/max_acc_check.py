@@ -1,5 +1,6 @@
 import shlex
 import subprocess
+import json
 
 def run_cmd(cmd):
     cmd_split = shlex.split(cmd)
@@ -12,9 +13,9 @@ def run_cmd(cmd):
     return output
 
 
-def run_max_acc_check(host="hpc-node-1"):
+def run_max_acc_check():
     mlxconfig_bin = "/usr/bin/mlxconfig"
-    config = {  "shape": "BM.GPU.H100.8",
+    config = {
         "pci_ids": [
             "0000:0c:00.0",
             "0000:2a:00.0",
@@ -27,20 +28,19 @@ def run_max_acc_check(host="hpc-node-1"):
             ]
     }
     pci_ids = config["pci_ids"]
-    shape = config["shape"] if "shape" in config else "undefined"
 
     pci_config_results = []
     for pci in pci_ids:
         cmd = f'sudo {mlxconfig_bin} -d {pci} query'
         output = run_cmd(cmd)
-        result = parse_acc_results(host, pci, output, shape)
+        result = parse_acc_results(pci, output)
         pci_config_results.append(result["pcie_config"])
-    result = dict(host=host, pcie_config=pci_config_results)
+    result = dict(pcie_config=pci_config_results)
     return result
 
-def parse_acc_results(host="undefined", pci_id="undefined", results="undefined", shape=None):
+def parse_acc_results(pci_id="undefined", results="undefined"):
     result = {
-        "host": host, "pcie_config":
+        "pcie_config":
             {"pci_busid": pci_id,
              "max_acc_out": "FAIL",
              "advanced_pci_settings": "FAIL"}
@@ -59,8 +59,9 @@ def parse_acc_results(host="undefined", pci_id="undefined", results="undefined",
     return result
 
 def main(argv=None):
+    print("Health check is in progress and the result will be provided within 1 minute.")
     result = run_max_acc_check()
-    print(result)
+    print(json.dumps(result, indent=2))
 
 
 if __name__ == "__main__":
