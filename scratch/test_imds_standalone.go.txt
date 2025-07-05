@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -174,35 +175,34 @@ func main() {
 	}
 	fmt.Println()
 
-	// Optional: Output full JSON (uncomment if needed for debugging)
-	fmt.Println("9. Optional: Full JSON Output")
-	fmt.Println("   Uncomment the code below to see full JSON output for debugging")
-	fmt.Println("   WARNING: This will expose sensitive information including private keys!")
+	// Output full JSON for debugging
+	fmt.Println("9. Full JSON Output")
+	fmt.Println("   Showing detailed JSON output for debugging purposes")
+	fmt.Println("   Note: Identity metadata with private keys is NOT displayed for security")
 
-	/*
-		// UNCOMMENT BELOW FOR FULL JSON OUTPUT - BE CAREFUL WITH PRIVATE KEYS!
-		if instanceMetadata != nil {
-			fmt.Println("\n--- Full Instance Metadata JSON ---")
-			if jsonData, err := json.MarshalIndent(instanceMetadata, "", "  "); err == nil {
-				fmt.Println(string(jsonData))
-			}
+	// Show Instance Metadata JSON
+	if instanceMetadata != nil {
+		fmt.Println("\n--- Full Instance Metadata JSON ---")
+		if jsonData, err := json.MarshalIndent(instanceMetadata, "", "  "); err == nil {
+			fmt.Println(string(jsonData))
 		}
+	}
 
-		if len(vnicMetadata) > 0 {
-			fmt.Println("\n--- Full VNIC Metadata JSON ---")
-			if jsonData, err := json.MarshalIndent(vnicMetadata, "", "  "); err == nil {
-				fmt.Println(string(jsonData))
-			}
+	// Show VNIC Metadata JSON
+	if len(vnicMetadata) > 0 {
+		fmt.Println("\n--- Full VNIC Metadata JSON ---")
+		if jsonData, err := json.MarshalIndent(vnicMetadata, "", "  "); err == nil {
+			fmt.Println(string(jsonData))
 		}
+	}
 
-		// DO NOT UNCOMMENT THE IDENTITY METADATA JSON OUTPUT - IT CONTAINS PRIVATE KEYS!
-		// if identityMetadata != nil {
-		//     fmt.Println("\n--- Full Identity Metadata JSON ---")
-		//     if jsonData, err := json.MarshalIndent(identityMetadata, "", "  "); err == nil {
-		//         fmt.Println(string(jsonData))
-		//     }
-		// }
-	*/
+	// DO NOT UNCOMMENT THE IDENTITY METADATA JSON OUTPUT - IT CONTAINS PRIVATE KEYS!
+	// if identityMetadata != nil {
+	//     fmt.Println("\n--- Full Identity Metadata JSON ---")
+	//     if jsonData, err := json.MarshalIndent(identityMetadata, "", "  "); err == nil {
+	//         fmt.Println(string(jsonData))
+	//     }
+	// }
 
 	fmt.Println("=== IMDS Test Complete ===")
 	fmt.Println()
