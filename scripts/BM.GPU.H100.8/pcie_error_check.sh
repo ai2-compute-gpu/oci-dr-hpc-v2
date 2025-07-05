@@ -12,7 +12,7 @@ fi
 
 local error_found=false
 
-# Excecute dmesg
+# Execute dmesg
 local dmesg_output=$(sudo dmesg)
 
 # Parse the output line by line
@@ -27,9 +27,7 @@ while IFS= read -r line; do
   fi
 done <<< "$dmesg_output"
 
-
 if [ "$error_found" == "false" ]; then
   echo "No pcie error detected"
   return 0
 fi
-

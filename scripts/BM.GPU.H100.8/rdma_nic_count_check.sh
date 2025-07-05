@@ -29,7 +29,7 @@ rdma_nic_count_check() {
         fi
     done
 
-        # Print missing elements
+    # Print missing elements
     if [ ${#missing[@]} -eq 0 ]; then
         echo "All RDMA NIC devices are known and accounted for."
         return
@@ -38,9 +38,6 @@ rdma_nic_count_check() {
             echo "Missing RDMA NIC device: $device"
         done
     fi
-
-
-
 }
 
 rdma_nic_count_check
