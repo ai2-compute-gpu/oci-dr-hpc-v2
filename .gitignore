@@ -41,6 +41,7 @@ Thumbs.db
 *.yml
 !example.yaml
 !example.yml
+!config/oci-dr-hpc.yaml
 
 # Temporary files
 *.tmp

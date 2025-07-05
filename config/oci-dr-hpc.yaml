@@ -1,0 +1,24 @@
+# Default configuration for oci-dr-hpc-v2 @rekharoy
+# This file will be installed to /etc/oci-dr-hpc.yaml
+
+# Verbose output (true/false)
+verbose: false
+
+# Output format (json|table|friendly)
+output: table
+
+# Logging configuration
+logging:
+  # Log file path (empty string disables file logging)
+  file: "/var/log/oci-dr-hpc/oci-dr-hpc.log"
+  # Log level (debug|info|error)
+  level: "info"
+
+# Test level (L1|L2|L3)
+level: L1
+
+# Additional configuration options can be added here
+# For example:
+# timeout: 30
+# retries: 3
+# log_level: info
