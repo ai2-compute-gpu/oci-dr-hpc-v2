@@ -12,17 +12,38 @@ import (
 	"github.com/spf13/viper"
 )
 
+// version is set at build time
+var version = "dev"
+
+// SetVersion sets the version from main package
+func SetVersion(v string) {
+	version = v
+}
+
+// GetVersion returns the current version
+func GetVersion() string {
+	return version
+}
+
 var (
 	cfgFile      string
 	verbose      bool
 	outputFormat string
 	testLevel    string
+	showVersion  bool
 )
 
 var rootCmd = &cobra.Command{
 	Use:   "oci-dr-hpc",
 	Short: "Oracle Cloud Infrastructure Diagnostic and Repair for HPC",
 	Long:  `A comprehensive diagnostic and repair tool for HPC environments with GPU and RDMA support.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if showVersion {
+			fmt.Printf("oci-dr-hpc-v2 version %s\n", GetVersion())
+			return nil
+		}
+		return cmd.Help()
+	},
 }
 
 func Execute() {
@@ -39,6 +60,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "table", "output format (json|table|friendly)")
 	rootCmd.PersistentFlags().StringVarP(&testLevel, "level", "l", "L1", "test level (L1|L2|L3)")
+	rootCmd.Flags().BoolVar(&showVersion, "version", false, "show version information")
 
 	viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))
 	viper.BindPFlag("output", rootCmd.PersistentFlags().Lookup("output"))
