@@ -7,7 +7,7 @@ ARCH ?= x86_64
 BUILD_DIR = build
 DIST_DIR = dist
 
-.PHONY: all clean build rpm deb deps install-fpm
+.PHONY: all clean build rpm deb deps install-fpm test coverage
 
 all: clean build rpm deb
 
@@ -66,6 +66,18 @@ deb: build install-fpm
 		$(BUILD_DIR)/$(APP_NAME)=/usr/bin/$(APP_NAME) \
 		config/oci-dr-hpc.yaml=/etc/oci-dr-hpc.yaml \
 		$(BUILD_DIR)/var/log/oci-dr-hpc=/var/log/oci-dr-hpc
+
+test:
+	@echo "Running unit tests..."
+	go test -v ./...
+
+coverage:
+	@echo "Running tests with coverage..."
+	@mkdir -p $(BUILD_DIR)
+	go test -v -coverprofile=$(BUILD_DIR)/coverage.out ./...
+	go tool cover -html=$(BUILD_DIR)/coverage.out -o $(BUILD_DIR)/coverage.html
+	@echo "Coverage report generated at $(BUILD_DIR)/coverage.html"
+	go tool cover -func=$(BUILD_DIR)/coverage.out
 
 clean:
 	@echo "Cleaning build artifacts..."
