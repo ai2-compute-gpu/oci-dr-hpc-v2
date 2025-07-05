@@ -1,0 +1,54 @@
+package main
+
+import (
+	"time"
+
+	"github.com/oracle/oci-dr-hpc-v2/internal/executor"
+	"github.com/oracle/oci-dr-hpc-v2/internal/level1_tests"
+	"github.com/oracle/oci-dr-hpc-v2/internal/logger"
+)
+
+func main() {
+	logger.Info("Starting logging test with UTC timestamps and file/line info")
+	
+	// Test different log levels
+	logger.Info("This is an INFO message")
+	logger.Error("This is an ERROR message")
+	logger.Debug("This is a DEBUG message")
+	
+	// Test formatted logging
+	logger.Infof("Formatted INFO: Current time is %s", time.Now().UTC().Format("2006-01-02 15:04:05 UTC"))
+	logger.Errorf("Formatted ERROR: Test number %d", 42)
+	logger.Debugf("Formatted DEBUG: Testing with %s and %d", "string", 123)
+	
+	// Test logging from different files/functions
+	testFromFunction()
+	
+	// Test GPU count check (from different package)
+	logger.Info("Testing GPU count check from level1_tests package")
+	level1_tests.PrintGPUCountCheck()
+	
+	// Test nvidia-smi executor (from different package)
+	logger.Info("Testing nvidia-smi executor from executor package")
+	result := executor.CheckNvidiaSMI()
+	if result.Available {
+		logger.Info("✅ nvidia-smi test passed")
+	} else {
+		logger.Error("❌ nvidia-smi test failed:", result.Error)
+	}
+	
+	logger.Info("Logging test completed")
+}
+
+func testFromFunction() {
+	logger.Info("This log message is from testFromFunction()")
+	logger.Error("Error message from nested function")
+	
+	// Test nested function
+	nestedFunction()
+}
+
+func nestedFunction() {
+	logger.Debug("Debug message from nestedFunction()")
+	logger.Infof("Info from nested function at %s", time.Now().UTC().Format("15:04:05"))
+}

@@ -37,14 +37,14 @@ func InitLogger(logFilePath string) error {
 		errorWriter := io.MultiWriter(os.Stderr, logFile)
 		debugWriter := io.MultiWriter(os.Stdout, logFile)
 
-		infoLogger = log.New(infoWriter, "INFO: ", log.Ldate|log.Ltime)
-		errorLogger = log.New(errorWriter, "ERROR: ", log.Ldate|log.Ltime)
-		debugLogger = log.New(debugWriter, "DEBUG: ", log.Ldate|log.Ltime)
+		infoLogger = log.New(infoWriter, "INFO: ", log.Ldate|log.Ltime|log.LUTC|log.Lshortfile)
+		errorLogger = log.New(errorWriter, "ERROR: ", log.Ldate|log.Ltime|log.LUTC|log.Lshortfile)
+		debugLogger = log.New(debugWriter, "DEBUG: ", log.Ldate|log.Ltime|log.LUTC|log.Lshortfile)
 	} else {
 		// Default to stdout/stderr only
-		infoLogger = log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime)
-		errorLogger = log.New(os.Stderr, "ERROR: ", log.Ldate|log.Ltime)
-		debugLogger = log.New(os.Stdout, "DEBUG: ", log.Ldate|log.Ltime)
+		infoLogger = log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime|log.LUTC|log.Lshortfile)
+		errorLogger = log.New(os.Stderr, "ERROR: ", log.Ldate|log.Ltime|log.LUTC|log.Lshortfile)
+		debugLogger = log.New(os.Stdout, "DEBUG: ", log.Ldate|log.Ltime|log.LUTC|log.Lshortfile)
 	}
 
 	return nil
