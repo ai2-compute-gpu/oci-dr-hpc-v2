@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# On H100 Systems with DGX OS 6.0, the MAX_ACC_OUT_READ configuration for the CX-7 controllers
+# can be too low and result in reduced data transfer rates.
+# This script validates that RDMA NICs are accessible and have expected settings for optimal data transfer rates.
+# MAX_ACC_OUT_READ must be set to either 0, 44, or 128.
+# ADVANCED_PCI_SETTINGS must be set to True.
+
 # Define the path to mlxconfig
 mlxconfig_bin="/usr/bin/mlxconfig"
 
