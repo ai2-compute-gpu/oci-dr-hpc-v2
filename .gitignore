@@ -53,4 +53,7 @@ CL*E.md
 *.deb
 *.rpm
 
+# Scratch directory
+scratch/
+
 .idea
