@@ -53,8 +53,4 @@ CL*E.md
 # Build artifacts
 *.deb
 *.rpm
-
-# Scratch directory
-scratch/
-
 .idea
