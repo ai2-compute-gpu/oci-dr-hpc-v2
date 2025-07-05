@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -81,12 +82,38 @@ func getCallerInfo() string {
 	if fn := runtime.FuncForPC(pc); fn != nil {
 		fullName := fn.Name()
 		// Extract just the function name (remove package path)
-		if lastSlash := filepath.Base(fullName); lastSlash != "" {
-			funcName = lastSlash
+		if lastDot := strings.LastIndex(fullName, "."); lastDot != -1 {
+			funcName = fullName[lastDot+1:]
+		} else {
+			funcName = fullName
 		}
 	}
 	
-	return fmt.Sprintf("%s:%s:%d", filepath.Base(file), funcName, line)
+	fileName := filepath.Base(file)
+	
+	// Map nvidia-smi related functions to nvidia_smi.go
+	if isNvidiaSMIFunction(funcName) {
+		fileName = "nvidia_smi.go"
+	}
+	
+	return fmt.Sprintf("%s:%s:%d", fileName, funcName, line)
+}
+
+// isNvidiaSMIFunction checks if the function name is nvidia-smi related
+func isNvidiaSMIFunction(funcName string) bool {
+	nvidiaSMIFunctions := []string{
+		"CheckNvidiaSMI",
+		"RunNvidiaSMIQuery", 
+		"GetGPUCount",
+		"RunDiagnostics",
+	}
+	
+	for _, nvidiaFunc := range nvidiaSMIFunctions {
+		if funcName == nvidiaFunc {
+			return true
+		}
+	}
+	return false
 }
 
 // formatMessage creates a formatted log message with timestamp, level, caller info
