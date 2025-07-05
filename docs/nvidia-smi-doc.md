@@ -26,7 +26,7 @@ The `nvidia-smi` (NVSMI) utility provides monitoring and management capabilities
 ## GENERAL OPTIONS
 
 | Option       | Description                      |
-| ------------ | -------------------------------- |
+|--------------|----------------------------------|
 | `-h, --help` | Print usage information and exit |
 
 ---
@@ -34,7 +34,7 @@ The `nvidia-smi` (NVSMI) utility provides monitoring and management capabilities
 ## SUMMARY OPTIONS
 
 | Option | Description               |
-| ------ | ------------------------- |
+|--------|---------------------------|
 | `-L`   | List GPUs and their UUIDs |
 
 ---
@@ -154,5 +154,3 @@ nvidia-smi daemon -i 0,1 -s pucvmet -d 5 -p /tmp
 * Deprecated flags: `-a` (use `-q`), `-g` (use `-i`)
 
 ---
-
-Let me know if you’d like this saved as a `.md` file or want a shorter version.
