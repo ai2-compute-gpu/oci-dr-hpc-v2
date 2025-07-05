@@ -30,12 +30,6 @@ func InitLogger(logFilePath string) error {
 func InitLoggerWithLevel(logFilePath string, level string) error {
 	logLevel = level
 	if logFilePath != "" {
-		// Create log directory if it doesn't exist
-		logDir := filepath.Dir(logFilePath)
-		if err := os.MkdirAll(logDir, 0755); err != nil {
-			return err
-		}
-
 		// Check if the log file path exists as a directory and remove it
 		if info, err := os.Stat(logFilePath); err == nil && info.IsDir() {
 			if err := os.RemoveAll(logFilePath); err != nil {
@@ -43,11 +37,18 @@ func InitLoggerWithLevel(logFilePath string, level string) error {
 			}
 		}
 
-		// Open log file
+		// Create parent directory if it doesn't exist
+		if dir := filepath.Dir(logFilePath); dir != "" {
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				return fmt.Errorf("failed to create log directory %s: %v", dir, err)
+			}
+		}
+
+		// Try to open log file
 		var err error
 		logFile, err = os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to open log file %s: %v (ensure /var/log/oci-dr-hpc/ exists with write permissions)", logFilePath, err)
 		}
 
 		// Create multi-writers for both file and stdout/stderr

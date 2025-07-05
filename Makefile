@@ -45,9 +45,11 @@ rpm: build install-fpm
 		--depends glibc \
 		--rpm-user opc \
 		--rpm-group opc \
+		--after-install scripts/setup-logging.sh \
 		--package $(DIST_DIR) \
 		$(BUILD_DIR)/$(APP_NAME)=/usr/bin/$(APP_NAME) \
 		config/oci-dr-hpc.yaml=/etc/oci-dr-hpc.yaml \
+		scripts/setup-logging.sh=/usr/share/oci-dr-hpc/setup-logging.sh \
 		$(BUILD_DIR)/var/log/oci-dr-hpc=/var/log/oci-dr-hpc
 
 deb: deb-ubuntu
@@ -68,9 +70,11 @@ deb-ubuntu: build install-fpm
 		--deb-no-default-config-files \
 		--deb-user ubuntu \
 		--deb-group ubuntu \
+		--after-install scripts/setup-logging.sh \
 		--package $(DIST_DIR) \
 		$(BUILD_DIR)/$(APP_NAME)=/usr/bin/$(APP_NAME) \
 		config/oci-dr-hpc.yaml=/etc/oci-dr-hpc.yaml \
+		scripts/setup-logging.sh=/usr/share/oci-dr-hpc/setup-logging.sh \
 		$(BUILD_DIR)/var/log/oci-dr-hpc=/var/log/oci-dr-hpc
 
 deb-debian: build install-fpm
@@ -89,9 +93,11 @@ deb-debian: build install-fpm
 		--deb-no-default-config-files \
 		--deb-user debian \
 		--deb-group debian \
+		--after-install scripts/setup-logging.sh \
 		--package $(DIST_DIR) \
 		$(BUILD_DIR)/$(APP_NAME)=/usr/bin/$(APP_NAME) \
 		config/oci-dr-hpc.yaml=/etc/oci-dr-hpc.yaml \
+		scripts/setup-logging.sh=/usr/share/oci-dr-hpc/setup-logging.sh \
 		$(BUILD_DIR)/var/log/oci-dr-hpc=/var/log/oci-dr-hpc
 
 test:
