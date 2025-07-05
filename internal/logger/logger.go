@@ -188,13 +188,16 @@ func Debugf(format string, v ...interface{}) {
 
 // shouldLog determines if a message should be logged based on the current log level
 func shouldLog(level string) bool {
-	switch logLevel {
+	currentLevel := strings.ToLower(logLevel)
+	targetLevel := strings.ToLower(level)
+	
+	switch currentLevel {
 	case "debug":
 		return true // Log everything
 	case "info":
-		return level == "info" || level == "error"
+		return targetLevel == "info" || targetLevel == "error"
 	case "error":
-		return level == "error"
+		return targetLevel == "error"
 	default:
 		return true // Default to logging everything
 	}

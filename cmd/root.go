@@ -95,18 +95,11 @@ func initConfig() {
 
 	if err := viper.ReadInConfig(); err == nil {
 		logger.Info("Using config file:", viper.ConfigFileUsed())
-		logger.Info("DEBUG: Viper logging.file value:", viper.GetString("logging.file"))
-		logger.Info("DEBUG: Viper logging.level value:", viper.GetString("logging.level"))
-	} else {
-		logger.Error("DEBUG: Failed to read viper config:", err)
 	}
 	
 	// Always try to load config (from file or env vars)
 	cfg, err := config.LoadConfig()
-	logger.Info("DEBUG: Config loading result - err:", err)
 	if err == nil {
-		logger.Info("DEBUG: Config loaded - logging.file:", cfg.Logging.File, "logging.level:", cfg.Logging.Level)
-		
 		// Set log level from config (could be from file or env var)
 		if cfg.Logging.Level != "" {
 			logger.SetLogLevel(cfg.Logging.Level)
@@ -114,16 +107,9 @@ func initConfig() {
 		
 		// Initialize logger with file if specified
 		if cfg.Logging.File != "" {
-			logger.Info("DEBUG: Attempting to initialize file logging with path:", cfg.Logging.File)
 			if err := logger.InitLoggerWithLevel(cfg.Logging.File, cfg.Logging.Level); err != nil {
 				logger.Error("Failed to initialize file logging:", err)
-			} else {
-				logger.Info("DEBUG: File logging initialized successfully")
 			}
-		} else {
-			logger.Info("DEBUG: No log file specified in config")
 		}
-	} else {
-		logger.Error("DEBUG: Failed to load config:", err)
 	}
 }
