@@ -14,7 +14,6 @@ all: clean test build rpm deb-ubuntu deb-debian
 build:
 	@echo "Building $(APP_NAME) v$(VERSION)..."
 	@mkdir -p $(BUILD_DIR)
-	@mkdir -p $(BUILD_DIR)/var/log/oci-dr-hpc
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=$(VERSION) -s -w" -o $(BUILD_DIR)/$(APP_NAME) .
 
 install-fpm:
@@ -49,8 +48,7 @@ rpm: build install-fpm
 		--package $(DIST_DIR) \
 		$(BUILD_DIR)/$(APP_NAME)=/usr/bin/$(APP_NAME) \
 		config/oci-dr-hpc.yaml=/etc/oci-dr-hpc.yaml \
-		scripts/setup-logging.sh=/usr/share/oci-dr-hpc/setup-logging.sh \
-		$(BUILD_DIR)/var/log/oci-dr-hpc=/var/log/oci-dr-hpc
+		scripts/setup-logging.sh=/usr/share/oci-dr-hpc/setup-logging.sh
 
 deb: deb-ubuntu
 
@@ -74,8 +72,7 @@ deb-ubuntu: build install-fpm
 		--package $(DIST_DIR) \
 		$(BUILD_DIR)/$(APP_NAME)=/usr/bin/$(APP_NAME) \
 		config/oci-dr-hpc.yaml=/etc/oci-dr-hpc.yaml \
-		scripts/setup-logging.sh=/usr/share/oci-dr-hpc/setup-logging.sh \
-		$(BUILD_DIR)/var/log/oci-dr-hpc=/var/log/oci-dr-hpc
+		scripts/setup-logging.sh=/usr/share/oci-dr-hpc/setup-logging.sh
 
 deb-debian: build install-fpm
 	@echo "Building DEB package for Debian with FPM..."
@@ -97,8 +94,7 @@ deb-debian: build install-fpm
 		--package $(DIST_DIR) \
 		$(BUILD_DIR)/$(APP_NAME)=/usr/bin/$(APP_NAME) \
 		config/oci-dr-hpc.yaml=/etc/oci-dr-hpc.yaml \
-		scripts/setup-logging.sh=/usr/share/oci-dr-hpc/setup-logging.sh \
-		$(BUILD_DIR)/var/log/oci-dr-hpc=/var/log/oci-dr-hpc
+		scripts/setup-logging.sh=/usr/share/oci-dr-hpc/setup-logging.sh
 
 test:
 	@echo "Running unit tests..."
