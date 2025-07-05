@@ -130,7 +130,7 @@ func (c *IMDSClient) makeRequest(endpoint string) ([]byte, error) {
 
 	// Set the required Authorization header for OCI IMDS v2
 	req.Header.Set("Authorization", "Bearer Oracle")
-	req.Header.Set("User-Agent", "oci-dr-hpc-v2")
+	req.Header.Set("User-Agent", "rekharoy-oci-dr-hpc-v2")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
