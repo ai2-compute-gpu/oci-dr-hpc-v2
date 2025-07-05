@@ -1,0 +1,25 @@
+package main
+
+import (
+	"github.com/oracle/oci-dr-hpc-v2/internal/logger"
+	"github.com/spf13/viper"
+)
+
+func main() {
+	// Configure viper to use the config file
+	viper.SetConfigFile("config/oci-dr-hpc.yaml")
+	viper.ReadInConfig()
+	
+	// Get the log level from config
+	logLevel := viper.GetString("logging.level")
+	
+	// Set the log level
+	logger.SetLogLevel(logLevel)
+	
+	// Test different log levels
+	logger.Info("This is an INFO message (should appear)")
+	logger.Debug("This is a DEBUG message (should NOT appear when level=info)")
+	logger.Error("This is an ERROR message (should appear)")
+	logger.Debugf("This is a DEBUG formatted message: %s (should NOT appear when level=info)", "test")
+	logger.Infof("This is an INFO formatted message: %s (should appear)", "test")
+}

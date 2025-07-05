@@ -84,15 +84,28 @@ func initConfig() {
 		viper.SetConfigType("yaml")
 	}
 
+	viper.SetEnvPrefix("OCI_DR_HPC")
 	viper.AutomaticEnv()
+	
+	// Explicitly bind environment variables for nested keys
+	viper.BindEnv("logging.level", "OCI_DR_HPC_LOGGING_LEVEL")
+	viper.BindEnv("logging.file", "OCI_DR_HPC_LOGGING_FILE")
 
 	if err := viper.ReadInConfig(); err == nil {
 		logger.Info("Using config file:", viper.ConfigFileUsed())
+	}
+	
+	// Always try to load config (from file or env vars)
+	cfg, err := config.LoadConfig()
+	if err == nil {
+		// Set log level from config (could be from file or env var)
+		if cfg.Logging.Level != "" {
+			logger.SetLogLevel(cfg.Logging.Level)
+		}
 		
-		// Initialize logger with config
-		cfg, err := config.LoadConfig()
-		if err == nil && cfg.Logging.File != "" {
-			if err := logger.InitLogger(cfg.Logging.File); err != nil {
+		// Initialize logger with file if specified
+		if cfg.Logging.File != "" {
+			if err := logger.InitLoggerWithLevel(cfg.Logging.File, cfg.Logging.Level); err != nil {
 				logger.Error("Failed to initialize file logging:", err)
 			}
 		}

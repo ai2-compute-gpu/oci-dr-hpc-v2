@@ -202,6 +202,8 @@ func TestInfo(t *testing.T) {
 	tempDir := t.TempDir()
 	logFilePath := filepath.Join(tempDir, "test.log")
 
+	// Set log level to info to allow info messages
+	SetLogLevel("info")
 	err := InitLogger(logFilePath)
 	if err != nil {
 		t.Fatalf("Failed to initialize logger: %v", err)
@@ -229,6 +231,8 @@ func TestError(t *testing.T) {
 	tempDir := t.TempDir()
 	logFilePath := filepath.Join(tempDir, "test.log")
 
+	// Set log level to error to allow error messages
+	SetLogLevel("error")
 	err := InitLogger(logFilePath)
 	if err != nil {
 		t.Fatalf("Failed to initialize logger: %v", err)
@@ -256,6 +260,8 @@ func TestDebug(t *testing.T) {
 	tempDir := t.TempDir()
 	logFilePath := filepath.Join(tempDir, "test.log")
 
+	// Set log level to debug to allow debug messages
+	SetLogLevel("debug")
 	err := InitLogger(logFilePath)
 	if err != nil {
 		t.Fatalf("Failed to initialize logger: %v", err)
@@ -337,6 +343,8 @@ func TestDebugf(t *testing.T) {
 	tempDir := t.TempDir()
 	logFilePath := filepath.Join(tempDir, "test.log")
 
+	// Set log level to debug to allow debug messages
+	SetLogLevel("debug")
 	err := InitLogger(logFilePath)
 	if err != nil {
 		t.Fatalf("Failed to initialize logger: %v", err)
@@ -364,6 +372,8 @@ func TestLoggerWithFile(t *testing.T) {
 	tempDir := t.TempDir()
 	logFilePath := filepath.Join(tempDir, "test.log")
 
+	// Set log level to debug to allow debug messages
+	SetLogLevel("debug")
 	// Initialize logger with file
 	err := InitLogger(logFilePath)
 	if err != nil {
@@ -451,5 +461,91 @@ func TestTimestampFormat(t *testing.T) {
 	_, err := time.Parse("2006/01/02 15:04:05", dateTime)
 	if err != nil {
 		t.Errorf("Timestamp format is invalid: %s, error: %v", dateTime, err)
+	}
+}
+
+func TestLogLevelFiltering(t *testing.T) {
+	tempDir := t.TempDir()
+	logFilePath := filepath.Join(tempDir, "test.log")
+
+	tests := []struct {
+		name           string
+		logLevel       string
+		expectInfo     bool
+		expectError    bool
+		expectDebug    bool
+	}{
+		{
+			name:        "debug level shows all",
+			logLevel:    "debug",
+			expectInfo:  true,
+			expectError: true,
+			expectDebug: true,
+		},
+		{
+			name:        "info level filters debug",
+			logLevel:    "info",
+			expectInfo:  true,
+			expectError: true,
+			expectDebug: false,
+		},
+		{
+			name:        "error level shows only errors",
+			logLevel:    "error",
+			expectInfo:  false,
+			expectError: true,
+			expectDebug: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Clean up from previous test
+			os.Remove(logFilePath)
+			
+			// Set log level and initialize
+			SetLogLevel(tt.logLevel)
+			err := InitLogger(logFilePath)
+			if err != nil {
+				t.Fatalf("Failed to initialize logger: %v", err)
+			}
+
+			// Log messages at all levels
+			Info("test info message")
+			Error("test error message")
+			Debug("test debug message")
+
+			CloseLogFile()
+
+			// Read file contents
+			content, err := os.ReadFile(logFilePath)
+			if err != nil {
+				t.Fatalf("Failed to read log file: %v", err)
+			}
+
+			output := string(content)
+
+			// Check expectations
+			if tt.expectInfo && !strings.Contains(output, "test info message") {
+				t.Error("Expected info message to appear")
+			}
+			if !tt.expectInfo && strings.Contains(output, "test info message") {
+				t.Error("Expected info message to be filtered out")
+			}
+
+			if tt.expectError && !strings.Contains(output, "test error message") {
+				t.Error("Expected error message to appear")
+			}
+			if !tt.expectError && strings.Contains(output, "test error message") {
+				t.Error("Expected error message to be filtered out")
+			}
+
+			if tt.expectDebug && !strings.Contains(output, "test debug message") {
+				t.Error("Expected debug message to appear")
+			}
+			if !tt.expectDebug && strings.Contains(output, "test debug message") {
+				t.Error("Expected debug message to be filtered out")
+			}
+		})
 	}
 }

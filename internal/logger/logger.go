@@ -18,10 +18,17 @@ var (
 	errorLogger *log.Logger
 	debugLogger *log.Logger
 	logFile     *os.File
+	logLevel    string = "info" // Default log level
 )
 
 // InitLogger initializes the logger with optional file output
 func InitLogger(logFilePath string) error {
+	return InitLoggerWithLevel(logFilePath, logLevel)
+}
+
+// InitLoggerWithLevel initializes the logger with specified log level
+func InitLoggerWithLevel(logFilePath string, level string) error {
+	logLevel = level
 	if logFilePath != "" {
 		// Create log directory if it doesn't exist
 		logDir := filepath.Dir(logFilePath)
@@ -77,7 +84,7 @@ func getCallerInfo() string {
 	if !ok {
 		return "unknown:unknown:0"
 	}
-	
+
 	funcName := "unknown"
 	if fn := runtime.FuncForPC(pc); fn != nil {
 		fullName := fn.Name()
@@ -88,14 +95,14 @@ func getCallerInfo() string {
 			funcName = fullName
 		}
 	}
-	
+
 	fileName := filepath.Base(file)
-	
+
 	// Map nvidia-smi related functions to nvidia_smi.go
 	if isNvidiaSMIFunction(funcName) {
 		fileName = "nvidia_smi.go"
 	}
-	
+
 	return fmt.Sprintf("%s:%s:%d", fileName, funcName, line)
 }
 
@@ -103,11 +110,11 @@ func getCallerInfo() string {
 func isNvidiaSMIFunction(funcName string) bool {
 	nvidiaSMIFunctions := []string{
 		"CheckNvidiaSMI",
-		"RunNvidiaSMIQuery", 
+		"RunNvidiaSMIQuery",
 		"GetGPUCount",
 		"RunDiagnostics",
 	}
-	
+
 	for _, nvidiaFunc := range nvidiaSMIFunctions {
 		if funcName == nvidiaFunc {
 			return true
@@ -125,36 +132,67 @@ func formatMessage(level string, msg string) string {
 
 // Info logs an info message
 func Info(v ...interface{}) {
-	msg := fmt.Sprint(v...)
-	infoLogger.Println(formatMessage("INFO", msg))
+	if shouldLog("info") {
+		msg := fmt.Sprint(v...)
+		infoLogger.Println(formatMessage("INFO", msg))
+	}
 }
 
 // Error logs an error message
 func Error(v ...interface{}) {
-	msg := fmt.Sprint(v...)
-	errorLogger.Println(formatMessage("ERROR", msg))
+	if shouldLog("error") {
+		msg := fmt.Sprint(v...)
+		errorLogger.Println(formatMessage("ERROR", msg))
+	}
 }
 
 // Debug logs a debug message
 func Debug(v ...interface{}) {
-	msg := fmt.Sprint(v...)
-	debugLogger.Println(formatMessage("DEBUG", msg))
+	if shouldLog("debug") {
+		msg := fmt.Sprint(v...)
+		debugLogger.Println(formatMessage("DEBUG", msg))
+	}
 }
 
 // Infof logs a formatted info message
 func Infof(format string, v ...interface{}) {
-	msg := fmt.Sprintf(format, v...)
-	infoLogger.Println(formatMessage("INFO", msg))
+	if shouldLog("info") {
+		msg := fmt.Sprintf(format, v...)
+		infoLogger.Println(formatMessage("INFO", msg))
+	}
 }
 
 // Errorf logs a formatted error message
 func Errorf(format string, v ...interface{}) {
-	msg := fmt.Sprintf(format, v...)
-	errorLogger.Println(formatMessage("ERROR", msg))
+	if shouldLog("error") {
+		msg := fmt.Sprintf(format, v...)
+		errorLogger.Println(formatMessage("ERROR", msg))
+	}
 }
 
 // Debugf logs a formatted debug message
 func Debugf(format string, v ...interface{}) {
-	msg := fmt.Sprintf(format, v...)
-	debugLogger.Println(formatMessage("DEBUG", msg))
+	if shouldLog("debug") {
+		msg := fmt.Sprintf(format, v...)
+		debugLogger.Println(formatMessage("DEBUG", msg))
+	}
+}
+
+// shouldLog determines if a message should be logged based on the current log level
+func shouldLog(level string) bool {
+	switch logLevel {
+	case "debug":
+		return true // Log everything
+	case "info":
+		return level == "info" || level == "error"
+	case "error":
+		return level == "error"
+	default:
+		return true // Default to logging everything
+	}
+}
+
+// SetLogLevel sets the current log level
+func SetLogLevel(level string) {
+	logLevel = level
 }
