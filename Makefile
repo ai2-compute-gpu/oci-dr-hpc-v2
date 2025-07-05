@@ -9,7 +9,7 @@ DIST_DIR = dist
 
 .PHONY: all clean build rpm deb deps install-fpm test coverage
 
-all: clean build rpm deb
+all: clean test build rpm deb
 
 build:
 	@echo "Building $(APP_NAME) v$(VERSION)..."
