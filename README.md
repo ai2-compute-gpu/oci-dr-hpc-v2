@@ -14,11 +14,18 @@ For support and issues, please contact: [bob.r.booth@oracle.com](mailto:bob.r.bo
 ```
 ├── cmd/           # CLI command definitions (Cobra framework)
 ├── config/        # Configuration files
+├── docs/          # Documentation files
 ├── internal/      # Internal application logic
+│   ├── common/    # Common utilities and shared code
 │   ├── config/    # Configuration management (Viper)
-│   ├── executor/  # Command execution (nvidia-smi, lspci, dmesg)
+│   ├── executor/  # Command execution (nvidia-smi, lspci, dmesg, mlxlink)
 │   ├── level1_tests/ # Level 1 diagnostic tests
-│   └── logger/    # Custom logging implementation
+│   ├── level2_tests/ # Level 2 diagnostic tests
+│   ├── level3_tests/ # Level 3 diagnostic tests
+│   ├── logger/    # Custom logging implementation
+│   ├── recommender/ # Recommendation engine
+│   ├── reporter/  # Result reporting
+│   └── shapes/    # OCI shape configuration management
 ├── scripts/       # Shell scripts for different GPU shapes
 │   ├── BM.GPU.B200.8/
 │   ├── BM.GPU.GB200.4/
@@ -43,6 +50,8 @@ For support and issues, please contact: [bob.r.booth@oracle.com](mailto:bob.r.bo
 - `nvidia-smi` (for GPU diagnostics)
 - `lspci` (for PCIe diagnostics)
 - `dmesg` (for system message diagnostics)
+- `mlxlink` (for Mellanox network diagnostics)
+- `ibdev2netdev` (for InfiniBand device mapping)
 - `sudo` access (for system-level operations)
 
 ## Installation
@@ -191,6 +200,14 @@ go test -v ./...
 # Run tests with coverage
 make coverage
 # Opens coverage.html in build/ directory
+
+# Run specific package tests
+go test -v ./internal/logger/
+go test -v ./internal/shapes/
+go test -v ./internal/executor/
+
+# Run tests for specific components
+go test -v ./internal/level1_tests/
 ```
 
 ### Project Architecture
@@ -208,6 +225,47 @@ The `scripts/` directory contains shell scripts organized by OCI GPU shape types
 - `BM.GPU.H200.8/`: Scripts for H200 GPU shapes
 
 These scripts provide alternative implementations and reference tests for the Go-based CLI functionality.
+
+## OCI Shape Configuration Management
+
+The `internal/shapes/` package provides comprehensive management of OCI shape configurations:
+
+### Features
+- **Shape Discovery**: Query all supported OCI shapes (GPU, HPC, etc.)
+- **Configuration Management**: Load shape-specific RDMA and network settings
+- **Filtering**: Filter shapes by type (GPU shapes, HPC shapes)
+- **Search**: Search shapes by name or model
+- **Settings Access**: Access detailed configuration settings for each shape
+
+### Supported Shapes
+- **GPU Shapes**: H100, H200, B200, GB200, A100, L40S families
+- **HPC Shapes**: HPC2, HPC E5 families
+- **Network Models**: ConnectX-7, ConnectX-6 Dx, ConnectX-5 Ex
+
+### Usage Example
+```go
+// Initialize shape manager
+manager, err := shapes.NewShapeManager("internal/shapes/shapes.json")
+
+// Get all GPU shapes
+gpuShapes := manager.GetGPUShapes()
+
+// Query specific shape
+if manager.IsShapeSupported("BM.GPU.H100.8") {
+    info, _ := manager.GetShapeInfo("BM.GPU.H100.8")
+    fmt.Printf("Shape: %s, Model: %s\n", info.Name, info.Model)
+}
+```
+
+For detailed documentation, see `internal/shapes/README.md`.
+
+## Documentation
+
+Additional documentation is available in the `docs/` directory:
+
+- **Installation Notes**: `docs/installation_notes_ol8.md` - Oracle Linux 8 installation guide
+- **NVIDIA SMI**: `docs/nvidia-smi-doc.md` - NVIDIA SMI command documentation
+- **OCI Shapes**: `docs/oci_shapes.md` - OCI shape specifications and configurations
 
 ## Contributing
 

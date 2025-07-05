@@ -1,0 +1,386 @@
+// Demo program showing how to use the shapes functionality
+// Since shapes.go is now package main, we'll copy the essential structures here
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"os"
+	"strings"
+
+	"github.com/oracle/oci-dr-hpc-v2/internal/logger"
+)
+
+// ShapeConfig represents the entire shapes configuration
+type ShapeConfig struct {
+	Version      string            `json:"version"`
+	RDMANetwork  []RDMANetwork     `json:"rdma-network"`
+	RDMASettings []RDMAShapeConfig `json:"rdma-settings"`
+}
+
+// RDMANetwork represents RDMA network configuration
+type RDMANetwork struct {
+	DefaultSettings DefaultSettings `json:"default-settings"`
+	SubnetSettings  SubnetSettings  `json:"subnet-settings"`
+	ARPSettings     ARPSettings     `json:"arp-settings"`
+}
+
+// DefaultSettings represents default RDMA network settings
+type DefaultSettings struct {
+	RDMANetwork          string `json:"rdma_network"`
+	OverwriteConfigFiles bool   `json:"overwrite_config_files"`
+	ModifySubnet         bool   `json:"modify_subnet"`
+	ModifyARP            bool   `json:"modify_arp"`
+}
+
+// SubnetSettings represents subnet configuration
+type SubnetSettings struct {
+	Netmask                  string `json:"netmask"`
+	OverrideNetconfigNetmask string `json:"override_netconfig_netmask"`
+}
+
+// ARPSettings represents ARP configuration
+type ARPSettings struct {
+	RPFilter    string `json:"rp_filter"`
+	ARPIgnore   string `json:"arp_ignore"`
+	ARPAnnounce string `json:"arp_announce"`
+}
+
+// RDMAShapeConfig represents configuration for a group of shapes
+type RDMAShapeConfig struct {
+	Shapes   []string      `json:"shapes"`
+	Model    string        `json:"model"`
+	Settings ShapeSettings `json:"settings"`
+}
+
+// ShapeSettings represents all settings for a shape
+type ShapeSettings struct {
+	Ring                RingSettings           `json:"ring"`
+	Channels            string                 `json:"channels"`
+	TxQueueLength       string                 `json:"tx_queue_length"`
+	MTU                 string                 `json:"mtu"`
+	RateToSetOnFirstCNP string                 `json:"rate_to_set_on_first_cnp"`
+	DSCPIP              string                 `json:"dscp_ip"`
+	DSCPRDMA            string                 `json:"dscp_rdma"`
+	DSCPGPU             string                 `json:"dscp_gpu"`
+	DSCPCNP             string                 `json:"dscp_cnp"`
+	DSCPRDMATos         string                 `json:"dscp_rdma_tos"`
+	DSCPGPUTos          string                 `json:"dscp_gpu_tos"`
+	DSCPDefaultTos      string                 `json:"dscp_default_tos"`
+	DSCPIPTC            string                 `json:"dscp_ip_tc"`
+	DSCPRDMATC          string                 `json:"dscp_rdma_tc"`
+	DSCPGPUTC           string                 `json:"dscp_gpu_tc"`
+	DSCPCNPTC           string                 `json:"dscp_cnp_tc"`
+	DSCPDefaultTC       string                 `json:"dscp_default_tc"`
+	ROCEAccl            map[string]interface{} `json:"roce_accl"`
+	Buffer              []string               `json:"buffer"`
+	PFC                 []string               `json:"pfc"`
+	Prio2Buffer         []string               `json:"prio2buffer"`
+	Prio2TC             []string               `json:"prio2tc"`
+	Sysctl              map[string]interface{} `json:"sysctl"`
+	MLXConfig           map[string]interface{} `json:"mlxconfig"`
+	PCIe                map[string]interface{} `json:"pcie"`
+}
+
+// RingSettings represents ring buffer settings
+type RingSettings struct {
+	RX string `json:"rx"`
+	TX string `json:"tx"`
+}
+
+// ShapeManager manages shape configurations
+type ShapeManager struct {
+	config   *ShapeConfig
+	filePath string
+}
+
+// ShapeInfo represents comprehensive information about a shape
+type ShapeInfo struct {
+	Name     string        `json:"name"`
+	Model    string        `json:"model"`
+	Settings ShapeSettings `json:"settings"`
+	IsGPU    bool          `json:"is_gpu"`
+	IsHPC    bool          `json:"is_hpc"`
+}
+
+// NewShapeManager creates a new ShapeManager
+func NewShapeManager(filePath string) (*ShapeManager, error) {
+	manager := &ShapeManager{
+		filePath: filePath,
+	}
+	
+	if err := manager.LoadConfig(); err != nil {
+		return nil, err
+	}
+	
+	return manager, nil
+}
+
+// LoadConfig loads the shapes configuration from the JSON file
+func (sm *ShapeManager) LoadConfig() error {
+	logger.Info("Loading shapes configuration from:", sm.filePath)
+	
+	data, err := os.ReadFile(sm.filePath)
+	if err != nil {
+		logger.Errorf("Failed to read shapes file: %v", err)
+		return fmt.Errorf("failed to read shapes file: %w", err)
+	}
+	
+	var config ShapeConfig
+	if err := json.Unmarshal(data, &config); err != nil {
+		logger.Errorf("Failed to parse shapes JSON: %v", err)
+		return fmt.Errorf("failed to parse shapes JSON: %w", err)
+	}
+	
+	sm.config = &config
+	logger.Infof("Successfully loaded %d RDMA shape configurations", len(config.RDMASettings))
+	
+	return nil
+}
+
+// GetAllShapes returns a list of all supported shapes
+func (sm *ShapeManager) GetAllShapes() []string {
+	var allShapes []string
+	
+	for _, rdmaConfig := range sm.config.RDMASettings {
+		allShapes = append(allShapes, rdmaConfig.Shapes...)
+	}
+	
+	return allShapes
+}
+
+// GetShapeConfig returns the configuration for a specific shape
+func (sm *ShapeManager) GetShapeConfig(shapeName string) (*RDMAShapeConfig, error) {
+	for _, rdmaConfig := range sm.config.RDMASettings {
+		for _, shape := range rdmaConfig.Shapes {
+			if shape == shapeName {
+				logger.Debugf("Found configuration for shape: %s", shapeName)
+				return &rdmaConfig, nil
+			}
+		}
+	}
+	
+	logger.Errorf("Shape not found: %s", shapeName)
+	return nil, fmt.Errorf("shape %s not found in configuration", shapeName)
+}
+
+// GetGPUShapes returns all shapes that contain "GPU" in their name
+func (sm *ShapeManager) GetGPUShapes() []string {
+	var gpuShapes []string
+	
+	allShapes := sm.GetAllShapes()
+	for _, shape := range allShapes {
+		if strings.Contains(shape, "GPU") {
+			gpuShapes = append(gpuShapes, shape)
+		}
+	}
+	
+	return gpuShapes
+}
+
+// GetHPCShapes returns all shapes that contain "HPC" in their name
+func (sm *ShapeManager) GetHPCShapes() []string {
+	var hpcShapes []string
+	
+	allShapes := sm.GetAllShapes()
+	for _, shape := range allShapes {
+		if strings.Contains(shape, "HPC") {
+			hpcShapes = append(hpcShapes, shape)
+		}
+	}
+	
+	return hpcShapes
+}
+
+// SearchShapes searches for shapes by partial name match
+func (sm *ShapeManager) SearchShapes(query string) []string {
+	var matchingShapes []string
+	query = strings.ToUpper(query)
+	
+	allShapes := sm.GetAllShapes()
+	for _, shape := range allShapes {
+		if strings.Contains(strings.ToUpper(shape), query) {
+			matchingShapes = append(matchingShapes, shape)
+		}
+	}
+	
+	return matchingShapes
+}
+
+// GetShapesByModel returns all shapes that use a specific model
+func (sm *ShapeManager) GetShapesByModel(model string) []string {
+	var shapes []string
+	
+	for _, rdmaConfig := range sm.config.RDMASettings {
+		if strings.Contains(rdmaConfig.Model, model) {
+			shapes = append(shapes, rdmaConfig.Shapes...)
+		}
+	}
+	
+	return shapes
+}
+
+// GetSupportedModels returns a list of all supported models
+func (sm *ShapeManager) GetSupportedModels() []string {
+	var models []string
+	seen := make(map[string]bool)
+	
+	for _, rdmaConfig := range sm.config.RDMASettings {
+		if !seen[rdmaConfig.Model] {
+			models = append(models, rdmaConfig.Model)
+			seen[rdmaConfig.Model] = true
+		}
+	}
+	
+	return models
+}
+
+// IsShapeSupported checks if a shape is supported
+func (sm *ShapeManager) IsShapeSupported(shapeName string) bool {
+	_, err := sm.GetShapeConfig(shapeName)
+	return err == nil
+}
+
+// GetShapeInfo returns comprehensive information about a shape
+func (sm *ShapeManager) GetShapeInfo(shapeName string) (*ShapeInfo, error) {
+	config, err := sm.GetShapeConfig(shapeName)
+	if err != nil {
+		return nil, err
+	}
+	
+	info := &ShapeInfo{
+		Name:     shapeName,
+		Model:    config.Model,
+		Settings: config.Settings,
+		IsGPU:    strings.Contains(shapeName, "GPU"),
+		IsHPC:    strings.Contains(shapeName, "HPC"),
+	}
+	
+	return info, nil
+}
+
+// GetShapeModel returns the model for a specific shape
+func (sm *ShapeManager) GetShapeModel(shapeName string) (string, error) {
+	config, err := sm.GetShapeConfig(shapeName)
+	if err != nil {
+		return "", err
+	}
+	
+	return config.Model, nil
+}
+
+func main() {
+	if len(os.Args) < 2 {
+		fmt.Println("Usage: go run scratch/shapes_demo.go <shapes.json>")
+		fmt.Println("Example: go run scratch/shapes_demo.go internal/shapes/shapes.json")
+		os.Exit(1)
+	}
+
+	shapesFile := os.Args[1]
+	
+	// Initialize the ShapeManager
+	manager, err := NewShapeManager(shapesFile)
+	if err != nil {
+		log.Fatalf("Failed to initialize ShapeManager: %v", err)
+	}
+
+	fmt.Println("🔧 OCI Shapes Configuration Manager Demo")
+	fmt.Println("========================================")
+
+	// Demo 1: List all shapes
+	fmt.Println("\n📋 All Supported Shapes:")
+	allShapes := manager.GetAllShapes()
+	fmt.Printf("Total: %d shapes\n", len(allShapes))
+	for i, shape := range allShapes {
+		fmt.Printf("%2d. %s\n", i+1, shape)
+	}
+
+	// Demo 2: GPU shapes only
+	fmt.Println("\n🎮 GPU Shapes:")
+	gpuShapes := manager.GetGPUShapes()
+	for _, shape := range gpuShapes {
+		fmt.Printf("  • %s\n", shape)
+	}
+
+	// Demo 3: HPC shapes only
+	fmt.Println("\n⚡ HPC Shapes:")
+	hpcShapes := manager.GetHPCShapes()
+	for _, shape := range hpcShapes {
+		fmt.Printf("  • %s\n", shape)
+	}
+
+	// Demo 4: Query specific shape
+	testShape := "BM.GPU.H100.8"
+	fmt.Printf("\n🔍 Detailed Info for %s:\n", testShape)
+	if manager.IsShapeSupported(testShape) {
+		info, err := manager.GetShapeInfo(testShape)
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+		} else {
+			fmt.Printf("  Name: %s\n", info.Name)
+			fmt.Printf("  Model: %s\n", info.Model)
+			fmt.Printf("  Is GPU: %v\n", info.IsGPU)
+			fmt.Printf("  Is HPC: %v\n", info.IsHPC)
+			fmt.Printf("  MTU: %s\n", info.Settings.MTU)
+			fmt.Printf("  Channels: %s\n", info.Settings.Channels)
+			fmt.Printf("  Ring RX: %s, TX: %s\n", info.Settings.Ring.RX, info.Settings.Ring.TX)
+		}
+	} else {
+		fmt.Printf("  ❌ Shape %s is not supported\n", testShape)
+	}
+
+	// Demo 5: Search functionality
+	fmt.Println("\n🔎 Search for H100 shapes:")
+	h100Shapes := manager.SearchShapes("H100")
+	for _, shape := range h100Shapes {
+		fmt.Printf("  • %s\n", shape)
+	}
+
+	// Demo 6: Shapes by model
+	fmt.Println("\n🔌 Shapes using ConnectX-7:")
+	cx7Shapes := manager.GetShapesByModel("ConnectX-7")
+	for _, shape := range cx7Shapes {
+		model, _ := manager.GetShapeModel(shape)
+		fmt.Printf("  • %s (%s)\n", shape, model)
+	}
+
+	// Demo 7: Supported models
+	fmt.Println("\n🏷️ Supported Models:")
+	models := manager.GetSupportedModels()
+	for i, model := range models {
+		fmt.Printf("%d. %s\n", i+1, model)
+	}
+
+	// Demo 8: Advanced shape analysis
+	fmt.Println("\n📊 Shape Analysis:")
+	testShapes := []string{"BM.GPU.H100.8", "BM.GPU.B200.8", "BM.HPC2.36"}
+	
+	for _, shape := range testShapes {
+		if !manager.IsShapeSupported(shape) {
+			fmt.Printf("  %s: ❌ Not supported\n", shape)
+			continue
+		}
+		
+		info, _ := manager.GetShapeInfo(shape)
+		fmt.Printf("  %s:\n", shape)
+		fmt.Printf("    Type: ")
+		if info.IsGPU {
+			fmt.Print("GPU ")
+		}
+		if info.IsHPC {
+			fmt.Print("HPC ")
+		}
+		fmt.Println()
+		fmt.Printf("    Model: %s\n", info.Model)
+		fmt.Printf("    MTU: %s\n", info.Settings.MTU)
+		fmt.Printf("    Channels: %s\n", info.Settings.Channels)
+		fmt.Printf("    DSCP RDMA: %s\n", info.Settings.DSCPRDMA)
+		if len(info.Settings.Buffer) > 0 {
+			fmt.Printf("    Buffer: %v\n", info.Settings.Buffer)
+		}
+		fmt.Println()
+	}
+
+	fmt.Println("✅ Demo completed successfully!")
+}
