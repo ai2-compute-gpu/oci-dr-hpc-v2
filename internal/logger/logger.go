@@ -70,13 +70,23 @@ func CloseLogFile() error {
 	return nil
 }
 
-// getCallerInfo returns the filename and line number of the caller
+// getCallerInfo returns the filename, function name, and line number of the caller
 func getCallerInfo() string {
-	_, file, line, ok := runtime.Caller(3)
+	pc, file, line, ok := runtime.Caller(3)
 	if !ok {
-		return "unknown:0"
+		return "unknown:unknown:0"
 	}
-	return fmt.Sprintf("%s:%d", filepath.Base(file), line)
+	
+	funcName := "unknown"
+	if fn := runtime.FuncForPC(pc); fn != nil {
+		fullName := fn.Name()
+		// Extract just the function name (remove package path)
+		if lastSlash := filepath.Base(fullName); lastSlash != "" {
+			funcName = lastSlash
+		}
+	}
+	
+	return fmt.Sprintf("%s:%s:%d", filepath.Base(file), funcName, line)
 }
 
 // formatMessage creates a formatted log message with timestamp, level, caller info
