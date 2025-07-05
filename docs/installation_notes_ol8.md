@@ -1,38 +1,68 @@
 ```markdown
-# Installing Ruby 3.2.2 and FPM on Oracle Linux 8.10
+# Installing Go, Ruby 3.2.2, and FPM on Oracle Linux 8.10
 
 ## Background
 
-This setup is required to resolve a build failure when running `make` in a project that depends on the `fpm` gem.
+This setup is required to resolve issues encountered when building a Go-based project on Oracle Linux 8.10:
 
-During the `make install-fpm` step, the build fails with the following error:
+1. `make` fails with:
+```
 
+/bin/sh: go: command not found
+
+```
+This indicates that the Go toolchain is not installed.
+
+2. `make install-fpm` fails with:
 ```
 
 dotenv requires Ruby version >= 3.0. The current ruby version is 2.5.0.
 
 ````
+This occurs because the default Ruby version (2.5.0) is too old for modern Ruby gems used by the `fpm` packaging tool.
 
-Oracle Linux 8.10 ships with an outdated system Ruby (2.5), which is incompatible with modern gems like `dotenv`, a dependency of `fpm`. This guide provides a clean way to install Ruby 3.2.2 via `rbenv`, along with `fpm`, without affecting the system Ruby.
+This guide installs the correct versions of Go and Ruby to allow the build system and packaging steps to work cleanly.
 
 ---
 
-## Step 1: Install Build Dependencies
+## Step 1: Install Go (1.21.x or later)
 
-Run the following to install required system packages:
+Download and install Go:
+
+```bash
+cd /tmp
+curl -LO https://go.dev/dl/go1.21.10.linux-amd64.tar.gz
+sudo rm -rf /usr/local/go
+sudo tar -C /usr/local -xzf go1.21.10.linux-amd64.tar.gz
+````
+
+Add Go to your shell environment:
+
+```bash
+echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+echo 'export GOPATH=$HOME/go' >> ~/.bashrc
+source ~/.bashrc
+```
+
+Verify:
+
+```bash
+go version
+# Expected: go version go1.21.10 linux/amd64
+```
+
+---
+
+## Step 2: Install Build Dependencies for Ruby
 
 ```bash
 sudo dnf install -y \
   gcc gcc-c++ make patch bzip2 \
   openssl-devel libffi-devel readline-devel zlib-devel \
-  wget tar git \
-  which \
-  dnf-plugins-core
-````
+  wget tar git which dnf-plugins-core
+```
 
-## Step 2: Enable CodeReady Builder Repository
-
-Enable the repository that contains development headers:
+Enable CodeReady Builder repo:
 
 ```bash
 sudo dnf config-manager --set-enabled ol8_codeready_builder
@@ -40,67 +70,65 @@ sudo dnf clean all && sudo dnf makecache
 sudo dnf install -y libyaml-devel
 ```
 
+---
+
 ## Step 3: Install rbenv and ruby-build
 
-Install `rbenv` and its plugin `ruby-build` to manage Ruby versions:
-
 ```bash
-# Clone rbenv
 git clone https://github.com/rbenv/rbenv.git ~/.rbenv
 echo 'export PATH="$HOME/.rbenv/bin:$PATH"' >> ~/.bashrc
 echo 'eval "$(rbenv init - bash)"' >> ~/.bashrc
 source ~/.bashrc
 
-# Clone ruby-build
 git clone https://github.com/rbenv/ruby-build.git ~/.rbenv/plugins/ruby-build
 ```
 
-## Step 4: Install Ruby 3.2.2 with rbenv
+---
 
-Use the following command to build and install Ruby 3.2.2, disabling DTrace to avoid build errors:
+## Step 4: Install Ruby 3.2.2
 
 ```bash
 RUBY_CONFIGURE_OPTS="--disable-dtrace" rbenv install 3.2.2
 rbenv global 3.2.2
 ```
 
-Verify the installation:
+Verify:
 
 ```bash
 ruby -v
-# Expected output: ruby 3.2.2
+# Expected: ruby 3.2.2
 ```
 
-## Step 5: Install FPM
+---
 
-Install `fpm` via RubyGems:
+## Step 5: Install FPM
 
 ```bash
 gem install fpm
 ```
 
-Verify the installation:
+Verify:
 
 ```bash
 fpm --version
 ```
 
-## Optional: Additional Tools for Packaging
+---
 
-To build RPM packages with `fpm`, install:
+## Optional: RPM Packaging Support
+
+If your project builds `.rpm` files using `fpm`, also install:
 
 ```bash
 sudo dnf install -y rpm-build
 ```
 
-If building Debian packages on a Debian-based system:
-
-```bash
-sudo apt install -y dpkg-dev
-```
+---
 
 ## Notes
 
-* Ruby is installed in `~/.rbenv/versions/3.2.2`
-* This method avoids interfering with the system Ruby
-* Suitable for development environments, CI/CD pipelines, or packaging workflows where `fpm` is used
+* Go is installed at `/usr/local/go`
+* Ruby is installed via rbenv in `~/.rbenv/versions/3.2.2`
+* This setup avoids modifying system-level Ruby and Go installations
+* Compatible with Oracle Linux 8.10 for CI/CD or local dev use
+
