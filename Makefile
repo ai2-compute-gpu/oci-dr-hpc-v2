@@ -7,9 +7,9 @@ ARCH ?= x86_64
 BUILD_DIR = build
 DIST_DIR = dist
 
-.PHONY: all clean build rpm deb deps install-fpm test coverage
+.PHONY: all clean build rpm deb deb-ubuntu deb-debian deps install-fpm test coverage
 
-all: clean test build rpm deb
+all: clean test build rpm deb-ubuntu deb-debian
 
 build:
 	@echo "Building $(APP_NAME) v$(VERSION)..."
@@ -43,25 +43,52 @@ rpm: build install-fpm
 		--license "Oracle" \
 		--maintainer "Bob R Booth <bob.r.booth@oracle.com>" \
 		--depends glibc \
+		--rpm-user opc \
+		--rpm-group opc \
 		--package $(DIST_DIR) \
 		$(BUILD_DIR)/$(APP_NAME)=/usr/bin/$(APP_NAME) \
 		config/oci-dr-hpc.yaml=/etc/oci-dr-hpc.yaml \
 		$(BUILD_DIR)/var/log/oci-dr-hpc=/var/log/oci-dr-hpc
 
-deb: build install-fpm
-	@echo "Building DEB package with FPM..."
+deb: deb-ubuntu
+
+deb-ubuntu: build install-fpm
+	@echo "Building DEB package for Ubuntu with FPM..."
 	@mkdir -p $(DIST_DIR)
 	fpm -s dir -t deb \
 		--name $(APP_NAME) \
 		--version $(VERSION) \
-		--iteration $(RELEASE) \
+		--iteration $(RELEASE)ubuntu \
 		--architecture amd64 \
-		--description "Oracle Cloud Infrastructure - OCI GPU Diagnostic and Repair tool for HPC environments" \
+		--description "Oracle Cloud Infrastructure - OCI GPU Diagnostic and Repair tool for HPC environments (Ubuntu)" \
 		--url "https://www.oracle.com/ai-infrastructure/" \
 		--license "Oracle" \
 		--maintainer "Bob R Booth <bob.r.booth@oracle.com>" \
 		--depends libc6 \
 		--deb-no-default-config-files \
+		--deb-user ubuntu \
+		--deb-group ubuntu \
+		--package $(DIST_DIR) \
+		$(BUILD_DIR)/$(APP_NAME)=/usr/bin/$(APP_NAME) \
+		config/oci-dr-hpc.yaml=/etc/oci-dr-hpc.yaml \
+		$(BUILD_DIR)/var/log/oci-dr-hpc=/var/log/oci-dr-hpc
+
+deb-debian: build install-fpm
+	@echo "Building DEB package for Debian with FPM..."
+	@mkdir -p $(DIST_DIR)
+	fpm -s dir -t deb \
+		--name $(APP_NAME) \
+		--version $(VERSION) \
+		--iteration $(RELEASE)debian \
+		--architecture amd64 \
+		--description "Oracle Cloud Infrastructure - OCI GPU Diagnostic and Repair tool for HPC environments (Debian)" \
+		--url "https://www.oracle.com/ai-infrastructure/" \
+		--license "Oracle" \
+		--maintainer "Bob R Booth <bob.r.booth@oracle.com>" \
+		--depends libc6 \
+		--deb-no-default-config-files \
+		--deb-user debian \
+		--deb-group debian \
 		--package $(DIST_DIR) \
 		$(BUILD_DIR)/$(APP_NAME)=/usr/bin/$(APP_NAME) \
 		config/oci-dr-hpc.yaml=/etc/oci-dr-hpc.yaml \
