@@ -36,6 +36,13 @@ func InitLoggerWithLevel(logFilePath string, level string) error {
 			return err
 		}
 
+		// Check if the log file path exists as a directory and remove it
+		if info, err := os.Stat(logFilePath); err == nil && info.IsDir() {
+			if err := os.RemoveAll(logFilePath); err != nil {
+				return fmt.Errorf("failed to remove existing directory at log path %s: %v", logFilePath, err)
+			}
+		}
+
 		// Open log file
 		var err error
 		logFile, err = os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
