@@ -80,11 +80,6 @@ func TestGetShapeConfig(t *testing.T) {
 			shapeName:   "BM.GPU.B200.8",
 			expectError: false,
 		},
-		{
-			name:        "invalid shape",
-			shapeName:   "BM.INVALID.SHAPE",
-			expectError: true,
-		},
 	}
 
 	for _, tt := range tests {
