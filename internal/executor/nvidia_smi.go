@@ -3,6 +3,7 @@ package executor
 import (
 	"fmt"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -148,7 +149,7 @@ func parseGPUInfo(output string) ([]GPUInfo, error) {
 		}
 
 		// Clean up the parts
-		pci := strings.TrimSpace(parts[0])
+		pci := formatPCIAddress(strings.TrimSpace(parts[0]))
 		model := strings.TrimSpace(parts[1])
 		indexStr := strings.TrimSpace(parts[2])
 
@@ -220,4 +221,40 @@ func GetGPUCount() (int, error) {
 func IsNvidiaSMIAvailable() bool {
 	result := CheckNvidiaSMI()
 	return result.Available
+}
+
+// formatPCIAddress converts nvidia-smi PCI format to standard PCI format
+// Input: "00000000:65:00.0" (nvidia-smi format)
+// Output: "0000:65:00.0" (standard [domain]:[bus]:[device].[function] format)
+func formatPCIAddress(nvidiaPCI string) string {
+	// Pattern to match nvidia-smi PCI format: 8-digit-domain:2-digit-bus:2-digit-device.1-digit-function
+	pciPattern := regexp.MustCompile(`^([0-9a-fA-F]{8}):([0-9a-fA-F]{2}):([0-9a-fA-F]{2})\.([0-9a-fA-F])$`)
+
+	matches := pciPattern.FindStringSubmatch(strings.TrimSpace(nvidiaPCI))
+	if len(matches) != 5 {
+		// If pattern doesn't match, return the original (lowercased)
+		logger.Debugf("PCI address '%s' doesn't match expected format, returning as-is", nvidiaPCI)
+		return strings.ToLower(nvidiaPCI)
+	}
+
+	// Extract components
+	domain := matches[1]
+	bus := matches[2]
+	device := matches[3]
+	function := matches[4]
+
+	// Format domain to 4 digits (take last 4 digits)
+	if len(domain) > 4 {
+		domain = domain[len(domain)-4:]
+	}
+
+	// Format as standard PCI address: domain:bus:device.function
+	formatted := fmt.Sprintf("%s:%s:%s.%s",
+		strings.ToLower(domain),
+		strings.ToLower(bus),
+		strings.ToLower(device),
+		strings.ToLower(function))
+
+	logger.Debugf("Formatted PCI address: '%s' -> '%s'", nvidiaPCI, formatted)
+	return formatted
 }
