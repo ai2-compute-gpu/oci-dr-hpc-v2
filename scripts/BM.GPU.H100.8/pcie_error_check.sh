@@ -1,33 +1,57 @@
 #!/bin/bash
 
-##
-## Run PCIe check - checking if each node has PCIe error
-##
+# PCIe Error Check Script
+# This script checks for PCIe errors by reading system messages and looking for error patterns
+# It outputs either "PASS" if no errors are found, or "FAIL" if PCIe errors are detected
 
-# Check if running as root
-if [[ $EUID -ne 0 ]]; then
-    echo "Error: This script must be run as root (use sudo)" >&2
+echo "Starting PCIe health check..."
+echo "This will take about 1 minute to complete."
+
+# Run the dmesg command to get system messages
+# dmesg shows kernel ring buffer messages including hardware errors
+echo "Getting system messages..."
+dmesg_output=$(sudo dmesg 2>&1)
+
+# Check if the dmesg command failed
+if [ $? -ne 0 ]; then
+    echo "Error: Could not run dmesg command"
+    jq -n '{"pcie_error": {"status": "FAIL"}}'
     exit 1
 fi
 
-local error_found=false
+# Check if dmesg output is empty
+if [ -z "$dmesg_output" ]; then
+    echo "Error: No system messages found"
+    jq -n '{"pcie_error": {"status": "FAIL"}}'
+    exit 1
+fi
 
-# Execute dmesg
-local dmesg_output=$(sudo dmesg)
+# Start with PASS status - we'll change to FAIL if we find errors
+status="PASS"
 
-# Parse the output line by line
+# Look through each line of the dmesg output
+echo "Checking for PCIe errors..."
 while IFS= read -r line; do
-  if [[ "$line" =~ capabilities ]]; then
-      continue
-  fi
-  # Check for any pcie port error
-  if echo "$line" | grep -q '.*pcieport.*[Ee]rror'; then
-    echo "ERROR $line"
-    error_found=true
-  fi
+    # Skip lines that contain "capabilities" - these are not error messages
+    if [[ "$line" == *"capabilities"* ]]; then
+        continue
+    fi
+    
+    # Look for lines that contain both "pcieport" and "error" (case insensitive)
+    # pcieport = PCIe port driver messages
+    # error = indicates an actual error occurred
+    if [[ "$line" =~ .*pcieport.*[Ee]rror ]]; then
+        echo "Found PCIe error: $line"
+        status="FAIL"
+        break  # Stop checking once we find the first error
+    fi
 done <<< "$dmesg_output"
 
-if [ "$error_found" == "false" ]; then
-  echo "No pcie error detected"
-  return 0
-fi
+# Print the final result
+jq -n \
+      --arg status "$status" \
+      '{
+        "pcie_error": {
+          "status": $status
+        }
+      }'
