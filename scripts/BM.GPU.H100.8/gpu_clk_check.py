@@ -24,27 +24,17 @@ def run_gpu_clk_check():
         "gpu_clk_check": {
             "state": "disable",
             "clock_speed": "1980"
-        },
-        "gpu_pci_ids": [
-            "0000:0f:00.0",
-            "0000:2d:00.0",
-            "0000:44:00.0",
-            "0000:5b:00.0",
-            "0000:89:00.0",
-            "0000:a8:00.0",
-            "0000:c0:00.0",
-            "0000:d8:00.0"
-        ]
+        }
     }
     max_clock_speed = config["gpu_clk_check"]["clock_speed"]
     cmd = f'nvidia-smi --query-gpu=clocks.current.graphics --format=csv,noheader'
     output = run_cmd(cmd)
-    result = parse_gpu_clk_results(output, max_clock_speed, len(config["gpu_pci_ids"]))
+    result = parse_gpu_clk_results(output, max_clock_speed)
     return result
 
 
 # Function to parse GPU clock to determine if is within the acceptable range
-def parse_gpu_clk_results(results="undefined", max_clock_speed="undefined", gpu_count=8):
+def parse_gpu_clk_results(results="undefined", max_clock_speed="undefined"):
     result = {
         "gpu":
             {"max_clock_speed": "PASS"}
