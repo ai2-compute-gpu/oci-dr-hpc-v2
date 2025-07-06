@@ -1,6 +1,8 @@
 package autodiscover
 
 import (
+	"fmt"
+
 	"github.com/oracle/oci-dr-hpc-v2/internal/executor"
 	"github.com/oracle/oci-dr-hpc-v2/internal/logger"
 )
@@ -28,19 +30,19 @@ func DiscoverGPUs() []GPU {
 		gpus[i] = GPU{
 			PCI:   info.PCI,
 			Model: info.Model,
-			ID:    info.ID,
+			ID:    fmt.Sprintf("%d", info.ID),
 		}
 	}
 
 	logger.Infof("Successfully discovered %d GPU devices", len(gpus))
 	for _, gpu := range gpus {
-		logger.Debugf("Discovered GPU %d: %s at %s", gpu.ID, gpu.Model, gpu.PCI)
+		logger.Debugf("Discovered GPU %s: %s at %s", gpu.ID, gpu.Model, gpu.PCI)
 	}
 
 	return gpus
 }
 
-// DiscoverGPUsWithFallback attempts to discover GPUs with fallback to mock data for testing
+// DiscoverGPUsWithFallback attempts to discover GPUs with fallback to undefined values when discovery fails
 func DiscoverGPUsWithFallback() []GPU {
 	// Try to discover real GPUs first
 	gpus := DiscoverGPUs()
@@ -51,12 +53,11 @@ func DiscoverGPUsWithFallback() []GPU {
 		return []GPU{}
 	}
 
-	// If nvidia-smi is not available, provide mock data for development/testing
+	// If nvidia-smi is not available, return undefined values to indicate discovery failed
 	if len(gpus) == 0 {
-		logger.Info("nvidia-smi not available, using mock GPU data for development")
+		logger.Info("nvidia-smi not available, GPU discovery failed - using undefined values")
 		return []GPU{
-			{PCI: "0000:0f:00.0", Model: "NVIDIA H100 80GB HBM3 (Mock)", ID: 0},
-			{PCI: "0000:2d:00.0", Model: "NVIDIA H100 80GB HBM3 (Mock)", ID: 1},
+			{PCI: "undefined", Model: "undefined", ID: "undefined"},
 		}
 	}
 

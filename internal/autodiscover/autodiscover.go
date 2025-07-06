@@ -25,7 +25,7 @@ type RdmaNic struct {
 type GPU struct {
 	PCI   string `json:"pci"`
 	Model string `json:"model"`
-	ID    int    `json:"id"`
+	ID    string `json:"id"`
 }
 
 type VcnNic struct {
@@ -81,7 +81,7 @@ func formatTable(mapHost *MapHost) (string, error) {
 	output.WriteString("├─────────────────────────────────────────────────────────────────┤\n")
 	if len(mapHost.Gpus) > 0 {
 		for _, gpu := range mapHost.Gpus {
-			output.WriteString(fmt.Sprintf("│ GPU %d: %-54s │\n", gpu.ID, gpu.Model))
+			output.WriteString(fmt.Sprintf("│ GPU %s: %-54s │\n", gpu.ID, gpu.Model))
 			output.WriteString(fmt.Sprintf("│   PCI: %-56s │\n", gpu.PCI))
 		}
 	} else {
@@ -141,7 +141,7 @@ func formatFriendly(mapHost *MapHost) (string, error) {
 	output.WriteString("   " + strings.Repeat("-", 30) + "\n")
 	if len(mapHost.Gpus) > 0 {
 		for _, gpu := range mapHost.Gpus {
-			output.WriteString(fmt.Sprintf("   ✅ GPU %d: %s\n", gpu.ID, gpu.Model))
+			output.WriteString(fmt.Sprintf("   ✅ GPU %s: %s\n", gpu.ID, gpu.Model))
 			output.WriteString(fmt.Sprintf("      PCI Address: %s\n", gpu.PCI))
 		}
 		output.WriteString(fmt.Sprintf("\n   Total GPUs detected: %d\n\n", len(mapHost.Gpus)))
@@ -221,14 +221,14 @@ func Run() {
 		Gpus:             discoveredGPUs,
 		RdmaNics: []RdmaNic{
 			{
-				PCI:        "0000:0c:00.0",
-				Interface:  "rdma0",
-				RdmaIP:     "192.168.3.179",
-				DeviceName: "mlx5_0",
-				Model:      "Mellanox Technologies MT2910 Family [ConnectX-7]",
-				Numa:       "0",
-				GpuID:      "0",
-				GpuPCI:     "0000:0f:00.0",
+				PCI:        "undefined",
+				Interface:  "undefined",
+				RdmaIP:     "undefined",
+				DeviceName: "undefined",
+				Model:      "undefined",
+				Numa:       "undefined",
+				GpuID:      "undefined",
+				GpuPCI:     "undefined",
 			},
 		},
 		VcnNic: VcnNic{

@@ -1,6 +1,7 @@
 package autodiscover
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/oracle/oci-dr-hpc-v2/internal/executor"
@@ -14,7 +15,7 @@ func TestDiscoverGPUs(t *testing.T) {
 	t.Logf("Discovered %d GPUs", len(gpus))
 
 	for i, gpu := range gpus {
-		t.Logf("GPU %d: PCI=%s, Model=%s, ID=%d", i, gpu.PCI, gpu.Model, gpu.ID)
+		t.Logf("GPU %d: PCI=%s, Model=%s, ID=%s", i, gpu.PCI, gpu.Model, gpu.ID)
 
 		// Basic validation
 		if gpu.PCI == "" {
@@ -23,8 +24,8 @@ func TestDiscoverGPUs(t *testing.T) {
 		if gpu.Model == "" {
 			t.Errorf("GPU %d has empty model", i)
 		}
-		if gpu.ID < 0 {
-			t.Errorf("GPU %d has invalid ID: %d", i, gpu.ID)
+		if gpu.ID == "" {
+			t.Errorf("GPU %d has empty ID", i)
 		}
 	}
 }
@@ -41,7 +42,7 @@ func TestDiscoverGPUsWithFallback(t *testing.T) {
 	}
 
 	for i, gpu := range gpus {
-		t.Logf("GPU %d: PCI=%s, Model=%s, ID=%d", i, gpu.PCI, gpu.Model, gpu.ID)
+		t.Logf("GPU %d: PCI=%s, Model=%s, ID=%s", i, gpu.PCI, gpu.Model, gpu.ID)
 
 		// Basic validation
 		if gpu.PCI == "" {
@@ -50,8 +51,8 @@ func TestDiscoverGPUsWithFallback(t *testing.T) {
 		if gpu.Model == "" {
 			t.Errorf("GPU %d has empty model", i)
 		}
-		if gpu.ID < 0 {
-			t.Errorf("GPU %d has invalid ID: %d", i, gpu.ID)
+		if gpu.ID == "" {
+			t.Errorf("GPU %d has empty ID", i)
 		}
 	}
 }
@@ -68,7 +69,7 @@ func TestGPUStructConversion(t *testing.T) {
 	autodiscoverGPU := GPU{
 		PCI:   executorGPU.PCI,
 		Model: executorGPU.Model,
-		ID:    executorGPU.ID,
+		ID:    fmt.Sprintf("%d", executorGPU.ID),
 	}
 
 	// Verify conversion
@@ -78,8 +79,9 @@ func TestGPUStructConversion(t *testing.T) {
 	if autodiscoverGPU.Model != executorGPU.Model {
 		t.Errorf("Model mismatch: expected %s, got %s", executorGPU.Model, autodiscoverGPU.Model)
 	}
-	if autodiscoverGPU.ID != executorGPU.ID {
-		t.Errorf("ID mismatch: expected %d, got %d", executorGPU.ID, autodiscoverGPU.ID)
+	expectedID := fmt.Sprintf("%d", executorGPU.ID)
+	if autodiscoverGPU.ID != expectedID {
+		t.Errorf("ID mismatch: expected %s, got %s", expectedID, autodiscoverGPU.ID)
 	}
 }
 
@@ -87,7 +89,7 @@ func TestGPUStructFields(t *testing.T) {
 	gpu := GPU{
 		PCI:   "0000:0f:00.0",
 		Model: "NVIDIA H100 80GB HBM3",
-		ID:    0,
+		ID:    "0",
 	}
 
 	if gpu.PCI != "0000:0f:00.0" {
@@ -96,7 +98,7 @@ func TestGPUStructFields(t *testing.T) {
 	if gpu.Model != "NVIDIA H100 80GB HBM3" {
 		t.Errorf("Expected Model 'NVIDIA H100 80GB HBM3', got '%s'", gpu.Model)
 	}
-	if gpu.ID != 0 {
-		t.Errorf("Expected ID 0, got %d", gpu.ID)
+	if gpu.ID != "0" {
+		t.Errorf("Expected ID '0', got '%s'", gpu.ID)
 	}
 }
