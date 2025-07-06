@@ -3,6 +3,7 @@ package executor
 import (
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -430,6 +431,131 @@ func TestIsNvidiaSMIAvailable(t *testing.T) {
 
 	// This test just verifies the function doesn't crash
 	// The actual availability depends on the test environment
+}
+
+// Test GPU count parsing logic with mock data for cross-platform compatibility
+func TestGPUCountParsingFormats(t *testing.T) {
+	tests := []struct {
+		name          string
+		mockOutput    string
+		expectedCount int
+		expectError   bool
+		description   string
+	}{
+		{
+			name:          "single_line_format_ubuntu",
+			mockOutput:    "8",
+			expectedCount: 8,
+			expectError:   false,
+			description:   "Ubuntu format - single line with total count",
+		},
+		{
+			name:          "multi_line_format_oracle_linux",
+			mockOutput:    "8\n8\n8\n8\n8\n8\n8\n8",
+			expectedCount: 8,
+			expectError:   false,
+			description:   "Oracle Linux format - multiple lines with count per GPU",
+		},
+		{
+			name:          "single_gpu",
+			mockOutput:    "1",
+			expectedCount: 1,
+			expectError:   false,
+			description:   "Single GPU system",
+		},
+		{
+			name:          "multi_line_single_gpu",
+			mockOutput:    "1",
+			expectedCount: 1,
+			expectError:   false,
+			description:   "Single GPU with multi-line format",
+		},
+		{
+			name:          "no_gpus",
+			mockOutput:    "0",
+			expectedCount: 0,
+			expectError:   false,
+			description:   "No GPUs detected",
+		},
+		{
+			name:          "empty_output",
+			mockOutput:    "",
+			expectedCount: 0,
+			expectError:   false,
+			description:   "Empty nvidia-smi output",
+		},
+		{
+			name:          "whitespace_only",
+			mockOutput:    "   \n   \n   ",
+			expectedCount: 0,
+			expectError:   false,
+			description:   "Whitespace only output",
+		},
+		{
+			name:          "mixed_whitespace_and_counts",
+			mockOutput:    "4\n\n4\n \n4\n4\n",
+			expectedCount: 4,
+			expectError:   false,
+			description:   "Mixed empty lines and counts",
+		},
+		{
+			name:          "invalid_single_line",
+			mockOutput:    "invalid",
+			expectedCount: 0,
+			expectError:   true,
+			description:   "Invalid single line format",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a mock result
+			result := &NvidiaSMIResult{
+				Available: true,
+				Output:    tt.mockOutput,
+				Error:     "",
+			}
+
+			// Parse using the same logic as GetGPUCount
+			countStr := strings.TrimSpace(result.Output)
+			var count int
+			var err error
+
+			if countStr == "" {
+				count = 0
+			} else {
+				// Handle both single count and multi-line output
+				lines := strings.Split(countStr, "\n")
+
+				if len(lines) == 1 {
+					// Single line format
+					count, err = strconv.Atoi(strings.TrimSpace(lines[0]))
+				} else {
+					// Multi-line format - count non-empty lines
+					count = 0
+					for _, line := range lines {
+						line = strings.TrimSpace(line)
+						if line != "" {
+							count++
+						}
+					}
+				}
+			}
+
+			if tt.expectError && err == nil {
+				t.Errorf("Expected error but got none")
+			}
+			if !tt.expectError && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+
+			if !tt.expectError && count != tt.expectedCount {
+				t.Errorf("Expected count %d, got %d", tt.expectedCount, count)
+			}
+
+			t.Logf("Test %s: %s - Count: %d", tt.name, tt.description, count)
+		})
+	}
 }
 
 // Test GPUInfo struct

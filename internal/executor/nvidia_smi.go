@@ -189,12 +189,30 @@ func GetGPUCount() (int, error) {
 		return 0, nil
 	}
 
-	count, err := strconv.Atoi(countStr)
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse GPU count '%s': %w", countStr, err)
+	// Handle both single count and multi-line output
+	// On some systems, nvidia-smi returns one line per GPU with count
+	lines := strings.Split(countStr, "\n")
+
+	if len(lines) == 1 {
+		// Single line format (e.g., "8")
+		count, err := strconv.Atoi(strings.TrimSpace(lines[0]))
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse GPU count '%s': %w", countStr, err)
+		}
+		logger.Infof("GPU count: %d", count)
+		return count, nil
 	}
 
-	logger.Infof("GPU count: %d", count)
+	// Multi-line format - count non-empty lines
+	count := 0
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			count++
+		}
+	}
+
+	logger.Infof("GPU count: %d (from %d lines)", count, len(lines))
 	return count, nil
 }
 
