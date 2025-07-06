@@ -16,6 +16,7 @@ func DiscoverRDMANicsWithFallback(shapeName string) []RdmaNic {
 	rdmaNics, err := discoverRDMANicsFromShape(shapeName)
 	if err != nil {
 		logger.Errorf("Failed to discover RDMA NICs from shape: %v", err)
+		logger.Infof("Falling back to undefined RDMA NIC values")
 		return []RdmaNic{
 			{
 				PCI:        "undefined",
@@ -31,6 +32,9 @@ func DiscoverRDMANicsWithFallback(shapeName string) []RdmaNic {
 	}
 
 	logger.Infof("Successfully discovered %d RDMA NICs from shape configuration", len(rdmaNics))
+	for i, nic := range rdmaNics {
+		logger.Debugf("RDMA NIC %d: PCI=%s, Device=%s, GPU_ID=%s", i, nic.PCI, nic.DeviceName, nic.GpuID)
+	}
 	return rdmaNics
 }
 
@@ -42,6 +46,7 @@ func DiscoverVCNNicWithFallback(shapeName string) VcnNic {
 	vcnNic, err := discoverVCNNicFromShape(shapeName)
 	if err != nil {
 		logger.Errorf("Failed to discover VCN NIC from shape: %v", err)
+		logger.Infof("Falling back to undefined VCN NIC values")
 		return VcnNic{
 			PrivateIP:  "undefined",
 			PCI:        "undefined",
@@ -52,13 +57,14 @@ func DiscoverVCNNicWithFallback(shapeName string) VcnNic {
 	}
 
 	logger.Infof("Successfully discovered VCN NIC from shape configuration")
+	logger.Debugf("VCN NIC: PCI=%s, Device=%s, Model=%s", vcnNic.PCI, vcnNic.DeviceName, vcnNic.Model)
 	return vcnNic
 }
 
 // discoverRDMANicsFromShape discovers RDMA NICs from the shapes.json configuration
 func discoverRDMANicsFromShape(shapeName string) ([]RdmaNic, error) {
 	// Get the shapes configuration file path (relative to project root)
-	shapesFile := filepath.Join("..", "shapes", "shapes.json")
+	shapesFile := filepath.Join("internal", "shapes", "shapes.json")
 
 	// Create shape manager
 	shapeManager, err := shapes.NewShapeManager(shapesFile)
@@ -100,7 +106,7 @@ func discoverRDMANicsFromShape(shapeName string) ([]RdmaNic, error) {
 // discoverVCNNicFromShape discovers the first VCN NIC from the shapes.json configuration
 func discoverVCNNicFromShape(shapeName string) (VcnNic, error) {
 	// Get the shapes configuration file path (relative to project root)
-	shapesFile := filepath.Join("..", "shapes", "shapes.json")
+	shapesFile := filepath.Join("internal", "shapes", "shapes.json")
 
 	// Create shape manager
 	shapeManager, err := shapes.NewShapeManager(shapesFile)
