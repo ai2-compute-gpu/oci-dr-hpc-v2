@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/oracle/oci-dr-hpc-v2/internal/logger"
@@ -15,6 +16,7 @@ type ShapeConfig struct {
 	Version      string            `json:"version"`
 	RDMANetwork  []RDMANetwork     `json:"rdma-network"`
 	RDMASettings []RDMAShapeConfig `json:"rdma-settings"`
+	HPCShapes    []HPCShape        `json:"hpc-shapes"`
 }
 
 // RDMANetwork represents RDMA network configuration
@@ -287,4 +289,109 @@ type ShapeInfo struct {
 func (si *ShapeInfo) String() string {
 	return fmt.Sprintf("Shape: %s, Model: %s, GPU: %v, HPC: %v",
 		si.Name, si.Model, si.IsGPU, si.IsHPC)
+}
+
+// HPCShape represents a hardware shape configuration
+type HPCShape struct {
+	Shape    string      `json:"shape"`
+	GPU      interface{} `json:"gpu"` // Can be bool or []GPUSpec
+	VCNNics  []VCNNic    `json:"vcn-nics"`
+	RDMANics []RDMANic   `json:"rdma-nics"`
+}
+
+// VCNNic represents a VCN network interface configuration
+type VCNNic struct {
+	PCI        string `json:"pci"`
+	Interface  string `json:"interface"`
+	DeviceName string `json:"device_name"`
+	Model      string `json:"model"`
+}
+
+// RDMANic represents an RDMA network interface configuration
+type RDMANic struct {
+	PCI        string        `json:"pci"`
+	Interface  string        `json:"interface"`
+	DeviceName string        `json:"device_name"`
+	Model      string        `json:"model"`
+	GPUPCI     string        `json:"gpu_pci,omitempty"`
+	GPUID      FlexibleGPUID `json:"gpu_id,omitempty"`
+}
+
+// FlexibleGPUID is a custom type that can handle both string and number JSON values
+type FlexibleGPUID string
+
+// UnmarshalJSON implements custom JSON unmarshaling for FlexibleGPUID
+func (fgid *FlexibleGPUID) UnmarshalJSON(data []byte) error {
+	// Try to unmarshal as string first
+	var str string
+	if err := json.Unmarshal(data, &str); err == nil {
+		*fgid = FlexibleGPUID(str)
+		return nil
+	}
+
+	// Try to unmarshal as number
+	var num float64
+	if err := json.Unmarshal(data, &num); err == nil {
+		*fgid = FlexibleGPUID(strconv.FormatFloat(num, 'f', -1, 64))
+		return nil
+	}
+
+	return fmt.Errorf("cannot unmarshal %s into FlexibleGPUID", data)
+}
+
+// String returns the string representation
+func (fgid FlexibleGPUID) String() string {
+	return string(fgid)
+}
+
+// GPUSpec represents a GPU specification in the shapes configuration
+type GPUSpec struct {
+	PCI      string `json:"pci"`
+	Model    string `json:"model"`
+	ID       int    `json:"id"`
+	ModuleID int    `json:"module_id"`
+}
+
+// GetHPCShape returns the HPC shape configuration for a specific shape
+func (sm *ShapeManager) GetHPCShape(shapeName string) (*HPCShape, error) {
+	for _, hpcShape := range sm.config.HPCShapes {
+		if hpcShape.Shape == shapeName {
+			logger.Debugf("Found HPC shape configuration for: %s", shapeName)
+			return &hpcShape, nil
+		}
+	}
+
+	logger.Errorf("HPC shape not found: %s", shapeName)
+	return nil, fmt.Errorf("HPC shape %s not found in configuration", shapeName)
+}
+
+// GetVCNNics returns VCN NICs for a specific shape
+func (sm *ShapeManager) GetVCNNics(shapeName string) ([]VCNNic, error) {
+	hpcShape, err := sm.GetHPCShape(shapeName)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf("Found %d VCN NICs for shape %s", len(hpcShape.VCNNics), shapeName)
+	return hpcShape.VCNNics, nil
+}
+
+// GetRDMANics returns RDMA NICs for a specific shape
+func (sm *ShapeManager) GetRDMANics(shapeName string) ([]RDMANic, error) {
+	hpcShape, err := sm.GetHPCShape(shapeName)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf("Found %d RDMA NICs for shape %s", len(hpcShape.RDMANics), shapeName)
+	return hpcShape.RDMANics, nil
+}
+
+// GetAllHPCShapes returns all available HPC shapes
+func (sm *ShapeManager) GetAllHPCShapes() []string {
+	var shapes []string
+	for _, hpcShape := range sm.config.HPCShapes {
+		shapes = append(shapes, hpcShape.Shape)
+	}
+	return shapes
 }

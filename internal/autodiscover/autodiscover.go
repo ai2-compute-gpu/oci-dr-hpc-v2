@@ -209,6 +209,12 @@ func Run() {
 	// Discover real GPU information
 	discoveredGPUs := DiscoverGPUsWithFallback()
 
+	// Discover real RDMA NICs based on shape
+	discoveredRDMANics := DiscoverRDMANicsWithFallback(sysInfo.Shape)
+
+	// Discover real VCN NIC based on shape
+	discoveredVCNNic := DiscoverVCNNicWithFallback(sysInfo.Shape)
+
 	// Build the complete hardware map with real data
 	mapHost := MapHost{
 		Hostname:         sysInfo.Hostname,
@@ -219,25 +225,8 @@ func Run() {
 		Rack:             sysInfo.Rack,
 		InCluster:        true,
 		Gpus:             discoveredGPUs,
-		RdmaNics: []RdmaNic{
-			{
-				PCI:        "undefined",
-				Interface:  "undefined",
-				RdmaIP:     "undefined",
-				DeviceName: "undefined",
-				Model:      "undefined",
-				Numa:       "undefined",
-				GpuID:      "undefined",
-				GpuPCI:     "undefined",
-			},
-		},
-		VcnNic: VcnNic{
-			PrivateIP:  "undefined",
-			PCI:        "undefined",
-			Interface:  "undefined",
-			DeviceName: "undefined",
-			Model:      "undefined",
-		},
+		RdmaNics:         discoveredRDMANics,
+		VcnNic:           discoveredVCNNic,
 	}
 
 	// Get output format from configuration
