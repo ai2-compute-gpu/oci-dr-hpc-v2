@@ -31,6 +31,7 @@ var (
 	outputFormat string
 	testLevel    string
 	showVersion  bool
+	outputFile   string
 )
 
 var rootCmd = &cobra.Command{
@@ -60,11 +61,13 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "table", "output format (json|table|friendly)")
 	rootCmd.PersistentFlags().StringVarP(&testLevel, "level", "l", "L1", "test level (L1|L2|L3)")
+	rootCmd.PersistentFlags().StringVarP(&outputFile, "output-file", "f", "", "output file for JSON report (default: console output)")
 	rootCmd.Flags().BoolVar(&showVersion, "version", false, "show version information")
 
 	viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))
 	viper.BindPFlag("output", rootCmd.PersistentFlags().Lookup("output"))
 	viper.BindPFlag("level", rootCmd.PersistentFlags().Lookup("level"))
+	viper.BindPFlag("output-file", rootCmd.PersistentFlags().Lookup("output-file"))
 }
 
 func initConfig() {
@@ -72,23 +75,23 @@ func initConfig() {
 		viper.SetConfigFile(cfgFile)
 	} else {
 		viper.SetConfigType("yaml")
-		
+
 		// Add system-wide config path first
 		viper.AddConfigPath("/etc")
-		
+
 		// Add user config path second (higher priority)
 		home, err := os.UserHomeDir()
 		if err == nil {
 			viper.AddConfigPath(home)
 		}
-		
+
 		// Set config name once after all paths are added
 		viper.SetConfigName("oci-dr-hpc")
 	}
 
 	viper.SetEnvPrefix("OCI_DR_HPC")
 	viper.AutomaticEnv()
-	
+
 	// Explicitly bind environment variables for nested keys
 	viper.BindEnv("logging.level", "OCI_DR_HPC_LOGGING_LEVEL")
 	viper.BindEnv("logging.file", "OCI_DR_HPC_LOGGING_FILE")
@@ -97,7 +100,7 @@ func initConfig() {
 	if err := viper.ReadInConfig(); err == nil {
 		configFileUsed = viper.ConfigFileUsed()
 	}
-	
+
 	// Always try to load config (from file or env vars)
 	cfg, err := config.LoadConfig()
 	if err == nil {
@@ -105,14 +108,14 @@ func initConfig() {
 		if cfg.Logging.Level != "" {
 			logger.SetLogLevel(cfg.Logging.Level)
 		}
-		
+
 		// Initialize logger with file if specified
 		if cfg.Logging.File != "" {
 			if err := logger.InitLoggerWithLevel(cfg.Logging.File, cfg.Logging.Level); err != nil {
 				logger.Error("Failed to initialize file logging:", err)
 			}
 		}
-		
+
 		// Show config file used after log level is set
 		if configFileUsed != "" {
 			logger.Info("Using config file:", configFileUsed)

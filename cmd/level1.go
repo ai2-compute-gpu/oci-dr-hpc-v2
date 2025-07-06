@@ -6,7 +6,9 @@ import (
 
 	"github.com/oracle/oci-dr-hpc-v2/internal/level1_tests"
 	"github.com/oracle/oci-dr-hpc-v2/internal/logger"
+	"github.com/oracle/oci-dr-hpc-v2/internal/reporter"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var (
@@ -21,6 +23,14 @@ var level1Cmd = &cobra.Command{
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		logger.Info("Starting Level 1 diagnostic tests")
+
+		// Initialize reporter
+		rep := reporter.GetReporter()
+		outputFile := viper.GetString("output-file")
+		if err := rep.Initialize(outputFile); err != nil {
+			logger.Errorf("Failed to initialize reporter: %v", err)
+			return fmt.Errorf("failed to initialize reporter: %w", err)
+		}
 
 		// Check if --list-tests flag was provided
 		if listTests {
@@ -44,6 +54,7 @@ func init() {
 
 func runAllLevel1Tests() error {
 	logger.Info("Running all Level 1 tests")
+	rep := reporter.GetReporter()
 
 	tests := []struct {
 		name string
@@ -64,6 +75,15 @@ func runAllLevel1Tests() error {
 		}
 	}
 
+	// Generate and write the report
+	if err := rep.WriteReport(); err != nil {
+		logger.Errorf("Failed to write report: %v", err)
+		return fmt.Errorf("failed to write report: %w", err)
+	}
+
+	// Print summary
+	rep.PrintSummary()
+
 	if len(failedTests) > 0 {
 		logger.Error(fmt.Sprintf("Level 1 tests completed with %d failures: %v", len(failedTests), failedTests))
 		fmt.Printf("\n❌ Level 1 diagnostic tests failed: %d out of %d tests failed\n", len(failedTests), len(tests))
@@ -77,6 +97,8 @@ func runAllLevel1Tests() error {
 }
 
 func runSpecificTests(testFilter string) error {
+	rep := reporter.GetReporter()
+
 	availableTests := []struct {
 		name        string
 		description string
@@ -120,6 +142,15 @@ func runSpecificTests(testFilter string) error {
 			return fmt.Errorf("unknown test: %s", testName)
 		}
 	}
+
+	// Generate and write the report
+	if err := rep.WriteReport(); err != nil {
+		logger.Errorf("Failed to write report: %v", err)
+		return fmt.Errorf("failed to write report: %w", err)
+	}
+
+	// Print summary
+	rep.PrintSummary()
 
 	if len(failedTests) > 0 {
 		logger.Error(fmt.Sprintf("Selected Level 1 tests completed with %d failures: %v", len(failedTests), failedTests))

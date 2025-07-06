@@ -8,6 +8,7 @@ import (
 
 	"github.com/oracle/oci-dr-hpc-v2/internal/executor"
 	"github.com/oracle/oci-dr-hpc-v2/internal/logger"
+	"github.com/oracle/oci-dr-hpc-v2/internal/reporter"
 )
 
 // GPU represents a GPU configuration in shapes.json
@@ -26,9 +27,9 @@ type ShapeHardware struct {
 	RDMANics []interface{} `json:"rdma-nics"`
 }
 
-// UnmarshalJSON handles the custom GPU field that can be false or an array
+// UnmarshalJSON handles the custom GPU field
 func (sh *ShapeHardware) UnmarshalJSON(data []byte) error {
-	// First, unmarshal into a map to handle the dynamic GPU field
+	// First, unmarshal into a map to handle the dynamic fields
 	var rawData map[string]json.RawMessage
 	if err := json.Unmarshal(data, &rawData); err != nil {
 		return err
@@ -153,41 +154,55 @@ func getActualGPUCount() (int, error) {
 
 func RunGPUCountCheck() error {
 	logger.Info("=== GPU Count Check ===")
+	rep := reporter.GetReporter()
 
 	// Step 1: Get shape from IMDS
 	logger.Info("Step 1: Getting shape from IMDS...")
 	shape, err := executor.GetCurrentShape()
 	if err != nil {
 		logger.Error("GPU Count Check: FAIL - Could not get shape from IMDS:", err)
+		rep.AddGPUResult("FAIL", 0, err)
 		return fmt.Errorf("failed to get shape from IMDS: %w", err)
 	}
 	logger.Info("Current shape from IMDS:", shape)
 
-	// Step 2: Get expected GPU count from shapes.json
+	// Step 2: Look up expected GPU count from shapes.json
 	logger.Info("Step 2: Getting expected GPU count from shapes.json...")
-	expectedGPUCount, err := getExpectedGPUCount(shape)
+	expectedCount, err := getExpectedGPUCount(shape)
 	if err != nil {
 		logger.Error("GPU Count Check: FAIL - Could not get expected GPU count:", err)
+		rep.AddGPUResult("FAIL", 0, err)
 		return fmt.Errorf("failed to get expected GPU count: %w", err)
 	}
-	logger.Info("Expected GPU count for shape", shape+":", expectedGPUCount)
+	logger.Info("Expected GPU count for shape", shape+":", expectedCount)
 
 	// Step 3: Get actual GPU count from nvidia-smi
 	logger.Info("Step 3: Getting actual GPU count from nvidia-smi...")
-	actualGPUCount, err := getActualGPUCount()
+	actualCount, err := getActualGPUCount()
 	if err != nil {
 		logger.Error("GPU Count Check: FAIL - Could not get actual GPU count:", err)
+		rep.AddGPUResult("FAIL", actualCount, err)
 		return fmt.Errorf("failed to get actual GPU count: %w", err)
 	}
-	logger.Info("Actual GPU count from nvidia-smi:", actualGPUCount)
+	logger.Info("Actual GPU count from nvidia-smi:", actualCount)
 
 	// Step 4: Compare expected vs actual
 	logger.Info("Step 4: Comparing expected vs actual GPU counts...")
-	if expectedGPUCount == actualGPUCount {
-		logger.Info("GPU Count Check: PASS - Expected:", expectedGPUCount, "Actual:", actualGPUCount)
+	if expectedCount == actualCount {
+		logger.Info("GPU Count Check: PASS - Expected:", expectedCount, "Actual:", actualCount)
+		rep.AddGPUResult("PASS", actualCount, nil)
 		return nil
 	} else {
-		logger.Error("GPU Count Check: FAIL - Expected:", expectedGPUCount, "Actual:", actualGPUCount)
-		return fmt.Errorf("GPU count mismatch: expected %d, actual %d", expectedGPUCount, actualGPUCount)
+		if actualCount < expectedCount {
+			missingCount := expectedCount - actualCount
+			logger.Error("GPU Count Check: FAIL - Missing", missingCount, "GPUs")
+		} else {
+			extraCount := actualCount - expectedCount
+			logger.Error("GPU Count Check: FAIL - Found", extraCount, "extra GPUs")
+		}
+		logger.Error("GPU Count Check: FAIL - Expected:", expectedCount, "Actual:", actualCount)
+		err = fmt.Errorf("GPU count mismatch: expected %d, actual %d", expectedCount, actualCount)
+		rep.AddGPUResult("FAIL", actualCount, err)
+		return err
 	}
 }

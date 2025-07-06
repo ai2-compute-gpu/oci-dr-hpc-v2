@@ -8,6 +8,7 @@ import (
 
 	"github.com/oracle/oci-dr-hpc-v2/internal/executor"
 	"github.com/oracle/oci-dr-hpc-v2/internal/logger"
+	"github.com/oracle/oci-dr-hpc-v2/internal/reporter"
 )
 
 // RDMANic represents an RDMA NIC configuration in shapes.json
@@ -235,12 +236,14 @@ func GetRDMANicsCountResult() (*RDMANicsCountResult, error) {
 
 func RunRDMANicsCount() error {
 	logger.Info("=== RDMA NICs Count Check ===")
+	rep := reporter.GetReporter()
 
 	// Step 1: Get shape from IMDS
 	logger.Info("Step 1: Getting shape from IMDS...")
 	shape, err := executor.GetCurrentShape()
 	if err != nil {
 		logger.Error("RDMA NIC Count Check: FAIL - Could not get shape from IMDS:", err)
+		rep.AddRDMAResult("FAIL", 0, err)
 		return fmt.Errorf("failed to get shape from IMDS: %w", err)
 	}
 	logger.Info("Current shape from IMDS:", shape)
@@ -250,6 +253,7 @@ func RunRDMANicsCount() error {
 	expectedCount, expectedPCIIDs, err := getExpectedRDMANicConfig(shape)
 	if err != nil {
 		logger.Error("RDMA NIC Count Check: FAIL - Could not get expected RDMA NIC configuration:", err)
+		rep.AddRDMAResult("FAIL", 0, err)
 		return fmt.Errorf("failed to get expected RDMA NIC configuration: %w", err)
 	}
 	logger.Info("Expected RDMA NIC count for shape", shape+":", expectedCount)
@@ -260,6 +264,7 @@ func RunRDMANicsCount() error {
 	actualCount, err := getActualRDMANicCount(expectedPCIIDs)
 	if err != nil {
 		logger.Error("RDMA NIC Count Check: FAIL - Could not get actual RDMA NIC count:", err)
+		rep.AddRDMAResult("FAIL", actualCount, err)
 		return fmt.Errorf("failed to get actual RDMA NIC count: %w", err)
 	}
 	logger.Info("Actual RDMA NIC count from lspci:", actualCount)
@@ -268,6 +273,7 @@ func RunRDMANicsCount() error {
 	logger.Info("Step 4: Comparing expected vs actual RDMA NIC counts...")
 	if expectedCount == actualCount {
 		logger.Info("RDMA NIC Count Check: PASS - Expected:", expectedCount, "Actual:", actualCount)
+		rep.AddRDMAResult("PASS", actualCount, nil)
 		return nil
 	} else {
 		if actualCount < expectedCount {
@@ -278,7 +284,9 @@ func RunRDMANicsCount() error {
 			logger.Error("RDMA NIC Count Check: FAIL - Found", extraCount, "extra RDMA NICs")
 		}
 		logger.Error("RDMA NIC Count Check: FAIL - Expected:", expectedCount, "Actual:", actualCount)
-		return fmt.Errorf("RDMA NIC count mismatch: expected %d, actual %d", expectedCount, actualCount)
+		err = fmt.Errorf("RDMA NIC count mismatch: expected %d, actual %d", expectedCount, actualCount)
+		rep.AddRDMAResult("FAIL", actualCount, err)
+		return err
 	}
 }
 
