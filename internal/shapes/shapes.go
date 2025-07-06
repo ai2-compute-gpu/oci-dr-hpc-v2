@@ -1,5 +1,5 @@
 // Package shapes provides functionality to read and query OCI shape configurations
-package main
+package shapes
 
 import (
 	"encoding/json"
