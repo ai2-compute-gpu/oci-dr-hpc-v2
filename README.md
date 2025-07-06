@@ -1,158 +1,179 @@
-# oci-dr-hpc-v2
+# OCI DR HPC v2
 
-Oracle Cloud Infrastructure Diagnostic and Repair tool for HPC environments with GPU and RDMA support.
+A comprehensive diagnostic and repair tool for High Performance Computing (HPC) environments with GPU and RDMA support on Oracle Cloud Infrastructure (OCI).
 
-## Overview
+## 🚀 Features
 
-A Go-based CLI application that performs diagnostic and repair operations for HPC environments, specifically designed for Oracle Cloud Infrastructure GPU and RDMA configurations. Includes support for querying instance metadata (IMDS), GPU, RDMA, and system diagnostics.
+- **🎮 GPU Diagnostics**: Check GPU count, driver status, and hardware health using nvidia-smi
+- **🔗 RDMA Network Testing**: Validate RDMA NIC count, PCI addresses, and connectivity  
+- **⚡ PCIe Error Detection**: Scan system logs for PCIe-related hardware errors
+- **🔍 Hardware Autodiscovery**: Generate logical hardware models automatically from system detection
+- **📊 Multiple Output Formats**: Support for table, JSON, and friendly human-readable output
+- **⚙️ Flexible Configuration**: Support for config files, environment variables, and CLI flags
+- **🏗️ Smart Path Resolution**: Automatic detection of development vs production environments
+- **📦 Customer-Ready Deployment**: Installation scripts and system-wide configuration support
 
-## OCI Support Email
-For support and issues, please contact: [bob.r.booth@oracle.com](mailto:bob.r.booth@oracle.com)
-
-## Project Structure
+## 📁 Project Structure
 
 ```
-├── cmd/           # CLI command definitions (Cobra framework)
-├── config/        # Configuration files
-├── docs/          # Documentation files
-├── internal/      # Internal application logic
-│   ├── common/    # Common utilities and shared code
-│   ├── config/    # Configuration management (Viper)
-│   ├── executor/  # Command execution (IMDS, nvidia-smi, lspci, dmesg, mlxlink)
-│   ├── level1_tests/ # Level 1 diagnostic tests
-│   ├── level2_tests/ # Level 2 diagnostic tests
-│   ├── level3_tests/ # Level 3 diagnostic tests
-│   ├── logger/    # Custom logging implementation
-│   ├── recommender/ # Recommendation engine
-│   ├── reporter/  # Result reporting
-│   └── shapes/    # OCI shape configuration management
-├── scripts/       # Shell scripts for different GPU shapes
-│   ├── BM.GPU.B200.8/
-│   ├── BM.GPU.GB200.4/
-│   ├── BM.GPU.H100.8/
-│   └── BM.GPU.H200.8/
-└── Makefile       # Build automation
+oci-dr-hpc-v2/
+├── cmd/                    # CLI command definitions (Cobra framework)
+│   ├── root.go            # Main CLI entry point and config initialization
+│   ├── level1.go          # Level 1 diagnostic commands
+│   └── autodiscover.go    # Hardware autodiscovery commands
+├── config/                # Configuration files
+│   └── oci-dr-hpc.yaml   # Default configuration template
+├── docs/                  # Documentation
+│   ├── deployment.md     # Customer deployment guide
+│   ├── imds.md          # IMDS (Instance Metadata Service) documentation
+│   └── *.md             # Additional documentation
+├── internal/              # Internal application logic
+│   ├── autodiscover/     # Hardware discovery and modeling
+│   │   ├── gpu_discovery.go      # GPU detection logic
+│   │   ├── network_discovery.go  # Network/RDMA discovery
+│   │   └── system_info.go        # System information gathering
+│   ├── config/           # Configuration management (Viper integration)
+│   │   └── config.go     # Config loading with smart path resolution
+│   ├── executor/         # System command execution
+│   │   ├── nvidia_smi.go # NVIDIA GPU command execution
+│   │   ├── os_commands.go # OS-level commands (lspci, dmesg)
+│   │   ├── imds.go       # Instance Metadata Service queries
+│   │   └── mlxlink.go    # Mellanox network diagnostics
+│   ├── level1_tests/     # Level 1 diagnostic test implementations
+│   │   ├── gpu_count_check.go     # GPU count validation
+│   │   ├── pcie_error_check.go    # PCIe error detection
+│   │   └── rdma_nics_count.go     # RDMA NIC validation
+│   ├── level2_tests/     # Level 2 diagnostic tests (placeholder)
+│   ├── level3_tests/     # Level 3 diagnostic tests (placeholder)
+│   ├── logger/           # Centralized logging system
+│   │   └── logger.go     # Structured logging with configurable levels
+│   ├── reporter/         # Test result reporting and output formatting
+│   │   └── reporter.go   # Multi-format result reporting
+│   └── shapes/           # OCI shape configuration management
+│       ├── shapes.go     # Shape manager and query interface
+│       ├── shapes.json   # Hardware shape definitions (development)
+│       └── README.md     # Shapes package documentation
+├── scripts/              # Installation and utility scripts
+│   ├── install-shapes.sh # Shapes file installation script
+│   └── BM.GPU.*/         # Shape-specific reference scripts
+├── main.go              # Application entry point
+├── go.mod               # Go module definition
+├── go.sum               # Go module checksums
+└── Makefile            # Build automation
 ```
 
-## Requirements
+## 🏗️ Architecture Overview
 
-### System Requirements
-- **Operating Systems**: Oracle Linux 9.5, Oracle Linux 8, Ubuntu 22.04
-- **Go Version**: 1.21.5 or higher
-- **Architecture**: x86_64
+### Core Packages
 
-### Build Dependencies
-- `git`
-- `make` 
-- `golang` (1.21.5+)
+- **`cmd/`**: CLI interface using Cobra framework for command handling
+- **`internal/config/`**: Configuration management with Viper, supporting files and environment variables
+- **`internal/executor/`**: System command execution layer (nvidia-smi, lspci, IMDS, etc.)
+- **`internal/level1_tests/`**: Core diagnostic test implementations
+- **`internal/shapes/`**: OCI hardware shape definitions and query interface
+- **`internal/autodiscover/`**: Hardware discovery and logical model generation
+- **`internal/logger/`**: Structured logging with configurable output levels
+- **`internal/reporter/`**: Multi-format result reporting (table, JSON, friendly)
 
-### Runtime Dependencies
-- `nvidia-smi` (for GPU diagnostics)
-- `lspci` (for PCIe diagnostics)
-- `dmesg` (for system message diagnostics)
-- `mlxlink` (for Mellanox network diagnostics)
-- `ibdev2netdev` (for InfiniBand device mapping)
-- `sudo` access (for system-level operations)
+### Configuration System
 
-## Installation
+The application uses a sophisticated configuration system with the following priority order:
 
-### From Source
+1. **CLI Flags** (highest priority)
+2. **Environment Variables** (`OCI_DR_HPC_*` prefix)
+3. **Configuration Files** (`/etc/oci-dr-hpc.yaml` or user-specified)
+4. **Smart Defaults** (development vs production detection)
 
-1. **Install Dependencies**
-   ```bash
-   # Oracle Linux/RHEL
-   sudo dnf update && sudo dnf install -y git make golang
-   
-   # Ubuntu/Debian  
-   sudo apt update && sudo apt install -y git make golang-go
-   ```
+## 📦 Installation
 
-2. **Clone and Build**
-   ```bash
-   git clone https://github.com/oracle/oci-dr-hpc-v2.git
-   cd oci-dr-hpc-v2
-   make build
-   ```
+### For Customers (Production Deployment)
 
-3. **Install Binary**
-   ```bash
-   sudo cp build/oci-dr-hpc-v2 /usr/bin/
-   sudo cp config/oci-dr-hpc.yaml /etc/
-   ```
-
-### From Package
-
-#### RPM Package (Oracle Linux/RHEL)
+#### 1. Binary Installation
 ```bash
-# Build RPM
-make rpm
-
-# Install
-sudo rpm -i dist/oci-dr-hpc-v2-*.rpm
+# Install the main binary
+sudo cp oci-dr-hpc /usr/local/bin/
+sudo chmod +x /usr/local/bin/oci-dr-hpc
 ```
 
-#### DEB Package (Ubuntu/Debian)
+#### 2. Configuration Files
 ```bash
-# Build DEB
-make deb
+# Install main configuration
+sudo cp config/oci-dr-hpc.yaml /etc/oci-dr-hpc.yaml
 
-# Install
-sudo dpkg -i dist/oci-dr-hpc-v2_*.deb
+# Install shapes configuration using provided script
+sudo ./scripts/install-shapes.sh
+
+# Or manually install shapes file
+sudo cp internal/shapes/shapes.json /etc/oci-dr-hpc-shapes.json
+sudo chmod 644 /etc/oci-dr-hpc-shapes.json
 ```
 
-## Usage
-
-### Basic Commands
+#### 3. System Directories
 ```bash
-# Show help
-oci-dr-hpc-v2 --help
+# Create log directory
+sudo mkdir -p /var/log/oci-dr-hpc
+sudo chmod 755 /var/log/oci-dr-hpc
 
-# Show version
-oci-dr-hpc-v2 --version
-
-# Run with verbose output
-oci-dr-hpc-v2 --verbose
-
-# Set test level and output format
-oci-dr-hpc-v2 --level L2 --output json
-
-# Use custom config file
-oci-dr-hpc-v2 --config /path/to/config.yaml
+# Verify installation
+oci-dr-hpc --version
 ```
 
-### Available Flags
-- `--config string`: Configuration file path
-- `--level string`: Test level (L1|L2|L3), default: L1
-- `--output string`: Output format (json|table|friendly), default: table
-- `--verbose`: Enable verbose output
-- `--version`: Show version information
+### For Developers
 
-## Instance Metadata Service (IMDS) Support
+The tool automatically detects development environments and uses source code paths:
 
-This tool can query Oracle Cloud Infrastructure's Instance Metadata Service (IMDSv2) to retrieve instance, VNIC, and identity metadata. This is used for environment awareness and diagnostics.
+```bash
+# Clone and build
+git clone <repository-url>
+cd oci-dr-hpc-v2
+go build -o oci-dr-hpc main.go
 
-- **Instance Metadata**: Shape, region, compartment, tags, etc.
-- **VNIC Metadata**: Network interface details
-- **Identity Metadata**: Instance certificates, tenancy OCID, fingerprint
+# Run directly (uses internal/shapes/shapes.json automatically)
+./oci-dr-hpc level1
+```
 
-See [`docs/imds.md`](docs/imds.md) for detailed field descriptions and sample outputs.
+## ⚙️ Configuration
 
-> **Security Note:** The identity metadata includes `key.pem`, which is a private key for the instance. **Never expose or log this value.**
+### File Locations
 
-## Configuration
+| Component | Development Path | Production Path | Purpose |
+|-----------|-----------------|-----------------|---------|
+| **Main Config** | `config/oci-dr-hpc.yaml` | `/etc/oci-dr-hpc.yaml` | Application configuration |
+| **Shapes Config** | `internal/shapes/shapes.json` | `/etc/oci-dr-hpc-shapes.json` | Hardware shape definitions |
+| **Binary** | `./oci-dr-hpc` | `/usr/local/bin/oci-dr-hpc` | Executable |
+| **Logs** | Console/file | `/var/log/oci-dr-hpc/oci-dr-hpc.log` | Application logs |
 
-Configuration priority (highest to lowest):
-1. CLI flags
-2. Environment variables
-3. Configuration file
-4. Default values
+### Smart Path Resolution
 
-### Configuration File Locations
-- `/etc/oci-dr-hpc.yaml` (system-wide)
-- `~/.oci-dr-hpc.yaml` (user-specific)
-- Custom path via `--config` flag
+The application automatically resolves file paths using this logic:
 
-### Example Configuration
+```go
+// For shapes.json file:
+1. Check environment variable: OCI_DR_HPC_SHAPES_FILE
+2. Check config file setting: shapes_file
+3. Check development path: internal/shapes/shapes.json (if exists)
+4. Fall back to production path: /etc/oci-dr-hpc-shapes.json
+```
+
+### Environment Variables
+
+Override any configuration setting with environment variables:
+
+```bash
+# Override shapes file location
+export OCI_DR_HPC_SHAPES_FILE="/custom/path/shapes.json"
+
+# Override logging configuration
+export OCI_DR_HPC_LOGGING_LEVEL="debug"
+export OCI_DR_HPC_LOGGING_FILE="/custom/path/app.log"
+
+# Override output format
+export OCI_DR_HPC_OUTPUT="json"
+export OCI_DR_HPC_VERBOSE="true"
+```
+
+### Configuration File Format
+
 ```yaml
 # /etc/oci-dr-hpc.yaml
 verbose: false
@@ -160,134 +181,240 @@ output: table
 level: L1
 
 logging:
-  level: "info"
   file: "/var/log/oci-dr-hpc/oci-dr-hpc.log"
+  level: "info"
+
+# Shapes configuration file path
+shapes_file: "/etc/oci-dr-hpc-shapes.json"
 ```
 
-### Environment Variables
+## 🚀 Usage
 
-Override any configuration using environment variables with `OCI_DR_HPC_` prefix:
+### Core Commands
 
 ```bash
-# Logging control
-export OCI_DR_HPC_LOGGING_LEVEL=debug    # debug|info|error
-export OCI_DR_HPC_LOGGING_FILE=/tmp/debug.log
+# Run all Level 1 diagnostic tests
+oci-dr-hpc level1
 
-# Application settings
-export OCI_DR_HPC_VERBOSE=true
-export OCI_DR_HPC_OUTPUT=json            # json|table|friendly
-export OCI_DR_HPC_LEVEL=L2               # L1|L2|L3
+# Run specific tests
+oci-dr-hpc level1 --test=gpu_count_check,rdma_nics_count
 
-# Run with environment overrides
-oci-dr-hpc-v2
+# List available tests
+oci-dr-hpc level1 --list-tests
+
+# Generate hardware discovery model
+oci-dr-hpc autodiscover
+
+# Show version and build information
+oci-dr-hpc --version
 ```
 
-### Log Levels
-- **debug**: All messages (INFO, ERROR, DEBUG)
-- **info**: INFO and ERROR messages only (filters DEBUG)
-- **error**: ERROR messages only
+### Output Format Options
 
-## Development
-
-### Build Commands
 ```bash
-# Clean, test, and build
-make all
+# Table format (default) - human-readable
+oci-dr-hpc level1 --output=table
 
-# Build only
-make build
+# JSON format - machine-readable
+oci-dr-hpc level1 --output=json
 
-# Run tests
-make test
+# Friendly format - detailed human-readable
+oci-dr-hpc level1 --output=friendly
 
-# Generate coverage report
-make coverage
+# Save output to file
+oci-dr-hpc level1 --output=json --output-file=results.json
+```
 
-# Clean build artifacts
-make clean
+### Verbose and Debug Mode
+
+```bash
+# Enable verbose output
+oci-dr-hpc level1 --verbose
+
+# Enable debug logging
+oci-dr-hpc level1 --verbose
+export OCI_DR_HPC_LOGGING_LEVEL="debug"
+```
+
+## 🧪 Available Diagnostic Tests
+
+### Level 1 Tests (Production Ready)
+
+| Test Name | Description | Checks |
+|-----------|-------------|---------|
+| **`gpu_count_check`** | Verify GPU count matches shape specification | Uses nvidia-smi and shapes.json |
+| **`pcie_error_check`** | Scan system logs for PCIe errors | Parses dmesg output for hardware errors |
+| **`rdma_nics_count`** | Validate RDMA NIC count and PCI addresses | Uses lspci and shapes.json |
+
+### Example Test Execution
+
+```bash
+# Run single test with verbose output
+oci-dr-hpc level1 --test=gpu_count_check --verbose
+
+# Output:
+# INFO: === GPU Count Check ===
+# INFO: Step 1: Getting shape from IMDS...
+# INFO: Loading shapes configuration from: /etc/oci-dr-hpc-shapes.json
+# INFO: Step 2: Getting expected GPU count from shapes.json...
+# INFO: Expected GPU count for shape BM.GPU.H100.8: 8
+# INFO: Step 3: Getting actual GPU count from nvidia-smi...
+# INFO: Actual GPU count from nvidia-smi: 8
+# INFO: GPU Count Check: PASS - Expected: 8, Actual: 8
+```
+
+## 🔧 Development
+
+### Building
+
+```bash
+# Build for current platform
+go build -o oci-dr-hpc main.go
+
+# Build with version information
+go build -ldflags "-X github.com/oracle/oci-dr-hpc-v2/cmd.version=v1.0.0" -o oci-dr-hpc main.go
+
+# Cross-compile for different platforms
+GOOS=linux GOARCH=amd64 go build -o oci-dr-hpc-linux-amd64 main.go
 ```
 
 ### Testing
+
 ```bash
-# Run all unit tests
-go test -v ./...
+# Run all tests
+go test ./...
 
 # Run tests with coverage
-make coverage
-# Opens coverage.html in build/ directory
+go test -v -cover ./...
 
 # Run specific package tests
-go test -v ./internal/logger/
-go test -v ./internal/shapes/
-go test -v ./internal/executor/
-
-# Run tests for specific components
 go test -v ./internal/level1_tests/
+go test -v ./internal/shapes/
+go test -v ./internal/config/
+
+# Run tests with race detection
+go test -race ./...
 ```
 
-### Project Architecture
-- **Cobra**: CLI framework for command handling
-- **Viper**: Configuration management with file and environment support
-- **Custom Logger**: Structured logging with configurable levels
-- **Modular Design**: Separate packages for config, logging, execution, and tests
+### Adding New Tests
 
-## Scripts Directory
+1. **Create test file** in `internal/levelX_tests/`:
+   ```go
+   func RunNewTest() error {
+       logger.Info("=== New Test ===")
+       // Implementation
+       return nil
+   }
+   ```
 
-The `scripts/` directory contains shell scripts organized by OCI GPU shape types:
-- `BM.GPU.B200.8/`: Scripts for B200 GPU shapes
-- `BM.GPU.GB200.4/`: Scripts for GB200 GPU shapes  
-- `BM.GPU.H100.8/`: Scripts for H100 GPU shapes
-- `BM.GPU.H200.8/`: Scripts for H200 GPU shapes
+2. **Add to test runner** in `cmd/levelX.go`:
+   ```go
+   {"new_test", level1_tests.RunNewTest},
+   ```
 
-These scripts provide alternative implementations and reference tests for the Go-based CLI functionality.
+3. **Update documentation** in README.md and relevant docs
 
-## OCI Shape Configuration Management
+### Code Structure Guidelines
 
-The `internal/shapes/` package provides comprehensive management of OCI shape configurations:
+- **Use structured logging**: `logger.Info()`, `logger.Error()`, `logger.Debug()`
+- **Follow error handling**: Wrap errors with context using `fmt.Errorf()`
+- **Use configuration system**: Access paths via `config.GetShapesFilePath()`
+- **Test thoroughly**: Add unit tests for new functionality
+- **Document changes**: Update README.md and package documentation
 
-### Features
-- **Shape Discovery**: Query all supported OCI shapes (GPU, HPC, etc.)
-- **Configuration Management**: Load shape-specific RDMA and network settings
-- **Filtering**: Filter shapes by type (GPU shapes, HPC shapes)
-- **Search**: Search shapes by name or model
-- **Settings Access**: Access detailed configuration settings for each shape
+## 🔧 Troubleshooting
 
-### Supported Shapes
-- **GPU Shapes**: H100, H200, B200, GB200, A100, L40S families
-- **HPC Shapes**: HPC2, HPC E5 families
-- **Network Models**: ConnectX-7, ConnectX-6 Dx, ConnectX-5 Ex
+### Shapes File Issues
 
-### Usage Example
-```go
-// Initialize shape manager
-manager, err := shapes.NewShapeManager("internal/shapes/shapes.json")
+**Problem**: `no such file or directory: shapes.json`
 
-// Get all GPU shapes
-gpuShapes := manager.GetGPUShapes()
+**Solutions**:
+```bash
+# Check current shapes file location
+oci-dr-hpc test-shapes  # (if test command available)
 
-// Query specific shape
-if manager.IsShapeSupported("BM.GPU.H100.8") {
-    info, _ := manager.GetShapeInfo("BM.GPU.H100.8")
-    fmt.Printf("Shape: %s, Model: %s\n", info.Name, info.Model)
-}
+# Install shapes file using script
+sudo ./scripts/install-shapes.sh
+
+# Or set custom location
+export OCI_DR_HPC_SHAPES_FILE="/path/to/shapes.json"
+oci-dr-hpc level1
+
+# Or check file exists
+ls -la /etc/oci-dr-hpc-shapes.json
 ```
 
-For detailed documentation, see `internal/shapes/README.md`.
+### IMDS Connection Issues
 
-## Documentation
+**Problem**: `IMDS request failed: context deadline exceeded`
 
-Additional documentation is available in the `docs/` directory:
+**Cause**: Running outside Oracle Cloud Infrastructure or network connectivity issues
 
-- **IMDS/Metadata**: `docs/imds.md` - OCI Instance Metadata Service details and field reference
-- **Installation Notes**: `docs/installation_notes_ol8.md` - Oracle Linux 8 installation guide
-- **NVIDIA SMI**: `docs/nvidia-smi-doc.md` - NVIDIA SMI command documentation
-- **OCI Shapes**: `docs/oci_shapes.md` - OCI shape specifications and configurations
+**Solution**: This is expected when running outside OCI. Tests will fail gracefully.
 
-## Contributing
+### Permission Issues
 
-1. Ensure Go 1.21.5+ is installed
-2. Run `make test` before submitting changes
-3. Follow existing code patterns and conventions
-4. Add unit tests for new functionality
+**Problem**: Permission denied errors for log files or config files
 
-@rekharoy
+**Solutions**:
+```bash
+# Fix log directory permissions
+sudo mkdir -p /var/log/oci-dr-hpc
+sudo chmod 755 /var/log/oci-dr-hpc
+
+# Fix config file permissions
+sudo chmod 644 /etc/oci-dr-hpc.yaml
+sudo chmod 644 /etc/oci-dr-hpc-shapes.json
+
+# Run with appropriate privileges
+sudo oci-dr-hpc level1  # If system-level access needed
+```
+
+### GPU Detection Issues
+
+**Problem**: `nvidia-smi not available` or GPU count mismatch
+
+**Solutions**:
+```bash
+# Check NVIDIA drivers
+nvidia-smi
+
+# Check if running on correct instance type
+oci-dr-hpc autodiscover  # See detected hardware
+
+# Verify shapes configuration
+cat /etc/oci-dr-hpc-shapes.json | grep -A 10 "BM.GPU.H100.8"
+```
+
+## 📚 Additional Documentation
+
+- **[Deployment Guide](docs/deployment.md)**: Complete customer deployment instructions
+- **[IMDS Documentation](docs/imds.md)**: Instance Metadata Service integration details
+- **[Shapes Package](internal/shapes/README.md)**: Hardware shape configuration management
+- **[Installation Notes](docs/installation_notes_*.md)**: OS-specific installation guides
+
+## 🤝 Contributing
+
+1. **Environment Setup**: Ensure Go 1.21.5+ is installed
+2. **Code Quality**: Run `go test ./...` and `go vet ./...` before submitting
+3. **Formatting**: Use `go fmt ./...` to format code
+4. **Documentation**: Update README.md and relevant documentation for changes
+5. **Testing**: Add unit tests for new functionality
+6. **Dependencies**: Minimize external dependencies, prefer standard library
+
+## 📄 License
+
+Oracle Cloud Infrastructure Diagnostic and Repair for HPC v2
+
+## 📧 Support
+
+For support and questions:
+- **Technical Issues**: Create an issue in the repository
+- **Oracle Support**: [bob.r.booth@oracle.com](mailto:bob.r.booth@oracle.com)
+
+---
+
+**Version**: Development
+**Go Version**: 1.21.5+
+**Platforms**: Linux (Oracle Linux, Ubuntu)
+**Architecture**: x86_64

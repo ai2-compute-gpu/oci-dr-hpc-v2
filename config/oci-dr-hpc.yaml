@@ -17,6 +17,9 @@ logging:
 # Test level (L1|L2|L3)
 level: L1
 
+# Shapes configuration file path
+shapes_file: "/etc/oci-dr-hpc-shapes.json"
+
 # Additional configuration options can be added here
 # For example:
 # timeout: 30

@@ -95,6 +95,7 @@ func initConfig() {
 	// Explicitly bind environment variables for nested keys
 	viper.BindEnv("logging.level", "OCI_DR_HPC_LOGGING_LEVEL")
 	viper.BindEnv("logging.file", "OCI_DR_HPC_LOGGING_FILE")
+	viper.BindEnv("shapes_file", "OCI_DR_HPC_SHAPES_FILE")
 
 	var configFileUsed string
 	if err := viper.ReadInConfig(); err == nil {

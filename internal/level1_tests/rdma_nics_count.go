@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
+	"github.com/oracle/oci-dr-hpc-v2/internal/config"
 	"github.com/oracle/oci-dr-hpc-v2/internal/executor"
 	"github.com/oracle/oci-dr-hpc-v2/internal/logger"
 	"github.com/oracle/oci-dr-hpc-v2/internal/reporter"
@@ -129,7 +129,7 @@ type ShapesConfigRDMA struct {
 
 // getExpectedRDMANicConfig reads shapes.json and returns the expected RDMA NIC count and PCI IDs for the given shape
 func getExpectedRDMANicConfig(shapeName string) (int, []string, error) {
-	shapesFilePath := filepath.Join("internal", "shapes", "shapes.json")
+	shapesFilePath := config.GetShapesFilePath()
 
 	logger.Info("Loading shapes configuration from:", shapesFilePath)
 

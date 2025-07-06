@@ -2,8 +2,8 @@ package autodiscover
 
 import (
 	"fmt"
-	"path/filepath"
 
+	"github.com/oracle/oci-dr-hpc-v2/internal/config"
 	"github.com/oracle/oci-dr-hpc-v2/internal/logger"
 	"github.com/oracle/oci-dr-hpc-v2/internal/shapes"
 )
@@ -63,8 +63,8 @@ func DiscoverVCNNicWithFallback(shapeName string) VcnNic {
 
 // discoverRDMANicsFromShape discovers RDMA NICs from the shapes.json configuration
 func discoverRDMANicsFromShape(shapeName string) ([]RdmaNic, error) {
-	// Get the shapes configuration file path (relative to project root)
-	shapesFile := filepath.Join("internal", "shapes", "shapes.json")
+	// Get the shapes configuration file path
+	shapesFile := config.GetShapesFilePath()
 
 	// Create shape manager
 	shapeManager, err := shapes.NewShapeManager(shapesFile)
@@ -105,8 +105,8 @@ func discoverRDMANicsFromShape(shapeName string) ([]RdmaNic, error) {
 
 // discoverVCNNicFromShape discovers the first VCN NIC from the shapes.json configuration
 func discoverVCNNicFromShape(shapeName string) (VcnNic, error) {
-	// Get the shapes configuration file path (relative to project root)
-	shapesFile := filepath.Join("internal", "shapes", "shapes.json")
+	// Get the shapes configuration file path
+	shapesFile := config.GetShapesFilePath()
 
 	// Create shape manager
 	shapeManager, err := shapes.NewShapeManager(shapesFile)

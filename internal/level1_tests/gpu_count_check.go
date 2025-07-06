@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
+	"github.com/oracle/oci-dr-hpc-v2/internal/config"
 	"github.com/oracle/oci-dr-hpc-v2/internal/executor"
 	"github.com/oracle/oci-dr-hpc-v2/internal/logger"
 	"github.com/oracle/oci-dr-hpc-v2/internal/reporter"
@@ -111,7 +111,7 @@ func PrintGPUCountCheck() {
 
 // getExpectedGPUCount reads shapes.json and returns the expected GPU count for the given shape
 func getExpectedGPUCount(shapeName string) (int, error) {
-	shapesFilePath := filepath.Join("internal", "shapes", "shapes.json")
+	shapesFilePath := config.GetShapesFilePath()
 
 	logger.Info("Loading shapes configuration from:", shapesFilePath)
 
