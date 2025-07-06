@@ -63,7 +63,7 @@ def parse_gpu_driver_results(results="undefined", driver_blacklist="undefined",
                 result["gpu"]["driver_version"] = "WARN - unsupported driver"
     return result
 
-# Main function to call run_max_acc_check and parse the results
+# Main function to call run_gpu_driver_check and parse the results
 def main(argv=None):
     result = run_gpu_driver_check()
     print(json.dumps(result, indent=2))
