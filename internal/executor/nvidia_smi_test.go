@@ -10,8 +10,8 @@ import (
 // TestCheckNvidiaSMI tests the CheckNvidiaSMI function
 func TestCheckNvidiaSMI(t *testing.T) {
 	tests := []struct {
-		name     string
-		setup    func() func()
+		name      string
+		setup     func() func()
 		wantAvail bool
 		wantError bool
 	}{
@@ -88,7 +88,7 @@ func TestRunNvidiaSMIQuery(t *testing.T) {
 		},
 		{
 			name:      "valid query - memory.total",
-			query:     "memory.total", 
+			query:     "memory.total",
 			wantError: false,
 		},
 		{
@@ -126,7 +126,6 @@ func TestRunNvidiaSMIQuery(t *testing.T) {
 		})
 	}
 }
-
 
 // TestNvidiaSMIResult tests the NvidiaSMIResult struct
 func TestNvidiaSMIResult(t *testing.T) {
@@ -255,4 +254,199 @@ func TestIntegration(t *testing.T) {
 			}
 		}
 	})
+}
+
+// Test GetGPUInfo function
+func TestGetGPUInfo(t *testing.T) {
+	tests := []struct {
+		name        string
+		expectError bool
+		skipIfNoGPU bool
+	}{
+		{
+			name:        "get GPU info",
+			expectError: false,
+			skipIfNoGPU: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.skipIfNoGPU && !IsNvidiaSMIAvailable() {
+				t.Skip("Skipping test - nvidia-smi not available")
+			}
+
+			gpus, err := GetGPUInfo()
+
+			if tt.expectError && err == nil {
+				t.Error("Expected error but got none")
+			}
+			if !tt.expectError && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+
+			// If no error expected, verify the structure
+			if !tt.expectError && err == nil {
+				t.Logf("Found %d GPUs", len(gpus))
+				for i, gpu := range gpus {
+					t.Logf("GPU %d: PCI=%s, Model=%s, ID=%d", i, gpu.PCI, gpu.Model, gpu.ID)
+
+					// Basic validation
+					if gpu.PCI == "" {
+						t.Errorf("GPU %d has empty PCI address", i)
+					}
+					if gpu.Model == "" {
+						t.Errorf("GPU %d has empty model", i)
+					}
+					if gpu.ID < 0 {
+						t.Errorf("GPU %d has invalid ID: %d", i, gpu.ID)
+					}
+				}
+			}
+		})
+	}
+}
+
+// Test parseGPUInfo function with mock data
+func TestParseGPUInfo(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expectedLen int
+		expectError bool
+	}{
+		{
+			name:        "single GPU",
+			input:       "00000000:0F:00.0, NVIDIA GeForce GTX 1650, 0",
+			expectedLen: 1,
+			expectError: false,
+		},
+		{
+			name:        "multiple GPUs",
+			input:       "00000000:0F:00.0, NVIDIA H100 80GB HBM3, 0\n00000000:2D:00.0, NVIDIA H100 80GB HBM3, 1",
+			expectedLen: 2,
+			expectError: false,
+		},
+		{
+			name:        "empty input",
+			input:       "",
+			expectedLen: 0,
+			expectError: false,
+		},
+		{
+			name:        "whitespace only",
+			input:       "   \n   \n   ",
+			expectedLen: 0,
+			expectError: false,
+		},
+		{
+			name:        "invalid format",
+			input:       "invalid line without commas",
+			expectedLen: 0,
+			expectError: false, // Should skip invalid lines
+		},
+		{
+			name:        "mixed valid and invalid",
+			input:       "00000000:0F:00.0, NVIDIA H100, 0\ninvalid line\n00000000:2D:00.0, NVIDIA H100, 1",
+			expectedLen: 2,
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gpus, err := parseGPUInfo(tt.input)
+
+			if tt.expectError && err == nil {
+				t.Error("Expected error but got none")
+			}
+			if !tt.expectError && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+
+			if len(gpus) != tt.expectedLen {
+				t.Errorf("Expected %d GPUs, got %d", tt.expectedLen, len(gpus))
+			}
+
+			// For valid cases, check the parsed content
+			if !tt.expectError && tt.expectedLen > 0 {
+				for i, gpu := range gpus {
+					t.Logf("Parsed GPU %d: PCI=%s, Model=%s, ID=%d", i, gpu.PCI, gpu.Model, gpu.ID)
+					if gpu.PCI == "" {
+						t.Errorf("GPU %d has empty PCI address", i)
+					}
+					if gpu.Model == "" {
+						t.Errorf("GPU %d has empty model", i)
+					}
+				}
+			}
+		})
+	}
+}
+
+// Test GetGPUCount function
+func TestGetGPUCount(t *testing.T) {
+	tests := []struct {
+		name        string
+		expectError bool
+		skipIfNoGPU bool
+	}{
+		{
+			name:        "get GPU count",
+			expectError: false,
+			skipIfNoGPU: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.skipIfNoGPU && !IsNvidiaSMIAvailable() {
+				t.Skip("Skipping test - nvidia-smi not available")
+			}
+
+			count, err := GetGPUCount()
+
+			if tt.expectError && err == nil {
+				t.Error("Expected error but got none")
+			}
+			if !tt.expectError && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+
+			if !tt.expectError {
+				t.Logf("GPU count: %d", count)
+				if count < 0 {
+					t.Errorf("Invalid GPU count: %d", count)
+				}
+			}
+		})
+	}
+}
+
+// Test IsNvidiaSMIAvailable function
+func TestIsNvidiaSMIAvailable(t *testing.T) {
+	available := IsNvidiaSMIAvailable()
+	t.Logf("nvidia-smi available: %v", available)
+
+	// This test just verifies the function doesn't crash
+	// The actual availability depends on the test environment
+}
+
+// Test GPUInfo struct
+func TestGPUInfoStruct(t *testing.T) {
+	gpu := GPUInfo{
+		PCI:   "00000000:0F:00.0",
+		Model: "NVIDIA H100 80GB HBM3",
+		ID:    0,
+	}
+
+	if gpu.PCI != "00000000:0F:00.0" {
+		t.Errorf("Expected PCI '00000000:0F:00.0', got '%s'", gpu.PCI)
+	}
+	if gpu.Model != "NVIDIA H100 80GB HBM3" {
+		t.Errorf("Expected Model 'NVIDIA H100 80GB HBM3', got '%s'", gpu.Model)
+	}
+	if gpu.ID != 0 {
+		t.Errorf("Expected ID 0, got %d", gpu.ID)
+	}
 }

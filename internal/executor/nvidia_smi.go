@@ -1,7 +1,9 @@
 package executor
 
 import (
+	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/oracle/oci-dr-hpc-v2/internal/logger"
@@ -12,6 +14,13 @@ type NvidiaSMIResult struct {
 	Available bool
 	Output    string
 	Error     string
+}
+
+// GPUInfo represents information about a single GPU
+type GPUInfo struct {
+	PCI   string `json:"pci"`
+	Model string `json:"model"`
+	ID    int    `json:"id"`
 }
 
 // CheckNvidiaSMI checks if nvidia-smi is available and functional
@@ -92,4 +101,105 @@ func RunNvidiaSMIQuery(query string) *NvidiaSMIResult {
 	logger.Debug("Query result:", result.Output)
 
 	return result
+}
+
+// GetGPUInfo queries nvidia-smi for comprehensive GPU information
+func GetGPUInfo() ([]GPUInfo, error) {
+	logger.Info("Querying GPU information from nvidia-smi...")
+
+	// Query for PCI bus info, GPU name, and index
+	result := RunNvidiaSMIQuery("pci.bus_id,name,index")
+
+	if !result.Available {
+		return nil, fmt.Errorf("nvidia-smi not available: %s", result.Error)
+	}
+
+	if result.Output == "" {
+		logger.Info("No GPUs detected by nvidia-smi")
+		return []GPUInfo{}, nil
+	}
+
+	gpus, err := parseGPUInfo(result.Output)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse GPU information: %w", err)
+	}
+
+	logger.Infof("Successfully detected %d GPUs", len(gpus))
+	return gpus, nil
+}
+
+// parseGPUInfo parses the nvidia-smi output into GPUInfo structs
+func parseGPUInfo(output string) ([]GPUInfo, error) {
+	var gpus []GPUInfo
+
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+
+	for i, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		// Split CSV line: pci.bus_id, name, index
+		parts := strings.Split(line, ",")
+		if len(parts) < 3 {
+			logger.Errorf("Invalid GPU info line: %s", line)
+			continue
+		}
+
+		// Clean up the parts
+		pci := strings.TrimSpace(parts[0])
+		model := strings.TrimSpace(parts[1])
+		indexStr := strings.TrimSpace(parts[2])
+
+		// Parse GPU index
+		index, err := strconv.Atoi(indexStr)
+		if err != nil {
+			logger.Errorf("Failed to parse GPU index '%s' on line %d: %v", indexStr, i+1, err)
+			// Use line number as fallback
+			index = i
+		}
+
+		gpu := GPUInfo{
+			PCI:   pci,
+			Model: model,
+			ID:    index,
+		}
+
+		gpus = append(gpus, gpu)
+		logger.Debugf("Parsed GPU %d: PCI=%s, Model=%s", index, pci, model)
+	}
+
+	return gpus, nil
+}
+
+// GetGPUCount queries nvidia-smi for the number of GPUs
+func GetGPUCount() (int, error) {
+	logger.Info("Querying GPU count from nvidia-smi...")
+
+	result := RunNvidiaSMIQuery("count")
+
+	if !result.Available {
+		return 0, fmt.Errorf("nvidia-smi not available: %s", result.Error)
+	}
+
+	// nvidia-smi returns just the count number
+	countStr := strings.TrimSpace(result.Output)
+	if countStr == "" {
+		return 0, nil
+	}
+
+	count, err := strconv.Atoi(countStr)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse GPU count '%s': %w", countStr, err)
+	}
+
+	logger.Infof("GPU count: %d", count)
+	return count, nil
+}
+
+// IsNvidiaSMIAvailable checks if nvidia-smi is available and working
+func IsNvidiaSMIAvailable() bool {
+	result := CheckNvidiaSMI()
+	return result.Available
 }

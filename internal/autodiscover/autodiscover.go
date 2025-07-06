@@ -206,7 +206,10 @@ func Run() {
 	// Gather real system information
 	sysInfo := GatherSystemInfoPartial()
 
-	// Mocked data for now; replace with real discovery logic
+	// Discover real GPU information
+	discoveredGPUs := DiscoverGPUsWithFallback()
+
+	// Build the complete hardware map with real data
 	mapHost := MapHost{
 		Hostname:         sysInfo.Hostname,
 		Ocid:             sysInfo.OCID,
@@ -215,10 +218,7 @@ func Run() {
 		Serial:           sysInfo.Serial,
 		Rack:             sysInfo.Rack,
 		InCluster:        true,
-		Gpus: []GPU{
-			{PCI: "0000:0f:00.0", Model: "NVIDIA H100 80GB HBM3", ID: 0},
-			{PCI: "0000:2d:00.0", Model: "NVIDIA H100 80GB HBM3", ID: 1},
-		},
+		Gpus:             discoveredGPUs,
 		RdmaNics: []RdmaNic{
 			{
 				PCI:        "0000:0c:00.0",
