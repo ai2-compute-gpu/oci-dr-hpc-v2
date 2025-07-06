@@ -59,16 +59,21 @@ ip addr
 rdma link
 ```
 
-**Purpose**: Map network interface to RDMA device name (e.g., mlx5_0, mlx5_1)
+**Purpose**: Map network interface to RDMA device name (e.g., mlx5_0, mlx5_1, mlx5_2)
 
 **Parsing Logic**:
 - Parse format: `link mlx5_0/1 state ACTIVE physical_state LINK_UP netdev eth0`
-- Extract device name (`mlx5_0`) for matching interface
+- Alternative format: `1/1: mlx5_0/1: state ACTIVE physical_state LINK_UP netdev eth0`
+- Extract device name (`mlx5_0`, `mlx5_2`, etc.) for matching interface
+- **Fallback Logic**: If rdma link fails, generate device name from interface:
+  - `eth0` → `mlx5_0`
+  - `ens5` → `mlx5_5`
+  - `enp0s3` → `mlx5_3`
 
 **Example Output**:
 ```
 link mlx5_0/1 state ACTIVE physical_state LINK_UP netdev eth0
-link mlx5_1/1 state ACTIVE physical_state LINK_UP netdev eth1
+link mlx5_2/1 state ACTIVE physical_state LINK_UP netdev ens5
 ```
 
 ### Step 3: Get PCI Address from Device Path

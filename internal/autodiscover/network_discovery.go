@@ -40,11 +40,33 @@ func DiscoverVCNInterface() (*NetworkInterface, error) {
 	deviceName, err := getDeviceNameFromRdmaLink(interfaceInfo.Interface)
 	if err != nil {
 		logger.Errorf("Failed to get device name from rdma link: %v", err)
-		// Fallback: try to determine device name from interface name
-		deviceName = fmt.Sprintf("mlx5_%s", strings.TrimPrefix(interfaceInfo.Interface, "eth"))
-		logger.Infof("Using fallback device name: %s", deviceName)
+
+		// Fallback: Generate device name from interface name
+		// eth0 -> mlx5_0, eth1 -> mlx5_1, ens3 -> mlx5_3, etc.
+		interfaceNumber := "0" // Default fallback
+
+		// Try to extract number from interface name
+		if strings.HasPrefix(interfaceInfo.Interface, "eth") {
+			interfaceNumber = strings.TrimPrefix(interfaceInfo.Interface, "eth")
+		} else if strings.HasPrefix(interfaceInfo.Interface, "ens") {
+			interfaceNumber = strings.TrimPrefix(interfaceInfo.Interface, "ens")
+		} else {
+			// For other interface names, try to extract trailing number
+			re := regexp.MustCompile(`\d+$`)
+			matches := re.FindStringSubmatch(interfaceInfo.Interface)
+			if len(matches) > 0 {
+				interfaceNumber = matches[0]
+			}
+		}
+
+		deviceName = fmt.Sprintf("mlx5_%s", interfaceNumber)
+		logger.Infof("Using fallback device name: %s (from interface %s)", deviceName, interfaceInfo.Interface)
+	} else {
+		logger.Infof("Successfully got device name from rdma link: %s", deviceName)
 	}
+
 	interfaceInfo.DeviceName = deviceName
+	logger.Infof("Set DeviceName to: %s", interfaceInfo.DeviceName)
 
 	// Step 3: Get PCI address using readlink
 	pciAddress, err := getPCIAddressFromDevice(deviceName)
@@ -153,27 +175,44 @@ func getDeviceNameFromRdmaLink(interfaceName string) (string, error) {
 func parseRdmaLinkOutput(output, interfaceName string) (string, error) {
 	lines := strings.Split(output, "\n")
 
+	logger.Infof("Parsing rdma link output for interface %s:", interfaceName)
+	logger.Infof("RDMA output:\n%s", output)
+
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
 
+		logger.Infof("Checking rdma line: %s", line)
+
 		// Parse rdma link output format: "link mlx5_0/1 state ACTIVE physical_state LINK_UP netdev eth0"
+		// Or alternative format: "1/1: mlx5_0/1: state ACTIVE physical_state LINK_UP netdev eth0"
 		if strings.Contains(line, interfaceName) {
+			logger.Infof("Found matching line for interface %s: %s", interfaceName, line)
+
 			fields := strings.Fields(line)
 			for i, field := range fields {
+				// Look for "link" followed by device name, or device name pattern directly
 				if field == "link" && i+1 < len(fields) {
 					linkInfo := fields[i+1]
 					// Extract device name (mlx5_0 from mlx5_0/1)
 					deviceName := strings.Split(linkInfo, "/")[0]
-					logger.Infof("Found device name %s for interface %s", deviceName, interfaceName)
+					logger.Infof("Found device name %s for interface %s (format: link mlx5_X/Y)", deviceName, interfaceName)
+					return deviceName, nil
+				}
+
+				// Alternative: look for mlx5_X/Y pattern directly
+				if strings.Contains(field, "mlx5_") && strings.Contains(field, "/") {
+					deviceName := strings.Split(field, "/")[0]
+					logger.Infof("Found device name %s for interface %s (format: mlx5_X/Y)", deviceName, interfaceName)
 					return deviceName, nil
 				}
 			}
 		}
 	}
 
+	logger.Errorf("Device name not found for interface %s in rdma link output", interfaceName)
 	return "", fmt.Errorf("device name not found for interface %s in rdma link output", interfaceName)
 }
 

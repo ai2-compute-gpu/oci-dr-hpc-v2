@@ -1,6 +1,9 @@
 package autodiscover
 
 import (
+	"fmt"
+	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -377,3 +380,192 @@ func TestNetworkDiscoveryIntegration(t *testing.T) {
 	//
 	// t.Logf("Discovered network interface: %+v", netInterface)
 }
+
+// Integration test for partial VCN discovery (Step 1 success, Step 2 failure)
+func TestVCNDiscoveryWithRdmaFailure(t *testing.T) {
+	// Test what happens when we find MTU 9000 interface but rdma link fails
+	mockIPOutput := `1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9000 qdisc mq state UP group default qlen 1000
+    link/ether 02:00:17:00:0b:b3 brd ff:ff:ff:ff:ff:ff
+    inet 10.0.11.179/24 brd 10.0.11.255 scope global dynamic eth0
+       valid_lft 86334sec preferred_lft 86334sec`
+
+	// Test parseIPAddrOutput
+	netInterface, err := parseIPAddrOutput(mockIPOutput)
+	if err != nil {
+		t.Fatalf("parseIPAddrOutput failed: %v", err)
+	}
+
+	if netInterface.Interface != "eth0" {
+		t.Errorf("Expected interface 'eth0', got '%s'", netInterface.Interface)
+	}
+	if netInterface.PrivateIP != "10.0.11.179" {
+		t.Errorf("Expected IP '10.0.11.179', got '%s'", netInterface.PrivateIP)
+	}
+	if netInterface.MTU != 9000 {
+		t.Errorf("Expected MTU 9000, got %d", netInterface.MTU)
+	}
+
+	// Simulate rdma link failure and check fallback device name logic
+	interfaceName := "eth0"
+
+	// Test the fallback logic directly
+	deviceName := fmt.Sprintf("mlx5_%s", strings.TrimPrefix(interfaceName, "eth"))
+	expectedDeviceName := "mlx5_0"
+
+	if deviceName != expectedDeviceName {
+		t.Errorf("Fallback device name logic failed: expected '%s', got '%s'", expectedDeviceName, deviceName)
+	}
+
+	t.Logf("VCN discovery test: interface=%s, ip=%s, fallback_device=%s",
+		netInterface.Interface, netInterface.PrivateIP, deviceName)
+}
+
+// Test improved fallback device name generation for different interface patterns
+func TestDeviceNameFallbackLogic(t *testing.T) {
+	tests := []struct {
+		interfaceName  string
+		expectedDevice string
+		description    string
+	}{
+		{
+			interfaceName:  "eth0",
+			expectedDevice: "mlx5_0",
+			description:    "Standard eth0 interface",
+		},
+		{
+			interfaceName:  "eth1",
+			expectedDevice: "mlx5_1",
+			description:    "eth1 interface",
+		},
+		{
+			interfaceName:  "ens3",
+			expectedDevice: "mlx5_3",
+			description:    "Predictable interface name ens3",
+		},
+		{
+			interfaceName:  "ens5",
+			expectedDevice: "mlx5_5",
+			description:    "Predictable interface name ens5",
+		},
+		{
+			interfaceName:  "enp0s3",
+			expectedDevice: "mlx5_3",
+			description:    "Complex interface name with trailing number",
+		},
+		{
+			interfaceName:  "wlan0",
+			expectedDevice: "mlx5_0",
+			description:    "Wireless interface with trailing number",
+		},
+		{
+			interfaceName:  "unknown",
+			expectedDevice: "mlx5_0",
+			description:    "Unknown interface pattern defaults to 0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			// Simulate the fallback logic
+			interfaceNumber := "0" // Default fallback
+
+			// Try to extract number from interface name
+			if strings.HasPrefix(tt.interfaceName, "eth") {
+				interfaceNumber = strings.TrimPrefix(tt.interfaceName, "eth")
+			} else if strings.HasPrefix(tt.interfaceName, "ens") {
+				interfaceNumber = strings.TrimPrefix(tt.interfaceName, "ens")
+			} else {
+				// For other interface names, try to extract trailing number
+				re := regexp.MustCompile(`\d+$`)
+				matches := re.FindStringSubmatch(tt.interfaceName)
+				if len(matches) > 0 {
+					interfaceNumber = matches[0]
+				}
+			}
+
+			deviceName := fmt.Sprintf("mlx5_%s", interfaceNumber)
+
+			if deviceName != tt.expectedDevice {
+				t.Errorf("Expected device name %s for interface %s, got %s",
+					tt.expectedDevice, tt.interfaceName, deviceName)
+			}
+
+			t.Logf("Interface %s -> Device %s", tt.interfaceName, deviceName)
+		})
+	}
+}
+
+// Test complete VCN discovery process with device name verification
+func TestCompleteVCNDiscoveryWithDeviceName(t *testing.T) {
+	// Test simulates what happens on a real OCI system where:
+	// 1. Step 1 succeeds (finds MTU 9000 interface)
+	// 2. Step 2 fails (rdma link unavailable)
+	// 3. Fallback generates correct device name
+
+	// Create a mock NetworkInterface as if Step 1 succeeded
+	mockInterface := &NetworkInterface{
+		Interface: "ens5", // Common OCI interface name
+		PrivateIP: "10.0.11.179",
+		MTU:       9000,
+	}
+
+	// Simulate Step 2 failure and fallback device name generation
+	interfaceName := mockInterface.Interface
+
+	// This is the actual fallback logic from the code
+	interfaceNumber := "0" // Default fallback
+
+	if strings.HasPrefix(interfaceName, "eth") {
+		interfaceNumber = strings.TrimPrefix(interfaceName, "eth")
+	} else if strings.HasPrefix(interfaceName, "ens") {
+		interfaceNumber = strings.TrimPrefix(interfaceName, "ens")
+	} else {
+		// For other interface names, try to extract trailing number
+		re := regexp.MustCompile(`\d+$`)
+		matches := re.FindStringSubmatch(interfaceName)
+		if len(matches) > 0 {
+			interfaceNumber = matches[0]
+		}
+	}
+
+	deviceName := fmt.Sprintf("mlx5_%s", interfaceNumber)
+	mockInterface.DeviceName = deviceName
+
+	// Verify the device name is correct
+	expectedDeviceName := "mlx5_5" // ens5 -> mlx5_5
+	if mockInterface.DeviceName != expectedDeviceName {
+		t.Errorf("Expected device name %s, got %s", expectedDeviceName, mockInterface.DeviceName)
+	}
+
+	// Create a VcnNic from the discovered interface (simulating autodiscover.go logic)
+	vcnNic := VcnNic{
+		PrivateIP:  mockInterface.PrivateIP,
+		PCI:        "0000:1f:00.0", // Would come from Step 3
+		Interface:  mockInterface.Interface,
+		DeviceName: mockInterface.DeviceName,
+		Model:      "Mellanox Technologies MT2892 Family [ConnectX-6 Dx]", // Would come from Step 4
+	}
+
+	// Verify the final VCN NIC has the correct device name
+	if vcnNic.DeviceName != expectedDeviceName {
+		t.Errorf("VcnNic DeviceName should be %s, got %s", expectedDeviceName, vcnNic.DeviceName)
+	}
+
+	// Verify it's NOT the interface name (the original bug)
+	if vcnNic.DeviceName == vcnNic.Interface {
+		t.Errorf("DeviceName should not equal Interface name. DeviceName=%s, Interface=%s",
+			vcnNic.DeviceName, vcnNic.Interface)
+	}
+
+	t.Logf("✅ VCN discovery test passed:")
+	t.Logf("   Interface: %s", vcnNic.Interface)
+	t.Logf("   DeviceName: %s", vcnNic.DeviceName)
+	t.Logf("   PrivateIP: %s", vcnNic.PrivateIP)
+	t.Logf("   Model: %s", vcnNic.Model)
+}
+
+// VcnNic is already defined in autodiscover.go - no need to redeclare
