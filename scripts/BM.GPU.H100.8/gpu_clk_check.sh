@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Simple GPU clock check, pure bash
+# This script checks the GPU clock speed to determine if it is within the expected threshold of the maximum setting.
 
 MAX=1980
 MIN=$(( MAX*90/100 ))  # 90% threshold
