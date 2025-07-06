@@ -53,6 +53,26 @@ func createMockIMDSServer() *httptest.Server {
 				"fingerprint": "test:fingerprint:12345",
 				"tenancyId": "ocid1.tenancy.oc1..test"
 			}`))
+		case "/opc/v2/host":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{
+				"buildingId": "building:1725b321355f0314955d9e8d68cf2c54bc99db9ce21fecece62db989e763ac71",
+				"id": "c108fca4ead3550cf7bbf0be7c0dce30b01b6b772a48f9f8e13346891a57f8a2",
+				"networkBlockId": "922fd61aa1af7d80d4edb08bcf09d6ae6f0d0152bb99843885fcd732b22716d9",
+				"rackId": "8d93acc296b77c923d0778079061b64094d55b3fbe4eb54460655e916cddf34a"
+			}`))
+		case "/opc/v2/host/rackId":
+			w.Header().Set("Content-Type", "text/plain")
+			w.Write([]byte("8d93acc296b77c923d0778079061b64094d55b3fbe4eb54460655e916cddf34a"))
+		case "/opc/v2/host/buildingId":
+			w.Header().Set("Content-Type", "text/plain")
+			w.Write([]byte("building:1725b321355f0314955d9e8d68cf2c54bc99db9ce21fecece62db989e763ac71"))
+		case "/opc/v2/host/id":
+			w.Header().Set("Content-Type", "text/plain")
+			w.Write([]byte("c108fca4ead3550cf7bbf0be7c0dce30b01b6b772a48f9f8e13346891a57f8a2"))
+		case "/opc/v2/host/networkBlockId":
+			w.Header().Set("Content-Type", "text/plain")
+			w.Write([]byte("922fd61aa1af7d80d4edb08bcf09d6ae6f0d0152bb99843885fcd732b22716d9"))
 		default:
 			http.Error(w, "Not Found", http.StatusNotFound)
 		}
@@ -451,4 +471,151 @@ func TestGetRegionInfo(t *testing.T) {
 	if regionInfo.RealmDomainComponent != "oraclecloud.com" {
 		t.Errorf("Expected realm domain oraclecloud.com, got %s", regionInfo.RealmDomainComponent)
 	}
+}
+
+// Host metadata tests
+
+func TestGetHostMetadata(t *testing.T) {
+	server := createMockIMDSServer()
+	defer server.Close()
+
+	client := &IMDSClient{
+		httpClient: &http.Client{Timeout: 5 * time.Second},
+		baseURL:    server.URL + "/opc/v2",
+	}
+
+	hostMetadata, err := client.GetHostMetadata()
+	if err != nil {
+		t.Fatalf("GetHostMetadata failed: %v", err)
+	}
+
+	expectedBuildingID := "building:1725b321355f0314955d9e8d68cf2c54bc99db9ce21fecece62db989e763ac71"
+	expectedHostID := "c108fca4ead3550cf7bbf0be7c0dce30b01b6b772a48f9f8e13346891a57f8a2"
+	expectedNetworkBlockID := "922fd61aa1af7d80d4edb08bcf09d6ae6f0d0152bb99843885fcd732b22716d9"
+	expectedRackID := "8d93acc296b77c923d0778079061b64094d55b3fbe4eb54460655e916cddf34a"
+
+	if hostMetadata.BuildingID != expectedBuildingID {
+		t.Errorf("Expected building ID %s, got %s", expectedBuildingID, hostMetadata.BuildingID)
+	}
+	if hostMetadata.ID != expectedHostID {
+		t.Errorf("Expected host ID %s, got %s", expectedHostID, hostMetadata.ID)
+	}
+	if hostMetadata.NetworkBlockID != expectedNetworkBlockID {
+		t.Errorf("Expected network block ID %s, got %s", expectedNetworkBlockID, hostMetadata.NetworkBlockID)
+	}
+	if hostMetadata.RackID != expectedRackID {
+		t.Errorf("Expected rack ID %s, got %s", expectedRackID, hostMetadata.RackID)
+	}
+}
+
+func TestGetRackID(t *testing.T) {
+	server := createMockIMDSServer()
+	defer server.Close()
+
+	client := &IMDSClient{
+		httpClient: &http.Client{Timeout: 5 * time.Second},
+		baseURL:    server.URL + "/opc/v2",
+	}
+
+	rackID, err := client.GetRackID()
+	if err != nil {
+		t.Fatalf("GetRackID failed: %v", err)
+	}
+
+	expected := "8d93acc296b77c923d0778079061b64094d55b3fbe4eb54460655e916cddf34a"
+	if rackID != expected {
+		t.Errorf("Expected rack ID %s, got %s", expected, rackID)
+	}
+}
+
+func TestGetBuildingID(t *testing.T) {
+	server := createMockIMDSServer()
+	defer server.Close()
+
+	client := &IMDSClient{
+		httpClient: &http.Client{Timeout: 5 * time.Second},
+		baseURL:    server.URL + "/opc/v2",
+	}
+
+	buildingID, err := client.GetBuildingID()
+	if err != nil {
+		t.Fatalf("GetBuildingID failed: %v", err)
+	}
+
+	expected := "building:1725b321355f0314955d9e8d68cf2c54bc99db9ce21fecece62db989e763ac71"
+	if buildingID != expected {
+		t.Errorf("Expected building ID %s, got %s", expected, buildingID)
+	}
+}
+
+func TestGetHostID(t *testing.T) {
+	server := createMockIMDSServer()
+	defer server.Close()
+
+	client := &IMDSClient{
+		httpClient: &http.Client{Timeout: 5 * time.Second},
+		baseURL:    server.URL + "/opc/v2",
+	}
+
+	hostID, err := client.GetHostID()
+	if err != nil {
+		t.Fatalf("GetHostID failed: %v", err)
+	}
+
+	expected := "c108fca4ead3550cf7bbf0be7c0dce30b01b6b772a48f9f8e13346891a57f8a2"
+	if hostID != expected {
+		t.Errorf("Expected host ID %s, got %s", expected, hostID)
+	}
+}
+
+func TestGetNetworkBlockID(t *testing.T) {
+	server := createMockIMDSServer()
+	defer server.Close()
+
+	client := &IMDSClient{
+		httpClient: &http.Client{Timeout: 5 * time.Second},
+		baseURL:    server.URL + "/opc/v2",
+	}
+
+	networkBlockID, err := client.GetNetworkBlockID()
+	if err != nil {
+		t.Fatalf("GetNetworkBlockID failed: %v", err)
+	}
+
+	expected := "922fd61aa1af7d80d4edb08bcf09d6ae6f0d0152bb99843885fcd732b22716d9"
+	if networkBlockID != expected {
+		t.Errorf("Expected network block ID %s, got %s", expected, networkBlockID)
+	}
+}
+
+// Test convenience functions
+
+func TestGetCurrentHostMetadata(t *testing.T) {
+	// This test would require a real IMDS endpoint or more complex mocking
+	// For now, we'll skip it but the function is implemented
+	t.Skip("Convenience function test requires real IMDS or complex mocking")
+}
+
+func TestGetCurrentRackID(t *testing.T) {
+	// This test would require a real IMDS endpoint or more complex mocking
+	// For now, we'll skip it but the function is implemented
+	t.Skip("Convenience function test requires real IMDS or complex mocking")
+}
+
+func TestGetCurrentBuildingID(t *testing.T) {
+	// This test would require a real IMDS endpoint or more complex mocking
+	// For now, we'll skip it but the function is implemented
+	t.Skip("Convenience function test requires real IMDS or complex mocking")
+}
+
+func TestGetCurrentHostID(t *testing.T) {
+	// This test would require a real IMDS endpoint or more complex mocking
+	// For now, we'll skip it but the function is implemented
+	t.Skip("Convenience function test requires real IMDS or complex mocking")
+}
+
+func TestGetCurrentNetworkBlockID(t *testing.T) {
+	// This test would require a real IMDS endpoint or more complex mocking
+	// For now, we'll skip it but the function is implemented
+	t.Skip("Convenience function test requires real IMDS or complex mocking")
 }

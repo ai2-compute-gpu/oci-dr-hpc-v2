@@ -97,6 +97,14 @@ type IdentityMetadata struct {
 	TenancyID       string `json:"tenancyId"`
 }
 
+// HostMetadata represents the host metadata structure
+type HostMetadata struct {
+	BuildingID     string `json:"buildingId"`
+	ID             string `json:"id"`
+	NetworkBlockID string `json:"networkBlockId"`
+	RackID         string `json:"rackId"`
+}
+
 // NewIMDSClient creates a new IMDS client
 func NewIMDSClient() *IMDSClient {
 	return &IMDSClient{
@@ -190,6 +198,81 @@ func (c *IMDSClient) GetIdentityMetadata() (*IdentityMetadata, error) {
 
 	logger.Info("Successfully retrieved identity metadata")
 	return &metadata, nil
+}
+
+// GetHostMetadata retrieves host metadata from IMDS
+func (c *IMDSClient) GetHostMetadata() (*HostMetadata, error) {
+	logger.Info("Retrieving host metadata from IMDS")
+
+	body, err := c.makeRequest("host")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get host metadata: %w", err)
+	}
+
+	var metadata HostMetadata
+	if err := json.Unmarshal(body, &metadata); err != nil {
+		logger.Errorf("Failed to parse host metadata: %v", err)
+		return nil, fmt.Errorf("failed to parse host metadata: %w", err)
+	}
+
+	logger.Info("Successfully retrieved host metadata")
+	return &metadata, nil
+}
+
+// GetRackID retrieves just the rack ID from host metadata
+func (c *IMDSClient) GetRackID() (string, error) {
+	logger.Info("Retrieving rack ID from IMDS")
+
+	body, err := c.makeRequest("host/rackId")
+	if err != nil {
+		return "", fmt.Errorf("failed to get rack ID: %w", err)
+	}
+
+	rackID := string(body)
+	logger.Infof("Successfully retrieved rack ID: %s", rackID)
+	return rackID, nil
+}
+
+// GetBuildingID retrieves just the building ID from host metadata
+func (c *IMDSClient) GetBuildingID() (string, error) {
+	logger.Info("Retrieving building ID from IMDS")
+
+	body, err := c.makeRequest("host/buildingId")
+	if err != nil {
+		return "", fmt.Errorf("failed to get building ID: %w", err)
+	}
+
+	buildingID := string(body)
+	logger.Infof("Successfully retrieved building ID: %s", buildingID)
+	return buildingID, nil
+}
+
+// GetHostID retrieves just the host ID from host metadata
+func (c *IMDSClient) GetHostID() (string, error) {
+	logger.Info("Retrieving host ID from IMDS")
+
+	body, err := c.makeRequest("host/id")
+	if err != nil {
+		return "", fmt.Errorf("failed to get host ID: %w", err)
+	}
+
+	hostID := string(body)
+	logger.Infof("Successfully retrieved host ID: %s", hostID)
+	return hostID, nil
+}
+
+// GetNetworkBlockID retrieves just the network block ID from host metadata
+func (c *IMDSClient) GetNetworkBlockID() (string, error) {
+	logger.Info("Retrieving network block ID from IMDS")
+
+	body, err := c.makeRequest("host/networkBlockId")
+	if err != nil {
+		return "", fmt.Errorf("failed to get network block ID: %w", err)
+	}
+
+	networkBlockID := string(body)
+	logger.Infof("Successfully retrieved network block ID: %s", networkBlockID)
+	return networkBlockID, nil
 }
 
 // GetVnicMetadata retrieves VNIC metadata from IMDS
@@ -532,4 +615,36 @@ func GetCurrentAgentConfig() (*AgentConfig, error) {
 		return nil, fmt.Errorf("failed to get agent config: %w", err)
 	}
 	return metadata.AgentConfig, nil
+}
+
+// Convenience functions for host metadata
+
+// GetCurrentHostMetadata is a convenience function to get current host metadata
+func GetCurrentHostMetadata() (*HostMetadata, error) {
+	client := NewIMDSClient()
+	return client.GetHostMetadata()
+}
+
+// GetCurrentRackID is a convenience function to get the current rack ID
+func GetCurrentRackID() (string, error) {
+	client := NewIMDSClient()
+	return client.GetRackID()
+}
+
+// GetCurrentBuildingID is a convenience function to get the current building ID
+func GetCurrentBuildingID() (string, error) {
+	client := NewIMDSClient()
+	return client.GetBuildingID()
+}
+
+// GetCurrentHostID is a convenience function to get the current host ID
+func GetCurrentHostID() (string, error) {
+	client := NewIMDSClient()
+	return client.GetHostID()
+}
+
+// GetCurrentNetworkBlockID is a convenience function to get the current network block ID
+func GetCurrentNetworkBlockID() (string, error) {
+	client := NewIMDSClient()
+	return client.GetNetworkBlockID()
 }
