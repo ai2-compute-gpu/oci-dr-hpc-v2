@@ -11,7 +11,6 @@ The script supports two deployment modes:
 - OKE nodes: Uses RDMA-capable interfaces (rdma*)
 """
 
-import sys
 import argparse
 import subprocess
 import shlex
