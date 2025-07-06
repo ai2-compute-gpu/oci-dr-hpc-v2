@@ -48,6 +48,7 @@ rpm: build install-fpm
 		--package $(DIST_DIR) \
 		$(BUILD_DIR)/$(APP_NAME)=/usr/bin/$(APP_NAME) \
 		config/oci-dr-hpc.yaml=/etc/oci-dr-hpc.yaml \
+		internal/shapes/shapes.json=/etc/oci-dr-hpc-shapes.json \
 		scripts/setup-logging.sh=/usr/share/oci-dr-hpc/setup-logging.sh
 
 deb: deb-ubuntu
@@ -72,6 +73,7 @@ deb-ubuntu: build install-fpm
 		--package $(DIST_DIR) \
 		$(BUILD_DIR)/$(APP_NAME)=/usr/bin/$(APP_NAME) \
 		config/oci-dr-hpc.yaml=/etc/oci-dr-hpc.yaml \
+		internal/shapes/shapes.json=/etc/oci-dr-hpc-shapes.json \
 		scripts/setup-logging.sh=/usr/share/oci-dr-hpc/setup-logging.sh
 
 deb-debian: build install-fpm
@@ -94,6 +96,7 @@ deb-debian: build install-fpm
 		--package $(DIST_DIR) \
 		$(BUILD_DIR)/$(APP_NAME)=/usr/bin/$(APP_NAME) \
 		config/oci-dr-hpc.yaml=/etc/oci-dr-hpc.yaml \
+		internal/shapes/shapes.json=/etc/oci-dr-hpc-shapes.json \
 		scripts/setup-logging.sh=/usr/share/oci-dr-hpc/setup-logging.sh
 
 test:
