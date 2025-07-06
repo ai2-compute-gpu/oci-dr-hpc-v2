@@ -203,16 +203,17 @@ func formatFriendly(mapHost *MapHost) (string, error) {
 func Run() {
 	logger.Info("Running autodiscover...")
 
-	hostname, _ := os.Hostname()
+	// Gather real system information
+	sysInfo := GatherSystemInfoPartial()
 
 	// Mocked data for now; replace with real discovery logic
 	mapHost := MapHost{
-		Hostname:         hostname,
-		Ocid:             "ocid1.instance.oc1..example",
-		FriendlyHostname: "localhost",
-		Shape:            "BM.GPU.H100.8",
-		Serial:           "2334XLG08T",
-		Rack:             "rack-id-placeholder",
+		Hostname:         sysInfo.Hostname,
+		Ocid:             sysInfo.OCID,
+		FriendlyHostname: sysInfo.FriendlyHostname,
+		Shape:            sysInfo.Shape,
+		Serial:           sysInfo.Serial,
+		Rack:             sysInfo.Rack,
 		InCluster:        true,
 		Gpus: []GPU{
 			{PCI: "0000:0f:00.0", Model: "NVIDIA H100 80GB HBM3", ID: 0},
@@ -273,7 +274,7 @@ func Run() {
 	if userOutputFile := viper.GetString("output-file"); userOutputFile != "" {
 		outputFile = userOutputFile
 	} else {
-		outputFile = fmt.Sprintf("map_host_%s.json", strings.ToLower(hostname))
+		outputFile = fmt.Sprintf("map_host_%s.json", strings.ToLower(sysInfo.Hostname))
 	}
 
 	// Create output directory if it doesn't exist (for user-specified paths)

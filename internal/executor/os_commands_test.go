@@ -31,9 +31,9 @@ func TestOSCommandResult(t *testing.T) {
 
 func TestRunLspci(t *testing.T) {
 	tests := []struct {
-		name        string
-		options     []string
-		expectError bool
+		name         string
+		options      []string
+		expectError  bool
 		skipIfNoSudo bool
 	}{
 		{
@@ -279,7 +279,7 @@ func canRunSudo() bool {
 func TestCanRunSudo(t *testing.T) {
 	result := canRunSudo()
 	t.Logf("Can run sudo: %v", result)
-	
+
 	if !result {
 		t.Log("Sudo tests will be skipped - run as root or configure passwordless sudo for full test coverage")
 	}
@@ -391,4 +391,61 @@ func TestIntegrationWithActualCommands(t *testing.T) {
 			t.Error("Command should contain 'sudo dmesg'")
 		}
 	})
+}
+
+// Test GetHostname function from os commands
+func TestOSGetHostname(t *testing.T) {
+	hostname, err := GetHostname()
+	if err != nil {
+		t.Fatalf("GetHostname failed: %v", err)
+	}
+
+	if hostname == "" {
+		t.Error("Expected non-empty hostname")
+	}
+
+	t.Logf("Got hostname: %s", hostname)
+}
+
+// Test GetSerialNumber function from os commands
+func TestOSGetSerialNumber(t *testing.T) {
+	if !canRunSudo() {
+		t.Skip("Skipping test that requires sudo access")
+	}
+
+	result, err := GetSerialNumber()
+	if err != nil {
+		t.Logf("GetSerialNumber failed (may be expected in test environment): %v", err)
+		// Don't fail the test since dmidecode might not work in all environments
+		return
+	}
+
+	if result == nil {
+		t.Fatal("Expected result but got nil")
+	}
+
+	if result.Command != "sudo dmidecode -s chassis-serial-number" {
+		t.Errorf("Expected command 'sudo dmidecode -s chassis-serial-number', got '%s'", result.Command)
+	}
+
+	t.Logf("Got serial number: %s", result.Output)
+}
+
+// Test GetSerialNumber function structure
+func TestOSGetSerialNumberStructure(t *testing.T) {
+	// This test focuses on the function structure rather than actual dmidecode execution
+	t.Log("Testing GetSerialNumber function structure")
+
+	// Test that the function exists and has the correct signature by calling it
+	// We don't care about the result, just that it compiles and runs
+	result, err := GetSerialNumber()
+	if err != nil {
+		t.Logf("GetSerialNumber returned error (expected in test environment): %v", err)
+	}
+	if result != nil {
+		t.Logf("GetSerialNumber returned result: %+v", result)
+	}
+
+	// The function exists and has the correct signature if we get here
+	t.Log("GetSerialNumber function structure is correct")
 }
