@@ -87,20 +87,26 @@ func runAllLevel1Tests() error {
 		return fmt.Errorf("failed to write report: %w", err)
 	}
 
-	// Print summary only if not using friendly format (which includes its own summary)
-	if outputFormat != "friendly" {
+	// Print summary only if not using friendly or json format (which should have clean output)
+	if outputFormat != "friendly" && outputFormat != "json" {
 		rep.PrintSummary()
 	}
 
 	if len(failedTests) > 0 {
 		logger.Error(fmt.Sprintf("Level 1 tests completed with %d failures: %v", len(failedTests), failedTests))
-		fmt.Printf("\n❌ Level 1 diagnostic tests failed: %d out of %d tests failed\n", len(failedTests), len(tests))
-		fmt.Printf("Failed tests: %s\n", strings.Join(failedTests, ", "))
+		// Don't print additional failure messages for JSON or friendly format (keep output clean)
+		if outputFormat != "json" && outputFormat != "friendly" {
+			fmt.Printf("\n❌ Level 1 diagnostic tests failed: %d out of %d tests failed\n", len(failedTests), len(tests))
+			fmt.Printf("Failed tests: %s\n", strings.Join(failedTests, ", "))
+		}
 		return fmt.Errorf("diagnostic tests failed")
 	}
 
 	logger.Info("All Level 1 tests completed successfully")
-	fmt.Println("\n✅ All Level 1 diagnostic tests passed successfully!")
+	// Don't print additional success messages for JSON or friendly format (keep output clean)
+	if outputFormat != "json" && outputFormat != "friendly" {
+		fmt.Println("\n✅ All Level 1 diagnostic tests passed successfully!")
+	}
 	return nil
 }
 
@@ -163,19 +169,25 @@ func runSpecificTests(testFilter string) error {
 		return fmt.Errorf("failed to write report: %w", err)
 	}
 
-	// Print summary only if not using friendly format (which includes its own summary)
-	if outputFormat != "friendly" {
+	// Print summary only if not using friendly or json format (which should have clean output)
+	if outputFormat != "friendly" && outputFormat != "json" {
 		rep.PrintSummary()
 	}
 
 	if len(failedTests) > 0 {
 		logger.Error(fmt.Sprintf("Selected Level 1 tests completed with %d failures: %v", len(failedTests), failedTests))
-		fmt.Printf("\n❌ Level 1 diagnostic tests failed: %d out of %d tests failed\n", len(failedTests), len(testNames))
-		fmt.Printf("Failed tests: %s\n", strings.Join(failedTests, ", "))
+		// Don't print additional failure messages for JSON or friendly format (keep output clean)
+		if outputFormat != "json" && outputFormat != "friendly" {
+			fmt.Printf("\n❌ Level 1 diagnostic tests failed: %d out of %d tests failed\n", len(failedTests), len(testNames))
+			fmt.Printf("Failed tests: %s\n", strings.Join(failedTests, ", "))
+		}
 		return fmt.Errorf("diagnostic tests failed")
 	}
 
 	logger.Info("Selected Level 1 tests completed successfully")
-	fmt.Println("\n✅ All selected Level 1 diagnostic tests passed successfully!")
+	// Don't print additional success messages for JSON or friendly format (keep output clean)
+	if outputFormat != "json" && outputFormat != "friendly" {
+		fmt.Println("\n✅ All selected Level 1 diagnostic tests passed successfully!")
+	}
 	return nil
 }
