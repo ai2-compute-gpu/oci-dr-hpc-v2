@@ -2,46 +2,57 @@ package level1_tests
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
-	
+
+	"github.com/oracle/oci-dr-hpc-v2/internal/executor"
 	"github.com/oracle/oci-dr-hpc-v2/internal/logger"
 )
 
 func RunPCIeErrorCheck() error {
 	logger.Info("=== PCIe Error Check ===")
-	
-	// Check for PCIe errors in dmesg
-	cmd := exec.Command("sudo", "dmesg", "-T")
-	output, err := cmd.Output()
+	logger.Info("Starting PCIe health check...")
+	logger.Info("This will take about 1 minute to complete.")
+
+	// Run the dmesg command to get system messages
+	// dmesg shows kernel ring buffer messages including hardware errors
+	logger.Info("Getting system messages...")
+	result, err := executor.RunDmesg()
 	if err != nil {
-		logger.Error("Failed to run dmesg (may require sudo):", err)
-		logger.Info("PCIe Error Check: SKIP - dmesg requires elevated privileges")
-		return nil
+		logger.Error("Failed to run dmesg command:", err)
+		logger.Info("PCIe Error Check: FAIL - Could not run dmesg command")
+		return fmt.Errorf("could not run dmesg command: %v", err)
 	}
-	
-	outputStr := string(output)
-	pciErrors := []string{
-		"PCIe Bus Error",
-		"AER:",
-		"correctable error",
-		"uncorrectable error",
-		"fatal error",
+
+	// Check if dmesg output is empty
+	outputStr := result.Output
+	if len(strings.TrimSpace(outputStr)) == 0 {
+		logger.Error("No system messages found")
+		logger.Info("PCIe Error Check: FAIL - No system messages found")
+		return fmt.Errorf("no system messages found")
 	}
-	
-	errorCount := 0
-	for _, errorPattern := range pciErrors {
-		if strings.Contains(strings.ToLower(outputStr), strings.ToLower(errorPattern)) {
-			errorCount++
-			logger.Error(fmt.Sprintf("Found PCIe error pattern: %s", errorPattern))
+
+	// Start with PASS status - we'll change to FAIL if we find errors
+	logger.Info("Checking for PCIe errors...")
+
+	// Look through each line of the dmesg output
+	lines := strings.Split(outputStr, "\n")
+	for _, line := range lines {
+		// Skip lines that contain "capabilities" - these are not error messages
+		if strings.Contains(line, "capabilities") {
+			continue
+		}
+
+		// Look for lines that contain both "pcieport" and "error" (case insensitive)
+		// pcieport = PCIe port driver messages
+		// error = indicates an actual error occurred
+		lowerLine := strings.ToLower(line)
+		if strings.Contains(lowerLine, "pcieport") && strings.Contains(lowerLine, "error") {
+			logger.Error(fmt.Sprintf("Found PCIe error: %s", line))
+			logger.Info("PCIe Error Check: FAIL - PCIe errors found")
+			return fmt.Errorf("found PCIe error: %s", line)
 		}
 	}
-	
-	if errorCount > 0 {
-		logger.Error(fmt.Sprintf("PCIe Error Check: FAIL - Found %d error patterns", errorCount))
-		return fmt.Errorf("found %d PCIe error patterns", errorCount)
-	}
-	
+
 	logger.Info("PCIe Error Check: PASS - No PCIe errors found")
 	return nil
 }
