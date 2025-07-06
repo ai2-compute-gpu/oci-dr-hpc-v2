@@ -449,3 +449,212 @@ func TestOSGetSerialNumberStructure(t *testing.T) {
 	// The function exists and has the correct signature if we get here
 	t.Log("GetSerialNumber function structure is correct")
 }
+
+// Test RunIPAddr function
+func TestRunIPAddr(t *testing.T) {
+	tests := []struct {
+		name        string
+		options     []string
+		expectError bool
+	}{
+		{
+			name:        "basic_ip_addr_call",
+			options:     nil,
+			expectError: false,
+		},
+		{
+			name:        "ip_addr_with_show_option",
+			options:     []string{"show"},
+			expectError: false,
+		},
+		{
+			name:        "ip_addr_with_specific_interface",
+			options:     []string{"show", "lo"},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := RunIPAddr(tt.options...)
+
+			if tt.expectError && err == nil {
+				t.Errorf("Expected error but got none")
+			}
+			if !tt.expectError && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+
+			if !tt.expectError {
+				if result == nil {
+					t.Error("Result should not be nil")
+				}
+				if result.Output == "" {
+					t.Error("Output should not be empty")
+				}
+				if len(result.Output) < 10 {
+					t.Error("Output seems too short for ip addr command")
+				}
+				t.Logf("ip addr output length: %d characters", len(result.Output))
+			}
+		})
+	}
+}
+
+// Test RunRdmaLink function
+func TestRunRdmaLink(t *testing.T) {
+	tests := []struct {
+		name        string
+		options     []string
+		expectError bool
+		skipMsg     string
+	}{
+		{
+			name:        "basic_rdma_link_call",
+			options:     nil,
+			expectError: false, // May error if rdma tools not installed
+			skipMsg:     "rdma tools may not be available",
+		},
+		{
+			name:        "rdma_link_with_show_option",
+			options:     []string{"show"},
+			expectError: false,
+			skipMsg:     "rdma tools may not be available",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := RunRdmaLink(tt.options...)
+
+			if err != nil {
+				// rdma command may not be available in test environment
+				if strings.Contains(err.Error(), "executable file not found") {
+					t.Skipf("Skipping test - rdma command not available: %v", err)
+					return
+				}
+				if !tt.expectError {
+					t.Logf("rdma link failed (may be normal): %v", err)
+				}
+			}
+
+			if result != nil {
+				t.Logf("rdma link result: %s", result.Output)
+			}
+		})
+	}
+}
+
+// Test RunReadlink function
+func TestRunReadlink(t *testing.T) {
+	tests := []struct {
+		name        string
+		path        string
+		options     []string
+		expectError bool
+	}{
+		{
+			name:        "readlink_on_proc_self",
+			path:        "/proc/self",
+			options:     nil,
+			expectError: false,
+		},
+		{
+			name:        "readlink_with_f_option",
+			path:        "/proc/self/exe",
+			options:     []string{"-f"},
+			expectError: false,
+		},
+		{
+			name:        "readlink_nonexistent_path",
+			path:        "/nonexistent/path/that/does/not/exist",
+			options:     nil,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := RunReadlink(tt.path, tt.options...)
+
+			if tt.expectError && err == nil {
+				t.Errorf("Expected error but got none")
+			}
+			if !tt.expectError && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+
+			if !tt.expectError && result != nil {
+				t.Logf("readlink result for %s: %s", tt.path, result.Output)
+				if result.Output == "" {
+					t.Error("Expected non-empty output for readlink")
+				}
+			}
+		})
+	}
+}
+
+// Test RunLspciByPCI function
+func TestRunLspciByPCI(t *testing.T) {
+	if !canRunSudo() {
+		t.Skip("Skipping test that requires sudo access")
+	}
+
+	tests := []struct {
+		name        string
+		pciAddress  string
+		verbose     bool
+		expectError bool
+	}{
+		{
+			name:        "query_host_bridge_non_verbose",
+			pciAddress:  "00:00.0",
+			verbose:     false,
+			expectError: false,
+		},
+		{
+			name:        "query_host_bridge_verbose",
+			pciAddress:  "00:00.0",
+			verbose:     true,
+			expectError: false,
+		},
+		{
+			name:        "query_with_full_domain",
+			pciAddress:  "0000:00:00.0",
+			verbose:     false,
+			expectError: false,
+		},
+		{
+			name:        "query_from_sys_path",
+			pciAddress:  "/sys/devices/pci0000:00/0000:00:00.0",
+			verbose:     false,
+			expectError: false,
+		},
+		{
+			name:        "query_nonexistent_device",
+			pciAddress:  "ff:ff.f",
+			verbose:     false,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := RunLspciByPCI(tt.pciAddress, tt.verbose)
+
+			if tt.expectError && err == nil {
+				t.Errorf("Expected error but got none")
+			}
+			if !tt.expectError && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+
+			if !tt.expectError && result != nil {
+				t.Logf("lspci result for %s: %s", tt.pciAddress, result.Output)
+				if result.Output == "" {
+					t.Error("Expected non-empty output for lspci")
+				}
+			}
+		})
+	}
+}

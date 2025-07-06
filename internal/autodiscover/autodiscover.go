@@ -209,6 +209,9 @@ func Run() {
 	// Discover real GPU information
 	discoveredGPUs := DiscoverGPUsWithFallback()
 
+	// Discover real VCN network interface
+	discoveredVCN := DiscoverVCNInterfaceWithFallback()
+
 	// Build the complete hardware map with real data
 	mapHost := MapHost{
 		Hostname:         sysInfo.Hostname,
@@ -232,11 +235,11 @@ func Run() {
 			},
 		},
 		VcnNic: VcnNic{
-			PrivateIP:  "10.0.11.179",
-			PCI:        "0000:1f:00.0",
-			Interface:  "eth0",
-			DeviceName: "eth0",
-			Model:      "Mellanox Technologies MT2892 Family [ConnectX-6 Dx]",
+			PrivateIP:  discoveredVCN.PrivateIP,
+			PCI:        discoveredVCN.PCI,
+			Interface:  discoveredVCN.Interface,
+			DeviceName: discoveredVCN.DeviceName,
+			Model:      discoveredVCN.Model,
 		},
 	}
 
