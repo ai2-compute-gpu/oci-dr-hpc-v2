@@ -142,10 +142,10 @@ sudo chmod 644 /etc/oci-dr-hpc-shapes.json
 
 The tool automatically handles different environments:
 
-- **Development**: Uses `internal/shapes/shapes.json` (source code)
-- **Production**: Uses `/etc/oci-dr-hpc-shapes.json` (system-wide)
+- **Production**: Prioritizes `/etc/oci-dr-hpc-shapes.json` (system-wide)
+- **Development**: Falls back to `internal/shapes/shapes.json` (source code)
 
-This ensures the tool works in both environments without code changes.
+This ensures production deployments use the system-wide configuration, while development environments automatically fall back to source code when needed.
 
 ## Updating Shapes Configuration
 

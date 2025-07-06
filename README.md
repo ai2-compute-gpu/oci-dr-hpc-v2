@@ -120,7 +120,7 @@ oci-dr-hpc --version
 
 ### For Developers
 
-The tool automatically detects development environments and uses source code paths:
+The tool automatically detects environments and prioritizes production paths:
 
 ```bash
 # Clone and build
@@ -128,7 +128,7 @@ git clone <repository-url>
 cd oci-dr-hpc-v2
 go build -o oci-dr-hpc main.go
 
-# Run directly (uses internal/shapes/shapes.json automatically)
+# Run directly (uses /etc/oci-dr-hpc-shapes.json if exists, falls back to internal/shapes/shapes.json)
 ./oci-dr-hpc level1
 ```
 
@@ -151,8 +151,8 @@ The application automatically resolves file paths using this logic:
 // For shapes.json file:
 1. Check environment variable: OCI_DR_HPC_SHAPES_FILE
 2. Check config file setting: shapes_file
-3. Check development path: internal/shapes/shapes.json (if exists)
-4. Fall back to production path: /etc/oci-dr-hpc-shapes.json
+3. Check production path: /etc/oci-dr-hpc-shapes.json (if exists)
+4. Fall back to development path: internal/shapes/shapes.json (if exists)
 ```
 
 ### Environment Variables

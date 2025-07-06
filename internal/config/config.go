@@ -42,7 +42,7 @@ func GetConfig() *Config {
 }
 
 // GetShapesFilePath returns the path to the shapes.json file
-// It checks environment variables first, then config, then falls back to internal path
+// It checks environment variables first, then config, then production path, then development fallback
 func GetShapesFilePath() string {
 	// First check for environment variable override
 	envPath := viper.GetString("shapes_file")
@@ -66,17 +66,19 @@ func GetShapesFilePath() string {
 		}
 	}
 
-	// Fall back to internal path for development
-	internalPath := filepath.Join("internal", "shapes", "shapes.json")
-	if _, err := os.Stat(internalPath); err == nil {
-		return internalPath
+	// Prioritize production path first
+	productionPath := "/etc/oci-dr-hpc-shapes.json"
+	if _, err := os.Stat(productionPath); err == nil {
+		return productionPath
 	}
 
-	// If neither exists, return the configured path (or default)
-	if config != nil && config.ShapesFile != "" {
-		return config.ShapesFile
+	// Fall back to development path if production doesn't exist
+	developmentPath := filepath.Join("internal", "shapes", "shapes.json")
+	if _, err := os.Stat(developmentPath); err == nil {
+		return developmentPath
 	}
 
-	// Final fallback to default location
-	return "/etc/oci-dr-hpc-shapes.json"
+	// If neither exists, return production path (standard location)
+	// This allows proper error messages pointing to the expected location
+	return productionPath
 }
