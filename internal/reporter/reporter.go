@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -186,28 +187,185 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 
 // WriteReport writes the report to the configured output
 func (r *Reporter) WriteReport() error {
+	// Use default format (json) for backward compatibility
+	return r.WriteReportWithFormat("json")
+}
+
+// WriteReportWithFormat writes the report with the specified format
+func (r *Reporter) WriteReportWithFormat(format string) error {
 	report, err := r.GenerateReport()
 	if err != nil {
 		return fmt.Errorf("failed to generate report: %w", err)
 	}
 
-	jsonData, err := json.MarshalIndent(report, "", "  ")
+	var output string
+	switch format {
+	case "json":
+		output, err = r.formatJSON(report)
+	case "table":
+		output, err = r.formatTable(report)
+	case "friendly":
+		output, err = r.formatFriendly(report)
+	default:
+		return fmt.Errorf("unsupported output format: %s", format)
+	}
+
 	if err != nil {
-		return fmt.Errorf("failed to marshal report to JSON: %w", err)
+		return fmt.Errorf("failed to format report: %w", err)
 	}
 
 	// Write to file if configured
 	if r.outputFile != "" {
-		if err := os.WriteFile(r.outputFile, jsonData, 0644); err != nil {
+		if err := os.WriteFile(r.outputFile, []byte(output), 0644); err != nil {
 			return fmt.Errorf("failed to write report to file %s: %w", r.outputFile, err)
 		}
 		logger.Infof("Report written to file: %s", r.outputFile)
 	} else {
 		// Write to console if no file specified
-		fmt.Println(string(jsonData))
+		fmt.Print(output)
 	}
 
 	return nil
+}
+
+// formatJSON formats the report as JSON
+func (r *Reporter) formatJSON(report *ReportOutput) (string, error) {
+	jsonData, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal report to JSON: %w", err)
+	}
+	return string(jsonData) + "\n", nil
+}
+
+// formatTable formats the report as a table
+func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
+	var output strings.Builder
+
+	output.WriteString("┌─────────────────────────────────────────────────────────────────┐\n")
+	output.WriteString("│                    DIAGNOSTIC TEST RESULTS                     │\n")
+	output.WriteString("├─────────────────────────────────────────────────────────────────┤\n")
+	output.WriteString("│ TEST NAME              │ STATUS │ DETAILS                     │\n")
+	output.WriteString("├─────────────────────────────────────────────────────────────────┤\n")
+
+	// GPU Tests
+	if len(report.Localhost.GPU) > 0 {
+		for _, gpu := range report.Localhost.GPU {
+			status := gpu.DeviceCount
+			statusSymbol := "✅"
+			if status == "FAIL" {
+				statusSymbol = "❌"
+			}
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s GPU Count: %s          │\n",
+				"GPU Count Check", statusSymbol, statusSymbol, gpu.DeviceCount))
+		}
+	}
+
+	// PCIe Tests
+	if len(report.Localhost.PCIeError) > 0 {
+		for _, pcie := range report.Localhost.PCIeError {
+			status := pcie.Status
+			statusSymbol := "✅"
+			if status == "FAIL" {
+				statusSymbol = "❌"
+			}
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s PCIe Status: %s         │\n",
+				"PCIe Error Check", statusSymbol, statusSymbol, pcie.Status))
+		}
+	}
+
+	// RDMA Tests
+	if len(report.Localhost.RDMANicCount) > 0 {
+		for _, rdma := range report.Localhost.RDMANicCount {
+			status := rdma.Status
+			statusSymbol := "✅"
+			if status == "FAIL" {
+				statusSymbol = "❌"
+			}
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s RDMA NICs: %d            │\n",
+				"RDMA NIC Count", statusSymbol, statusSymbol, rdma.NumRDMANics))
+		}
+	}
+
+	output.WriteString("└─────────────────────────────────────────────────────────────────┘\n")
+	return output.String(), nil
+}
+
+// formatFriendly formats the report in a user-friendly format
+func (r *Reporter) formatFriendly(report *ReportOutput) (string, error) {
+	var output strings.Builder
+
+	output.WriteString("🔍 HPC Diagnostic Results\n")
+	output.WriteString("=" + strings.Repeat("=", 50) + "\n\n")
+
+	totalTests := 0
+	passedTests := 0
+	failedTests := 0
+
+	// GPU Tests
+	if len(report.Localhost.GPU) > 0 {
+		output.WriteString("🖥️  GPU Health Check\n")
+		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
+		for _, gpu := range report.Localhost.GPU {
+			totalTests++
+			if gpu.DeviceCount == "PASS" || (gpu.DeviceCount != "FAIL" && gpu.DeviceCount != "ERROR") {
+				passedTests++
+				output.WriteString(fmt.Sprintf("   ✅ GPU Count: %s (PASSED)\n", gpu.DeviceCount))
+			} else {
+				failedTests++
+				output.WriteString(fmt.Sprintf("   ❌ GPU Count: %s (FAILED)\n", gpu.DeviceCount))
+			}
+		}
+		output.WriteString("\n")
+	}
+
+	// PCIe Tests
+	if len(report.Localhost.PCIeError) > 0 {
+		output.WriteString("🔗 PCIe Health Check\n")
+		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
+		for _, pcie := range report.Localhost.PCIeError {
+			totalTests++
+			if pcie.Status == "PASS" {
+				passedTests++
+				output.WriteString("   ✅ PCIe Bus: No errors detected (PASSED)\n")
+			} else {
+				failedTests++
+				output.WriteString("   ❌ PCIe Bus: Errors detected (FAILED)\n")
+			}
+		}
+		output.WriteString("\n")
+	}
+
+	// RDMA Tests
+	if len(report.Localhost.RDMANicCount) > 0 {
+		output.WriteString("🌐 RDMA Network Check\n")
+		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
+		for _, rdma := range report.Localhost.RDMANicCount {
+			totalTests++
+			if rdma.Status == "PASS" {
+				passedTests++
+				output.WriteString(fmt.Sprintf("   ✅ RDMA NICs: %d detected (PASSED)\n", rdma.NumRDMANics))
+			} else {
+				failedTests++
+				output.WriteString(fmt.Sprintf("   ❌ RDMA NICs: %d detected (FAILED)\n", rdma.NumRDMANics))
+			}
+		}
+		output.WriteString("\n")
+	}
+
+	// Summary
+	output.WriteString("📊 Summary\n")
+	output.WriteString("   " + strings.Repeat("-", 30) + "\n")
+	output.WriteString(fmt.Sprintf("   Total Tests: %d\n", totalTests))
+	output.WriteString(fmt.Sprintf("   Passed: %d\n", passedTests))
+	output.WriteString(fmt.Sprintf("   Failed: %d\n", failedTests))
+
+	if failedTests == 0 {
+		output.WriteString("\n   🎉 All tests passed! Your HPC environment is healthy.\n")
+	} else {
+		output.WriteString(fmt.Sprintf("\n   ⚠️  %d test(s) failed. Please review the results above.\n", failedTests))
+	}
+
+	return output.String(), nil
 }
 
 // GetResults returns all collected results

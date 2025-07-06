@@ -75,14 +75,22 @@ func runAllLevel1Tests() error {
 		}
 	}
 
-	// Generate and write the report
-	if err := rep.WriteReport(); err != nil {
+	// Get output format from configuration
+	outputFormat := viper.GetString("output")
+	if outputFormat == "" {
+		outputFormat = "table" // Default to table format
+	}
+
+	// Generate and write the report with the specified format
+	if err := rep.WriteReportWithFormat(outputFormat); err != nil {
 		logger.Errorf("Failed to write report: %v", err)
 		return fmt.Errorf("failed to write report: %w", err)
 	}
 
-	// Print summary
-	rep.PrintSummary()
+	// Print summary only if not using friendly format (which includes its own summary)
+	if outputFormat != "friendly" {
+		rep.PrintSummary()
+	}
 
 	if len(failedTests) > 0 {
 		logger.Error(fmt.Sprintf("Level 1 tests completed with %d failures: %v", len(failedTests), failedTests))
@@ -143,14 +151,22 @@ func runSpecificTests(testFilter string) error {
 		}
 	}
 
-	// Generate and write the report
-	if err := rep.WriteReport(); err != nil {
+	// Get output format from configuration
+	outputFormat := viper.GetString("output")
+	if outputFormat == "" {
+		outputFormat = "table" // Default to table format
+	}
+
+	// Generate and write the report with the specified format
+	if err := rep.WriteReportWithFormat(outputFormat); err != nil {
 		logger.Errorf("Failed to write report: %v", err)
 		return fmt.Errorf("failed to write report: %w", err)
 	}
 
-	// Print summary
-	rep.PrintSummary()
+	// Print summary only if not using friendly format (which includes its own summary)
+	if outputFormat != "friendly" {
+		rep.PrintSummary()
+	}
 
 	if len(failedTests) > 0 {
 		logger.Error(fmt.Sprintf("Selected Level 1 tests completed with %d failures: %v", len(failedTests), failedTests))
