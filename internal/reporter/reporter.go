@@ -23,7 +23,8 @@ type TestResult struct {
 
 // GPUTestResult represents GPU test results
 type GPUTestResult struct {
-	DeviceCount  string `json:"device_count"`
+	Status       string `json:"status"`
+	GPUCount     int    `json:"gpu_count,omitempty"`
 	TimestampUTC string `json:"timestamp_utc"`
 }
 
@@ -35,16 +36,16 @@ type PCIeTestResult struct {
 
 // RDMATestResult represents RDMA test results
 type RDMATestResult struct {
-	NumRDMANics  int    `json:"num_rdma_nics"`
 	Status       string `json:"status"`
+	NumRDMANics  int    `json:"num_rdma_nics"`
 	TimestampUTC string `json:"timestamp_utc"`
 }
 
 // HostResults represents test results for a host
 type HostResults struct {
-	GPU          []GPUTestResult  `json:"gpu,omitempty"`
-	PCIeError    []PCIeTestResult `json:"pcie_error,omitempty"`
-	RDMANicCount []RDMATestResult `json:"rdma_nic_count,omitempty"`
+	GPUCountCheck  []GPUTestResult  `json:"gpu_count_check,omitempty"`
+	PCIeErrorCheck []PCIeTestResult `json:"pcie_error_check,omitempty"`
+	RDMANicsCount  []RDMATestResult `json:"rdma_nics_count,omitempty"`
 }
 
 // ReportOutput represents the final JSON output structure
@@ -156,11 +157,18 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 
 	// Process GPU results
 	if result, exists := r.results["gpu_count_check"]; exists {
+		gpuCount := 0
+		if countVal, ok := result.Details["gpu_count"]; ok {
+			if count, ok := countVal.(int); ok {
+				gpuCount = count
+			}
+		}
 		gpuResult := GPUTestResult{
-			DeviceCount:  result.Status,
+			Status:       result.Status,
+			GPUCount:     gpuCount,
 			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
 		}
-		report.Localhost.GPU = []GPUTestResult{gpuResult}
+		report.Localhost.GPUCountCheck = []GPUTestResult{gpuResult}
 	}
 
 	// Process PCIe results
@@ -169,7 +177,7 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 			Status:       result.Status,
 			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
 		}
-		report.Localhost.PCIeError = []PCIeTestResult{pcieResult}
+		report.Localhost.PCIeErrorCheck = []PCIeTestResult{pcieResult}
 	}
 
 	// Process RDMA results
@@ -181,11 +189,11 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 			}
 		}
 		rdmaResult := RDMATestResult{
-			NumRDMANics:  rdmaCount,
 			Status:       result.Status,
+			NumRDMANics:  rdmaCount,
 			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
 		}
-		report.Localhost.RDMANicCount = []RDMATestResult{rdmaResult}
+		report.Localhost.RDMANicsCount = []RDMATestResult{rdmaResult}
 	}
 
 	return report, nil
@@ -254,21 +262,21 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 	output.WriteString("├─────────────────────────────────────────────────────────────────┤\n")
 
 	// GPU Tests
-	if len(report.Localhost.GPU) > 0 {
-		for _, gpu := range report.Localhost.GPU {
-			status := gpu.DeviceCount
+	if len(report.Localhost.GPUCountCheck) > 0 {
+		for _, gpu := range report.Localhost.GPUCountCheck {
+			status := gpu.Status
 			statusSymbol := "✅"
 			if status == "FAIL" {
 				statusSymbol = "❌"
 			}
 			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s GPU Count: %s          │\n",
-				"GPU Count Check", statusSymbol, statusSymbol, gpu.DeviceCount))
+				"GPU Count Check", statusSymbol, statusSymbol, gpu.Status))
 		}
 	}
 
 	// PCIe Tests
-	if len(report.Localhost.PCIeError) > 0 {
-		for _, pcie := range report.Localhost.PCIeError {
+	if len(report.Localhost.PCIeErrorCheck) > 0 {
+		for _, pcie := range report.Localhost.PCIeErrorCheck {
 			status := pcie.Status
 			statusSymbol := "✅"
 			if status == "FAIL" {
@@ -280,8 +288,8 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 	}
 
 	// RDMA Tests
-	if len(report.Localhost.RDMANicCount) > 0 {
-		for _, rdma := range report.Localhost.RDMANicCount {
+	if len(report.Localhost.RDMANicsCount) > 0 {
+		for _, rdma := range report.Localhost.RDMANicsCount {
 			status := rdma.Status
 			statusSymbol := "✅"
 			if status == "FAIL" {
@@ -308,27 +316,27 @@ func (r *Reporter) formatFriendly(report *ReportOutput) (string, error) {
 	failedTests := 0
 
 	// GPU Tests
-	if len(report.Localhost.GPU) > 0 {
+	if len(report.Localhost.GPUCountCheck) > 0 {
 		output.WriteString("🖥️  GPU Health Check\n")
 		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
-		for _, gpu := range report.Localhost.GPU {
+		for _, gpu := range report.Localhost.GPUCountCheck {
 			totalTests++
-			if gpu.DeviceCount == "PASS" || (gpu.DeviceCount != "FAIL" && gpu.DeviceCount != "ERROR") {
+			if gpu.Status == "PASS" {
 				passedTests++
-				output.WriteString(fmt.Sprintf("   ✅ GPU Count: %s (PASSED)\n", gpu.DeviceCount))
+				output.WriteString(fmt.Sprintf("   ✅ GPU Count: %d (PASSED)\n", gpu.GPUCount))
 			} else {
 				failedTests++
-				output.WriteString(fmt.Sprintf("   ❌ GPU Count: %s (FAILED)\n", gpu.DeviceCount))
+				output.WriteString(fmt.Sprintf("   ❌ GPU Count: %d (FAILED)\n", gpu.GPUCount))
 			}
 		}
 		output.WriteString("\n")
 	}
 
 	// PCIe Tests
-	if len(report.Localhost.PCIeError) > 0 {
+	if len(report.Localhost.PCIeErrorCheck) > 0 {
 		output.WriteString("🔗 PCIe Health Check\n")
 		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
-		for _, pcie := range report.Localhost.PCIeError {
+		for _, pcie := range report.Localhost.PCIeErrorCheck {
 			totalTests++
 			if pcie.Status == "PASS" {
 				passedTests++
@@ -342,10 +350,10 @@ func (r *Reporter) formatFriendly(report *ReportOutput) (string, error) {
 	}
 
 	// RDMA Tests
-	if len(report.Localhost.RDMANicCount) > 0 {
+	if len(report.Localhost.RDMANicsCount) > 0 {
 		output.WriteString("🌐 RDMA Network Check\n")
 		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
-		for _, rdma := range report.Localhost.RDMANicCount {
+		for _, rdma := range report.Localhost.RDMANicsCount {
 			totalTests++
 			if rdma.Status == "PASS" {
 				passedTests++

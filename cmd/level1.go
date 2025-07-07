@@ -152,7 +152,15 @@ func runSpecificTests(testFilter string) error {
 				failedTests = append(failedTests, testName)
 			}
 		} else {
-			fmt.Printf("❌ Unknown test: %s\n", testName)
+			fmt.Printf("❌ Unknown test: %s\n\n", testName)
+			fmt.Printf("Available Level 1 tests:\n")
+			for _, test := range availableTests {
+				fmt.Printf("  - %s: %s\n", test.name, test.description)
+			}
+			fmt.Printf("\nUsage examples:\n")
+			fmt.Printf("  oci-dr-hpc level1 --test=gpu_count_check\n")
+			fmt.Printf("  oci-dr-hpc level1 --test=gpu_count_check,rdma_nics_count\n")
+			fmt.Printf("  oci-dr-hpc level1 --list-tests\n")
 			return fmt.Errorf("unknown test: %s", testName)
 		}
 	}

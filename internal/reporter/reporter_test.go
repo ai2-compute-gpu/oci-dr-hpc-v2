@@ -112,32 +112,35 @@ func TestReporter_GenerateReport(t *testing.T) {
 	}
 
 	// Check GPU result
-	if len(report.Localhost.GPU) != 1 {
-		t.Errorf("Expected 1 GPU result, got %d", len(report.Localhost.GPU))
+	if len(report.Localhost.GPUCountCheck) != 1 {
+		t.Errorf("Expected 1 GPU result, got %d", len(report.Localhost.GPUCountCheck))
 	} else {
-		if report.Localhost.GPU[0].DeviceCount != "PASS" {
-			t.Errorf("Expected GPU device count PASS, got %s", report.Localhost.GPU[0].DeviceCount)
+		if report.Localhost.GPUCountCheck[0].Status != "PASS" {
+			t.Errorf("Expected GPU status PASS, got %s", report.Localhost.GPUCountCheck[0].Status)
+		}
+		if report.Localhost.GPUCountCheck[0].GPUCount != 8 {
+			t.Errorf("Expected GPU count 8, got %d", report.Localhost.GPUCountCheck[0].GPUCount)
 		}
 	}
 
 	// Check PCIe result
-	if len(report.Localhost.PCIeError) != 1 {
-		t.Errorf("Expected 1 PCIe result, got %d", len(report.Localhost.PCIeError))
+	if len(report.Localhost.PCIeErrorCheck) != 1 {
+		t.Errorf("Expected 1 PCIe result, got %d", len(report.Localhost.PCIeErrorCheck))
 	} else {
-		if report.Localhost.PCIeError[0].Status != "PASS" {
-			t.Errorf("Expected PCIe status PASS, got %s", report.Localhost.PCIeError[0].Status)
+		if report.Localhost.PCIeErrorCheck[0].Status != "PASS" {
+			t.Errorf("Expected PCIe status PASS, got %s", report.Localhost.PCIeErrorCheck[0].Status)
 		}
 	}
 
 	// Check RDMA result
-	if len(report.Localhost.RDMANicCount) != 1 {
-		t.Errorf("Expected 1 RDMA result, got %d", len(report.Localhost.RDMANicCount))
+	if len(report.Localhost.RDMANicsCount) != 1 {
+		t.Errorf("Expected 1 RDMA result, got %d", len(report.Localhost.RDMANicsCount))
 	} else {
-		if report.Localhost.RDMANicCount[0].Status != "PASS" {
-			t.Errorf("Expected RDMA status PASS, got %s", report.Localhost.RDMANicCount[0].Status)
+		if report.Localhost.RDMANicsCount[0].Status != "PASS" {
+			t.Errorf("Expected RDMA status PASS, got %s", report.Localhost.RDMANicsCount[0].Status)
 		}
-		if report.Localhost.RDMANicCount[0].NumRDMANics != 16 {
-			t.Errorf("Expected RDMA count 16, got %d", report.Localhost.RDMANicCount[0].NumRDMANics)
+		if report.Localhost.RDMANicsCount[0].NumRDMANics != 16 {
+			t.Errorf("Expected RDMA count 16, got %d", report.Localhost.RDMANicsCount[0].NumRDMANics)
 		}
 	}
 }
@@ -179,14 +182,14 @@ func TestReporter_WriteReport(t *testing.T) {
 	}
 
 	// Validate the structure
-	if len(report.Localhost.GPU) != 1 {
-		t.Errorf("Expected 1 GPU result in file, got %d", len(report.Localhost.GPU))
+	if len(report.Localhost.GPUCountCheck) != 1 {
+		t.Errorf("Expected 1 GPU result in file, got %d", len(report.Localhost.GPUCountCheck))
 	}
-	if len(report.Localhost.PCIeError) != 1 {
-		t.Errorf("Expected 1 PCIe result in file, got %d", len(report.Localhost.PCIeError))
+	if len(report.Localhost.PCIeErrorCheck) != 1 {
+		t.Errorf("Expected 1 PCIe result in file, got %d", len(report.Localhost.PCIeErrorCheck))
 	}
-	if len(report.Localhost.RDMANicCount) != 1 {
-		t.Errorf("Expected 1 RDMA result in file, got %d", len(report.Localhost.RDMANicCount))
+	if len(report.Localhost.RDMANicsCount) != 1 {
+		t.Errorf("Expected 1 RDMA result in file, got %d", len(report.Localhost.RDMANicsCount))
 	}
 }
 
@@ -390,37 +393,40 @@ func TestReporter_JSONMarshal(t *testing.T) {
 	}
 
 	// Verify specific fields exist
-	if testReport.Localhost.GPU[0].DeviceCount != "PASS" {
-		t.Error("GPU device_count field not properly marshaled")
+	if testReport.Localhost.GPUCountCheck[0].Status != "PASS" {
+		t.Error("GPU status field not properly marshaled")
 	}
-	if testReport.Localhost.GPU[0].TimestampUTC == "" {
+	if testReport.Localhost.GPUCountCheck[0].GPUCount != 8 {
+		t.Error("GPU gpu_count field not properly marshaled")
+	}
+	if testReport.Localhost.GPUCountCheck[0].TimestampUTC == "" {
 		t.Error("GPU timestamp_utc field not properly marshaled")
 	}
-	if testReport.Localhost.PCIeError[0].Status != "PASS" {
+	if testReport.Localhost.PCIeErrorCheck[0].Status != "PASS" {
 		t.Error("PCIe status field not properly marshaled")
 	}
-	if testReport.Localhost.PCIeError[0].TimestampUTC == "" {
+	if testReport.Localhost.PCIeErrorCheck[0].TimestampUTC == "" {
 		t.Error("PCIe timestamp_utc field not properly marshaled")
 	}
-	if testReport.Localhost.RDMANicCount[0].NumRDMANics != 16 {
+	if testReport.Localhost.RDMANicsCount[0].NumRDMANics != 16 {
 		t.Error("RDMA num_rdma_nics field not properly marshaled")
 	}
-	if testReport.Localhost.RDMANicCount[0].Status != "PASS" {
+	if testReport.Localhost.RDMANicsCount[0].Status != "PASS" {
 		t.Error("RDMA status field not properly marshaled")
 	}
-	if testReport.Localhost.RDMANicCount[0].TimestampUTC == "" {
+	if testReport.Localhost.RDMANicsCount[0].TimestampUTC == "" {
 		t.Error("RDMA timestamp_utc field not properly marshaled")
 	}
 
 	// Verify timestamp format (should be RFC3339 format)
-	if _, err := time.Parse(time.RFC3339, testReport.Localhost.GPU[0].TimestampUTC); err != nil {
-		t.Errorf("GPU timestamp_utc is not in valid RFC3339 format: %s", testReport.Localhost.GPU[0].TimestampUTC)
+	if _, err := time.Parse(time.RFC3339, testReport.Localhost.GPUCountCheck[0].TimestampUTC); err != nil {
+		t.Errorf("GPU timestamp_utc is not in valid RFC3339 format: %s", testReport.Localhost.GPUCountCheck[0].TimestampUTC)
 	}
-	if _, err := time.Parse(time.RFC3339, testReport.Localhost.PCIeError[0].TimestampUTC); err != nil {
-		t.Errorf("PCIe timestamp_utc is not in valid RFC3339 format: %s", testReport.Localhost.PCIeError[0].TimestampUTC)
+	if _, err := time.Parse(time.RFC3339, testReport.Localhost.PCIeErrorCheck[0].TimestampUTC); err != nil {
+		t.Errorf("PCIe timestamp_utc is not in valid RFC3339 format: %s", testReport.Localhost.PCIeErrorCheck[0].TimestampUTC)
 	}
-	if _, err := time.Parse(time.RFC3339, testReport.Localhost.RDMANicCount[0].TimestampUTC); err != nil {
-		t.Errorf("RDMA timestamp_utc is not in valid RFC3339 format: %s", testReport.Localhost.RDMANicCount[0].TimestampUTC)
+	if _, err := time.Parse(time.RFC3339, testReport.Localhost.RDMANicsCount[0].TimestampUTC); err != nil {
+		t.Errorf("RDMA timestamp_utc is not in valid RFC3339 format: %s", testReport.Localhost.RDMANicsCount[0].TimestampUTC)
 	}
 
 	t.Logf("Generated JSON structure matches expected format:\n%s", string(jsonData))
