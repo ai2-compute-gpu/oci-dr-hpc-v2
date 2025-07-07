@@ -1,3 +1,9 @@
+"""# This script checks the RX discards on network interfaces using ethtool.
+# It verifies that the number of RX discards does not exceed a specified threshold,
+# indicating potential network issues. The script is designed to run on systems with
+# multiple network interfaces, such as H100 GPU systems, and provides a health check
+# for network performance."""
+
 import subprocess
 import shlex
 import json
