@@ -43,6 +43,8 @@ type MapHost struct {
 	Shape            string    `json:"shape"`
 	Serial           string    `json:"serial"`
 	Rack             string    `json:"rack"`
+	NetworkBlockId   string    `json:"network_block_id"`
+	BuildingId       string    `json:"building_id"`
 	RdmaNics         []RdmaNic `json:"rdma_nics"`
 	Gpus             []GPU     `json:"gpu"`
 	InCluster        bool      `json:"in_cluster"`
@@ -73,6 +75,8 @@ func formatTable(mapHost *MapHost) (string, error) {
 	output.WriteString(fmt.Sprintf("│ %-63s │\n", fmt.Sprintf("Shape: %s", mapHost.Shape)))
 	output.WriteString(fmt.Sprintf("│ %-63s │\n", fmt.Sprintf("Serial: %s", mapHost.Serial)))
 	output.WriteString(fmt.Sprintf("│ %-63s │\n", fmt.Sprintf("Rack: %s", mapHost.Rack)))
+	output.WriteString(fmt.Sprintf("│ %-63s │\n", fmt.Sprintf("Network Block: %s", mapHost.NetworkBlockId)))
+	output.WriteString(fmt.Sprintf("│ %-63s │\n", fmt.Sprintf("Building: %s", mapHost.BuildingId)))
 	output.WriteString(fmt.Sprintf("│ %-63s │\n", fmt.Sprintf("In Cluster: %t", mapHost.InCluster)))
 	output.WriteString("├─────────────────────────────────────────────────────────────────┤\n")
 
@@ -130,6 +134,8 @@ func formatFriendly(mapHost *MapHost) (string, error) {
 	output.WriteString(fmt.Sprintf("   Shape: %s\n", mapHost.Shape))
 	output.WriteString(fmt.Sprintf("   Serial Number: %s\n", mapHost.Serial))
 	output.WriteString(fmt.Sprintf("   Rack Location: %s\n", mapHost.Rack))
+	output.WriteString(fmt.Sprintf("   Network Block: %s\n", mapHost.NetworkBlockId))
+	output.WriteString(fmt.Sprintf("   Building: %s\n", mapHost.BuildingId))
 	clusterStatus := "Yes"
 	if !mapHost.InCluster {
 		clusterStatus = "No"
@@ -223,6 +229,8 @@ func Run() {
 		Shape:            sysInfo.Shape,
 		Serial:           sysInfo.Serial,
 		Rack:             sysInfo.Rack,
+		NetworkBlockId:   sysInfo.NetworkBlockId,
+		BuildingId:       sysInfo.BuildingId,
 		InCluster:        true,
 		Gpus:             discoveredGPUs,
 		RdmaNics:         discoveredRDMANics,

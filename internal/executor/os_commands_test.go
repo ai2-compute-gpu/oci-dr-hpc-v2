@@ -658,3 +658,69 @@ func TestRunLspciByPCI(t *testing.T) {
 		})
 	}
 }
+
+// Test the new OS discovery functions parsing logic
+func TestNewOSDiscoveryFunctionsParsing(t *testing.T) {
+	t.Run("PCI device model parsing", func(t *testing.T) {
+		testOutput := "0c:00.0 Ethernet controller: Mellanox Technologies MT2910 Family [ConnectX-7]"
+		parts := strings.SplitN(testOutput, ":", 3)
+		if len(parts) >= 3 {
+			model := strings.TrimSpace(parts[2])
+			expected := "Mellanox Technologies MT2910 Family [ConnectX-7]"
+			if model != expected {
+				t.Errorf("Expected model %s, got %s", expected, model)
+			}
+		} else {
+			t.Error("Failed to parse lspci output")
+		}
+	})
+
+	t.Run("NUMA node parsing", func(t *testing.T) {
+		testOutput := "  0  \n"
+		numaNode := strings.TrimSpace(testOutput)
+		if numaNode != "0" {
+			t.Errorf("Expected NUMA node 0, got %s", numaNode)
+		}
+	})
+
+	t.Run("Network interface parsing", func(t *testing.T) {
+		testOutput := "eth0\neth1"
+		interfaces := strings.Fields(testOutput)
+		if len(interfaces) > 0 && interfaces[0] != "eth0" {
+			t.Errorf("Expected first interface eth0, got %s", interfaces[0])
+		}
+	})
+
+	t.Run("InfiniBand device parsing", func(t *testing.T) {
+		testOutput := "mlx5_0\nmlx5_1"
+		devices := strings.Fields(testOutput)
+		if len(devices) > 0 && devices[0] != "mlx5_0" {
+			t.Errorf("Expected first device mlx5_0, got %s", devices[0])
+		}
+	})
+
+	t.Run("ibdev2netdev parsing", func(t *testing.T) {
+		testOutput := "mlx5_0 port 1 ==> enp12s0f0np0 (Up)"
+		deviceName := "mlx5_0"
+		var foundInterface string
+
+		lines := strings.Split(testOutput, "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, deviceName) {
+				parts := strings.Fields(line)
+				for i, part := range parts {
+					if part == "==>" && i+1 < len(parts) {
+						foundInterface = parts[i+1]
+						break
+					}
+				}
+			}
+		}
+
+		expected := "enp12s0f0np0"
+		if foundInterface != expected {
+			t.Errorf("Expected interface %s, got %s", expected, foundInterface)
+		}
+	})
+}

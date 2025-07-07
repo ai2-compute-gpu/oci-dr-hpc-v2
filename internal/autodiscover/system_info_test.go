@@ -12,6 +12,8 @@ func TestSystemInfoStruct(t *testing.T) {
 		Shape:            "BM.GPU.H100.8",
 		Serial:           "2334XLG08T",
 		Rack:             "test-rack-id",
+		NetworkBlockId:   "test-network-block-id",
+		BuildingId:       "test-building-id",
 	}
 
 	if sysInfo.Hostname != "test-host" {
@@ -28,6 +30,12 @@ func TestSystemInfoStruct(t *testing.T) {
 	}
 	if sysInfo.Rack != "test-rack-id" {
 		t.Errorf("Expected rack 'test-rack-id', got '%s'", sysInfo.Rack)
+	}
+	if sysInfo.NetworkBlockId != "test-network-block-id" {
+		t.Errorf("Expected NetworkBlockId 'test-network-block-id', got '%s'", sysInfo.NetworkBlockId)
+	}
+	if sysInfo.BuildingId != "test-building-id" {
+		t.Errorf("Expected BuildingId 'test-building-id', got '%s'", sysInfo.BuildingId)
 	}
 }
 
@@ -77,8 +85,16 @@ func TestSystemInfoJSONTags(t *testing.T) {
 	sysInfo.Shape = "test"
 	sysInfo.Serial = "test"
 	sysInfo.Rack = "test"
+	sysInfo.NetworkBlockId = "test"
+	sysInfo.BuildingId = "test"
 
 	if sysInfo.Hostname != "test" {
 		t.Error("Hostname field not working")
+	}
+	if sysInfo.NetworkBlockId != "test" {
+		t.Error("NetworkBlockId field not working")
+	}
+	if sysInfo.BuildingId != "test" {
+		t.Error("BuildingId field not working")
 	}
 }

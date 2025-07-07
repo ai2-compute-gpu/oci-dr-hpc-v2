@@ -16,6 +16,8 @@ type SystemInfo struct {
 	Shape            string `json:"shape"`             // from IMDS instance/shape
 	Serial           string `json:"serial"`            // from dmidecode chassis-serial-number
 	Rack             string `json:"rack"`              // from IMDS host/rackId
+	NetworkBlockId   string `json:"network_block_id"`  // from IMDS host/networkBlockId
+	BuildingId       string `json:"building_id"`       // from IMDS host/buildingId
 }
 
 // GatherSystemInfo collects system information from multiple sources
@@ -74,6 +76,26 @@ func GatherSystemInfo() (*SystemInfo, error) {
 	} else {
 		sysInfo.Rack = rackID
 		logger.Infof("Got rack ID: %s", rackID)
+	}
+
+	// Get network block ID from IMDS
+	networkBlockID, err := executor.GetCurrentNetworkBlockID()
+	if err != nil {
+		logger.Errorf("Failed to get network block ID: %v", err)
+		errors = append(errors, fmt.Sprintf("networkBlockId: %v", err))
+	} else {
+		sysInfo.NetworkBlockId = networkBlockID
+		logger.Infof("Got network block ID: %s", networkBlockID)
+	}
+
+	// Get building ID from IMDS
+	buildingID, err := executor.GetCurrentBuildingID()
+	if err != nil {
+		logger.Errorf("Failed to get building ID: %v", err)
+		errors = append(errors, fmt.Sprintf("buildingId: %v", err))
+	} else {
+		sysInfo.BuildingId = buildingID
+		logger.Infof("Got building ID: %s", buildingID)
 	}
 
 	// If we have any errors, return them as a combined error
@@ -137,6 +159,24 @@ func GatherSystemInfoPartial() *SystemInfo {
 	} else {
 		sysInfo.Rack = rackID
 		logger.Infof("Got rack ID: %s", rackID)
+	}
+
+	// Get network block ID from IMDS
+	if networkBlockID, err := executor.GetCurrentNetworkBlockID(); err != nil {
+		logger.Errorf("Failed to get network block ID: %v", err)
+		sysInfo.NetworkBlockId = "unknown"
+	} else {
+		sysInfo.NetworkBlockId = networkBlockID
+		logger.Infof("Got network block ID: %s", networkBlockID)
+	}
+
+	// Get building ID from IMDS
+	if buildingID, err := executor.GetCurrentBuildingID(); err != nil {
+		logger.Errorf("Failed to get building ID: %v", err)
+		sysInfo.BuildingId = "unknown"
+	} else {
+		sysInfo.BuildingId = buildingID
+		logger.Infof("Got building ID: %s", buildingID)
 	}
 
 	logger.Info("Completed gathering system information in partial mode")
