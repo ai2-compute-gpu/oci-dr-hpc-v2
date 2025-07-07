@@ -205,6 +205,9 @@ oci-dr-hpc level1 --list-tests
 # Generate hardware discovery model
 oci-dr-hpc autodiscover
 
+# Analyze test results and get recommendations
+oci-dr-hpc recommender -r results.json
+
 # Show version and build information
 oci-dr-hpc --version
 ```
@@ -286,6 +289,69 @@ This format allows you to:
 - **Compare results** between different runs
 - **Analyze trends** in system health
 - **Maintain historical records** for auditing
+
+### Recommendations and Analysis
+
+The recommender module analyzes test results and provides actionable recommendations for fixing issues:
+
+```bash
+# Analyze results and get recommendations
+oci-dr-hpc recommender -r results.json
+
+# Works with both single and appended result formats
+oci-dr-hpc recommender -r historical_results.json  # Uses latest run from appended format
+```
+
+#### Recommendation Types
+
+| Type | Description | Example |
+|------|-------------|---------|
+| **Critical** 🚨 | Issues requiring immediate attention | GPU count mismatch, PCIe errors |
+| **Warning** ⚠️ | Issues that should be addressed | RDMA NIC count discrepancy |
+| **Info** ℹ️ | Informational status and suggestions | Successful test confirmations |
+
+#### Sample Recommendation Output
+
+```
+======================================================================
+🔍 HPC DIAGNOSTIC RECOMMENDATIONS
+======================================================================
+
+📊 SUMMARY: ⚠️ Found 2 issue(s) requiring attention: 1 critical, 1 warning
+   • Total Issues: 2
+   • Critical: 1
+   • Warning: 1
+   • Info: 1
+
+----------------------------------------------------------------------
+📋 DETAILED RECOMMENDATIONS
+----------------------------------------------------------------------
+
+🚨 1. CRITICAL [gpu_count_check]
+   Issue: GPU count mismatch detected. Expected count not met (found: 6)
+   Suggestion: Verify GPU hardware installation and driver status
+   Commands to run:
+     $ nvidia-smi
+     $ lspci | grep -i nvidia
+     $ dmesg | grep -i nvidia
+     $ sudo nvidia-smi -pm 1
+   References:
+     - https://docs.nvidia.com/datacenter/tesla/tesla-installation-notes/
+     - https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm
+
+⚠️ 2. WARNING [rdma_nics_count]
+   Issue: RDMA NIC count mismatch (found: 14)
+   Suggestion: Verify RDMA hardware installation and driver configuration
+   Commands to run:
+     $ ibstat
+     $ ibv_devices
+     $ lspci | grep -i mellanox
+     $ rdma link show
+     $ systemctl status openibd
+   References:
+     - https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/configuringrdma.htm
+     - https://docs.mellanox.com/display/MLNXOFEDv461000/
+```
 
 ### Verbose and Debug Mode
 
