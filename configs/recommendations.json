@@ -1,0 +1,92 @@
+{
+  "recommendations": {
+    "gpu_count_check": {
+      "fail": {
+        "type": "critical",
+        "fault_code": "HPCGPU-0001-0001",
+        "issue": "GPU count mismatch detected. Expected count not met (found: {gpu_count})",
+        "suggestion": "Verify GPU hardware installation and driver status",
+        "commands": [
+          "nvidia-smi",
+          "lspci | grep -i nvidia",
+          "dmesg | grep -i nvidia",
+          "sudo nvidia-smi -pm 1"
+        ],
+        "references": [
+          "https://docs.nvidia.com/datacenter/tesla/tesla-installation-notes/",
+          "https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm"
+        ]
+      },
+      "pass": {
+        "type": "info",
+        "issue": "GPU count check passed ({gpu_count} GPUs detected)",
+        "suggestion": "GPU hardware is properly detected and configured",
+        "commands": [
+          "nvidia-smi -q",
+          "nvidia-smi topo -m"
+        ]
+      }
+    },
+    "pcie_error_check": {
+      "fail": {
+        "type": "critical",
+        "fault_code": "HPCGPU-0002-0001",
+        "issue": "PCIe errors detected in system logs",
+        "suggestion": "Check PCIe bus health and reseat hardware if necessary",
+        "commands": [
+          "dmesg | grep -i pcie",
+          "dmesg | grep -i 'corrected error'",
+          "dmesg | grep -i 'uncorrectable error'",
+          "lspci -tv",
+          "sudo pcieport-error-inject"
+        ],
+        "references": [
+          "https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm",
+          "https://www.kernel.org/doc/Documentation/PCI/pci-error-recovery.txt"
+        ]
+      },
+      "pass": {
+        "type": "info",
+        "issue": "PCIe error check passed",
+        "suggestion": "PCIe bus appears healthy with no errors detected",
+        "commands": [
+          "lspci -tv",
+          "dmesg | tail -50"
+        ]
+      }
+    },
+    "rdma_nics_count": {
+      "fail": {
+        "type": "warning",
+        "fault_code": "HPCGPU-0003-0001",
+        "issue": "RDMA NIC count mismatch (found: {num_rdma_nics})",
+        "suggestion": "Verify RDMA hardware installation and driver configuration",
+        "commands": [
+          "ibstat",
+          "ibv_devices",
+          "lspci | grep -i mellanox",
+          "rdma link show",
+          "systemctl status openibd"
+        ],
+        "references": [
+          "https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/configuringrdma.htm",
+          "https://docs.mellanox.com/display/MLNXOFEDv461000/"
+        ]
+      },
+      "pass": {
+        "type": "info",
+        "issue": "RDMA NIC count check passed ({num_rdma_nics} NICs detected)",
+        "suggestion": "RDMA hardware is properly detected and configured",
+        "commands": [
+          "ibstat",
+          "ibv_devinfo",
+          "rdma link show"
+        ]
+      }
+    }
+  },
+  "summary_templates": {
+    "no_issues": "All diagnostic tests passed. Your HPC environment appears healthy.",
+    "has_issues": "Found {total_issues} issue(s) requiring attention: {critical_count} critical, {warning_count} warning"
+  }
+}

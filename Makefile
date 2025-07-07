@@ -7,7 +7,7 @@ ARCH ?= x86_64
 BUILD_DIR = build
 DIST_DIR = dist
 
-.PHONY: all clean build rpm deb deb-ubuntu deb-debian deps install-fpm test coverage
+.PHONY: all clean build rpm deb deb-ubuntu deb-debian deps install-fpm test coverage install install-dev uninstall
 
 all: clean test build rpm deb-ubuntu deb-debian
 
@@ -49,6 +49,7 @@ rpm: build install-fpm
 		$(BUILD_DIR)/$(APP_NAME)=/usr/bin/$(APP_NAME) \
 		config/oci-dr-hpc.yaml=/etc/oci-dr-hpc.yaml \
 		internal/shapes/shapes.json=/etc/oci-dr-hpc-shapes.json \
+		configs/recommendations.json=/usr/share/oci-dr-hpc/recommendations.json \
 		scripts/setup-logging.sh=/usr/share/oci-dr-hpc/setup-logging.sh
 
 deb: deb-ubuntu
@@ -74,6 +75,7 @@ deb-ubuntu: build install-fpm
 		$(BUILD_DIR)/$(APP_NAME)=/usr/bin/$(APP_NAME) \
 		config/oci-dr-hpc.yaml=/etc/oci-dr-hpc.yaml \
 		internal/shapes/shapes.json=/etc/oci-dr-hpc-shapes.json \
+		configs/recommendations.json=/usr/share/oci-dr-hpc/recommendations.json \
 		scripts/setup-logging.sh=/usr/share/oci-dr-hpc/setup-logging.sh
 
 deb-debian: build install-fpm
@@ -97,6 +99,7 @@ deb-debian: build install-fpm
 		$(BUILD_DIR)/$(APP_NAME)=/usr/bin/$(APP_NAME) \
 		config/oci-dr-hpc.yaml=/etc/oci-dr-hpc.yaml \
 		internal/shapes/shapes.json=/etc/oci-dr-hpc-shapes.json \
+		configs/recommendations.json=/usr/share/oci-dr-hpc/recommendations.json \
 		scripts/setup-logging.sh=/usr/share/oci-dr-hpc/setup-logging.sh
 
 test:
@@ -110,6 +113,39 @@ coverage:
 	go tool cover -html=$(BUILD_DIR)/coverage.out -o $(BUILD_DIR)/coverage.html
 	@echo "Coverage report generated at $(BUILD_DIR)/coverage.html"
 	go tool cover -func=$(BUILD_DIR)/coverage.out
+
+install: build
+	@echo "Installing $(APP_NAME) system-wide..."
+	@sudo mkdir -p /usr/bin
+	@sudo mkdir -p /usr/share/oci-dr-hpc
+	@sudo mkdir -p /etc/oci-dr-hpc
+	@sudo install -m 755 $(BUILD_DIR)/$(APP_NAME) /usr/bin/
+	@sudo install -m 644 configs/recommendations.json /usr/share/oci-dr-hpc/
+	@if [ ! -f /etc/oci-dr-hpc/recommendations.json ]; then \
+		sudo install -m 644 configs/recommendations.json /etc/oci-dr-hpc/; \
+	fi
+	@echo "Installation complete!"
+	@echo "Binary: /usr/bin/$(APP_NAME)"
+	@echo "Default config: /usr/share/oci-dr-hpc/recommendations.json"
+	@echo "System config: /etc/oci-dr-hpc/recommendations.json"
+
+install-dev: build
+	@echo "Installing $(APP_NAME) for development..."
+	@mkdir -p ~/.local/bin
+	@mkdir -p ~/.config/oci-dr-hpc
+	@cp $(BUILD_DIR)/$(APP_NAME) ~/.local/bin/
+	@cp configs/recommendations.json ~/.config/oci-dr-hpc/
+	@echo "Development installation complete!"
+	@echo "Binary: ~/.local/bin/$(APP_NAME)"
+	@echo "Config: ~/.config/oci-dr-hpc/recommendations.json"
+	@echo "Make sure ~/.local/bin is in your PATH"
+
+uninstall:
+	@echo "Uninstalling $(APP_NAME)..."
+	@sudo rm -f /usr/bin/$(APP_NAME)
+	@sudo rm -f /usr/share/oci-dr-hpc/recommendations.json
+	@echo "Note: Custom configs in /etc/oci-dr-hpc/ were preserved"
+	@echo "Remove manually if needed: sudo rm -rf /etc/oci-dr-hpc/"
 
 clean:
 	@echo "Cleaning build artifacts..."

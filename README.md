@@ -5,13 +5,15 @@ A comprehensive diagnostic and repair tool for High Performance Computing (HPC) 
 ## 🚀 Features
 
 - **🎮 GPU Diagnostics**: Check GPU count, driver status, and hardware health using nvidia-smi
-- **🔗 RDMA Network Testing**: Validate RDMA NIC count, PCI addresses, and connectivity  
+- **🔗 RDMA Network Testing**: Validate RDMA NIC count, PCI addresses, and connectivity with hybrid discovery
 - **⚡ PCIe Error Detection**: Scan system logs for PCIe-related hardware errors
-- **🔍 Hardware Autodiscovery**: Generate logical hardware models automatically from system detection
+- **🔍 Hardware Autodiscovery**: Generate logical hardware models with IMDS integration and cluster detection
 - **📊 Multiple Output Formats**: Support for table, JSON, and friendly human-readable output
+- **🔧 Smart Recommendations**: JSON-configurable diagnostic recommendations with fault codes
 - **⚙️ Flexible Configuration**: Support for config files, environment variables, and CLI flags
 - **🏗️ Smart Path Resolution**: Automatic detection of development vs production environments
-- **📦 Customer-Ready Deployment**: Installation scripts and system-wide configuration support
+- **📦 Customer-Ready Deployment**: Makefile-based installation with filesystem hierarchy compliance
+- **🐛 Debug-Friendly**: Comprehensive logging with config path visibility for troubleshooting
 
 ## 📁 Project Structure
 
@@ -20,23 +22,28 @@ oci-dr-hpc-v2/
 ├── cmd/                    # CLI command definitions (Cobra framework)
 │   ├── root.go            # Main CLI entry point and config initialization
 │   ├── level1.go          # Level 1 diagnostic commands
-│   └── autodiscover.go    # Hardware autodiscovery commands
-├── config/                # Configuration files
-│   └── oci-dr-hpc.yaml   # Default configuration template
+│   ├── autodiscover.go    # Hardware autodiscovery commands
+│   └── recommender.go     # Recommendation analysis commands
+├── configs/               # Configuration files
+│   ├── oci-dr-hpc.yaml   # Default application configuration
+│   └── recommendations.json # Diagnostic recommendations with fault codes
 ├── docs/                  # Documentation
+│   ├── autodiscovery.md  # Autodiscovery algorithm documentation (@rekharoy)
+│   ├── recommendations-config.md # Recommendation system documentation
 │   ├── deployment.md     # Customer deployment guide
 │   ├── imds.md          # IMDS (Instance Metadata Service) documentation
 │   └── *.md             # Additional documentation
 ├── internal/              # Internal application logic
 │   ├── autodiscover/     # Hardware discovery and modeling
-│   │   ├── gpu_discovery.go      # GPU detection logic
-│   │   ├── network_discovery.go  # Network/RDMA discovery
-│   │   └── system_info.go        # System information gathering
+│   │   ├── autodiscover.go       # Main autodiscovery logic with IMDS integration
+│   │   ├── gpu_discovery.go      # GPU detection using nvidia-smi
+│   │   ├── network_discovery.go  # Hybrid RDMA/VCN NIC discovery
+│   │   └── system_info.go        # System info with networkBlockId and buildingId
 │   ├── config/           # Configuration management (Viper integration)
 │   │   └── config.go     # Config loading with smart path resolution
 │   ├── executor/         # System command execution
 │   │   ├── nvidia_smi.go # NVIDIA GPU command execution
-│   │   ├── os_commands.go # OS-level commands (lspci, dmesg)
+│   │   ├── os_commands.go # OS-level commands with runtime hardware discovery
 │   │   ├── imds.go       # Instance Metadata Service queries
 │   │   └── mlxlink.go    # Mellanox network diagnostics
 │   ├── level1_tests/     # Level 1 diagnostic test implementations
@@ -47,6 +54,9 @@ oci-dr-hpc-v2/
 │   ├── level3_tests/     # Level 3 diagnostic tests (placeholder)
 │   ├── logger/           # Centralized logging system
 │   │   └── logger.go     # Structured logging with configurable levels
+│   ├── recommender/      # Intelligent recommendation system
+│   │   ├── recommender.go# Multi-format recommendation analysis
+│   │   └── config.go     # JSON-based recommendation configuration
 │   ├── reporter/         # Test result reporting and output formatting
 │   │   └── reporter.go   # Multi-format result reporting
 │   └── shapes/           # OCI shape configuration management
@@ -54,25 +64,26 @@ oci-dr-hpc-v2/
 │       ├── shapes.json   # Hardware shape definitions (development)
 │       └── README.md     # Shapes package documentation
 ├── scripts/              # Installation and utility scripts
-│   ├── install-shapes.sh # Shapes file installation script
+│   ├── setup-logging.sh # Log directory and permissions setup
 │   └── BM.GPU.*/         # Shape-specific reference scripts
 ├── main.go              # Application entry point
 ├── go.mod               # Go module definition
 ├── go.sum               # Go module checksums
-└── Makefile            # Build automation
+└── Makefile            # Build automation with FPM packaging
 ```
 
 ## 🏗️ Architecture Overview
 
 ### Core Packages
 
-- **`cmd/`**: CLI interface using Cobra framework for command handling
+- **`cmd/`**: CLI interface using Cobra framework for command handling and subcommands
 - **`internal/config/`**: Configuration management with Viper, supporting files and environment variables
-- **`internal/executor/`**: System command execution layer (nvidia-smi, lspci, IMDS, etc.)
-- **`internal/level1_tests/`**: Core diagnostic test implementations
+- **`internal/executor/`**: System command execution layer with IMDS, nvidia-smi, lspci, and OS discovery
+- **`internal/level1_tests/`**: Core diagnostic test implementations for GPU, PCIe, and RDMA
 - **`internal/shapes/`**: OCI hardware shape definitions and query interface
-- **`internal/autodiscover/`**: Hardware discovery and logical model generation
-- **`internal/logger/`**: Structured logging with configurable output levels
+- **`internal/autodiscover/`**: Hardware discovery with hybrid approach (shapes.json + runtime OS)
+- **`internal/recommender/`**: JSON-configurable recommendation engine with fault codes
+- **`internal/logger/`**: Structured logging with configurable output levels and debug visibility
 - **`internal/reporter/`**: Multi-format result reporting (table, JSON, friendly)
 
 ### Configuration System
@@ -86,50 +97,42 @@ The application uses a sophisticated configuration system with the following pri
 
 ## 📦 Installation
 
-### For Customers (Production Deployment)
-
-#### 1. Binary Installation
+### Development Installation
 ```bash
-# Install the main binary
-sudo cp oci-dr-hpc /usr/local/bin/
-sudo chmod +x /usr/local/bin/oci-dr-hpc
+# Build and install for current user
+make install-dev
+
+# Binary installed to: ~/.local/bin/oci-dr-hpc-v2
+# Config installed to: ~/.config/oci-dr-hpc/recommendations.json
 ```
 
-#### 2. Configuration Files
+### Production Installation
 ```bash
-# Install main configuration
-sudo cp config/oci-dr-hpc.yaml /etc/oci-dr-hpc.yaml
+# Build and install system-wide
+sudo make install
 
-# Install shapes configuration using provided script
-sudo ./scripts/install-shapes.sh
-
-# Or manually install shapes file
-sudo cp internal/shapes/shapes.json /etc/oci-dr-hpc-shapes.json
-sudo chmod 644 /etc/oci-dr-hpc-shapes.json
+# Binary installed to: /usr/bin/oci-dr-hpc-v2
+# Default config: /usr/share/oci-dr-hpc/recommendations.json  
+# System config: /etc/oci-dr-hpc/recommendations.json
 ```
 
-#### 3. System Directories
+### Package Installation
 ```bash
-# Create log directory
-sudo mkdir -p /var/log/oci-dr-hpc
-sudo chmod 755 /var/log/oci-dr-hpc
+# Build and install RPM package
+make rpm
+sudo rpm -i dist/oci-dr-hpc-v2-*.rpm
 
-# Verify installation
-oci-dr-hpc --version
+# Or build and install DEB package
+make deb
+sudo dpkg -i dist/oci-dr-hpc-v2-*.deb
 ```
 
-### For Developers
-
-The tool automatically detects environments and prioritizes production paths:
-
+### Build Targets
 ```bash
-# Clone and build
-git clone <repository-url>
-cd oci-dr-hpc-v2
-go build -o oci-dr-hpc main.go
-
-# Run directly (uses /etc/oci-dr-hpc-shapes.json if exists, falls back to internal/shapes/shapes.json)
-./oci-dr-hpc level1
+make build       # Build binary only
+make test        # Run tests
+make clean       # Clean build artifacts
+make uninstall   # Remove installation
 ```
 
 ## ⚙️ Configuration
@@ -138,9 +141,10 @@ go build -o oci-dr-hpc main.go
 
 | Component | Development Path | Production Path | Purpose |
 |-----------|-----------------|-----------------|---------|
-| **Main Config** | `config/oci-dr-hpc.yaml` | `/etc/oci-dr-hpc.yaml` | Application configuration |
+| **Main Config** | `configs/oci-dr-hpc.yaml` | `/etc/oci-dr-hpc.yaml` | Application configuration |
 | **Shapes Config** | `internal/shapes/shapes.json` | `/etc/oci-dr-hpc-shapes.json` | Hardware shape definitions |
-| **Binary** | `./oci-dr-hpc` | `/usr/local/bin/oci-dr-hpc` | Executable |
+| **Recommendations** | `configs/recommendations.json` | `/usr/share/oci-dr-hpc/recommendations.json` | Diagnostic recommendations with fault codes |
+| **Binary** | `./oci-dr-hpc-v2` | `/usr/bin/oci-dr-hpc-v2` | Executable |
 | **Logs** | Console/file | `/var/log/oci-dr-hpc/oci-dr-hpc.log` | Application logs |
 
 ### Smart Path Resolution
@@ -153,6 +157,14 @@ The application automatically resolves file paths using this logic:
 2. Check config file setting: shapes_file
 3. Check production path: /etc/oci-dr-hpc-shapes.json (if exists)
 4. Fall back to development path: internal/shapes/shapes.json (if exists)
+
+// For recommendations.json file:
+1. Check current directory: ./recommendations.json (highest priority override)
+2. Check user config: ~/.config/oci-dr-hpc/recommendations.json
+3. Check system config: /etc/oci-dr-hpc/recommendations.json
+4. Check system data: /usr/share/oci-dr-hpc/recommendations.json
+5. Check legacy location: /etc/oci-dr-hpc-recommendations.json
+6. Fall back to development: configs/recommendations.json
 ```
 
 ### Environment Variables
@@ -163,13 +175,16 @@ Override any configuration setting with environment variables:
 # Override shapes file location
 export OCI_DR_HPC_SHAPES_FILE="/custom/path/shapes.json"
 
-# Override logging configuration
+# Override logging configuration (enables config path visibility)
 export OCI_DR_HPC_LOGGING_LEVEL="debug"
 export OCI_DR_HPC_LOGGING_FILE="/custom/path/app.log"
 
 # Override output format
 export OCI_DR_HPC_OUTPUT="json"
 export OCI_DR_HPC_VERBOSE="true"
+
+# Debug configuration loading
+export OCI_DR_HPC_LOGGING_LEVEL="debug"  # Shows config search paths
 ```
 
 ### Configuration File Format
@@ -202,36 +217,46 @@ oci-dr-hpc level1 --test=gpu_count_check,rdma_nics_count
 # List available tests
 oci-dr-hpc level1 --list-tests
 
-# Generate hardware discovery model
-oci-dr-hpc autodiscover
+# Generate hardware discovery model with IMDS integration
+oci-dr-hpc-v2 autodiscover
 
-# Analyze test results and get recommendations
-oci-dr-hpc recommender -r results.json
+# Generate hardware discovery in different formats
+oci-dr-hpc-v2 autodiscover --output json
+oci-dr-hpc-v2 autodiscover --output table  
+oci-dr-hpc-v2 autodiscover --output friendly
+
+# Analyze test results and get recommendations with fault codes
+oci-dr-hpc-v2 recommender -r results.json
+
+# Get recommendations in different formats
+oci-dr-hpc-v2 recommender -r results.json --output friendly
+oci-dr-hpc-v2 recommender -r results.json --output json
+oci-dr-hpc-v2 recommender -r results.json --output table
 
 # Show version and build information
-oci-dr-hpc --version
+oci-dr-hpc-v2 --version
 ```
 
 ### Output Format Options
 
 ```bash
 # Table format (default) - human-readable
-oci-dr-hpc level1 --output=table
+oci-dr-hpc-v2 level1 --output=table
 
 # JSON format - machine-readable
-oci-dr-hpc level1 --output=json
+oci-dr-hpc-v2 level1 --output=json
 
 # Friendly format - detailed human-readable
-oci-dr-hpc level1 --output=friendly
+oci-dr-hpc-v2 level1 --output=friendly
 
 # Save output to file (appends by default)
-oci-dr-hpc level1 --output=json --output-file=results.json
+oci-dr-hpc-v2 level1 --output=json --output-file=results.json
 
 # Append to existing file (default behavior)
-oci-dr-hpc level1 --output=json --output-file=results.json --append
+oci-dr-hpc-v2 level1 --output=json --output-file=results.json --append
 
 # Overwrite existing file
-oci-dr-hpc level1 --output=json --output-file=results.json --append=false
+oci-dr-hpc-v2 level1 --output=json --output-file=results.json --append=false
 ```
 
 ### File Append Format
@@ -295,11 +320,14 @@ This format allows you to:
 The recommender module analyzes test results and provides actionable recommendations for fixing issues:
 
 ```bash
-# Analyze results and get recommendations
-oci-dr-hpc recommender -r results.json
+# Analyze results and get recommendations with fault codes
+oci-dr-hpc-v2 recommender -r results.json
 
 # Works with both single and appended result formats
-oci-dr-hpc recommender -r historical_results.json  # Uses latest run from appended format
+oci-dr-hpc-v2 recommender -r historical_results.json  # Uses latest run from appended format
+
+# Debug configuration loading (shows where recommendations.json is loaded from)
+oci-dr-hpc-v2 recommender -r results.json --verbose
 ```
 
 #### Recommendation Types
@@ -328,6 +356,7 @@ oci-dr-hpc recommender -r historical_results.json  # Uses latest run from append
 ----------------------------------------------------------------------
 
 🚨 1. CRITICAL [gpu_count_check]
+   Fault Code: HPCGPU-0001-0001
    Issue: GPU count mismatch detected. Expected count not met (found: 6)
    Suggestion: Verify GPU hardware installation and driver status
    Commands to run:
@@ -340,6 +369,7 @@ oci-dr-hpc recommender -r historical_results.json  # Uses latest run from append
      - https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm
 
 ⚠️ 2. WARNING [rdma_nics_count]
+   Fault Code: HPCGPU-0003-0001
    Issue: RDMA NIC count mismatch (found: 14)
    Suggestion: Verify RDMA hardware installation and driver configuration
    Commands to run:
@@ -357,28 +387,32 @@ oci-dr-hpc recommender -r historical_results.json  # Uses latest run from append
 
 ```bash
 # Enable verbose output
-oci-dr-hpc level1 --verbose
+oci-dr-hpc-v2 level1 --verbose
 
-# Enable debug logging
-oci-dr-hpc level1 --verbose
+# Enable debug logging (shows config loading paths)
+oci-dr-hpc-v2 level1 --verbose
 export OCI_DR_HPC_LOGGING_LEVEL="debug"
+
+# See where recommendations.json is loaded from
+oci-dr-hpc-v2 recommender -r results.json --verbose
+# Output: INFO: Loading recommendation config from: /usr/share/oci-dr-hpc/recommendations.json
 ```
 
 ## 🧪 Available Diagnostic Tests
 
 ### Level 1 Tests (Production Ready)
 
-| Test Name | Description | Checks |
-|-----------|-------------|---------|
-| **`gpu_count_check`** | Verify GPU count matches shape specification | Uses nvidia-smi and shapes.json |
-| **`pcie_error_check`** | Scan system logs for PCIe errors | Parses dmesg output for hardware errors |
-| **`rdma_nics_count`** | Validate RDMA NIC count and PCI addresses | Uses lspci and shapes.json |
+| Test Name | Description | Checks | Fault Code |
+|-----------|-------------|---------|------------|
+| **`gpu_count_check`** | Verify GPU count matches shape specification | Uses nvidia-smi and shapes.json | HPCGPU-0001-0001 |
+| **`pcie_error_check`** | Scan system logs for PCIe errors | Parses dmesg output for hardware errors | HPCGPU-0002-0001 |
+| **`rdma_nics_count`** | Validate RDMA NIC count and PCI addresses | Uses hybrid discovery (shapes.json + OS) | HPCGPU-0003-0001 |
 
 ### Example Test Execution
 
 ```bash
 # Run single test with verbose output
-oci-dr-hpc level1 --test=gpu_count_check --verbose
+oci-dr-hpc-v2 level1 --test=gpu_count_check --verbose
 
 # Output:
 # INFO: === GPU Count Check ===
@@ -389,6 +423,12 @@ oci-dr-hpc level1 --test=gpu_count_check --verbose
 # INFO: Step 3: Getting actual GPU count from nvidia-smi...
 # INFO: Actual GPU count from nvidia-smi: 8
 # INFO: GPU Count Check: PASS - Expected: 8, Actual: 8
+
+# Run autodiscovery with verbose output (shows IMDS integration)
+oci-dr-hpc-v2 autodiscover --verbose
+# INFO: Discovering system information from IMDS and OS...
+# INFO: Loading recommendation config from: /usr/share/oci-dr-hpc/recommendations.json
+# INFO: Cluster detection: in_cluster=true (networkBlockId: ocid1.networkblock.oc1...)
 ```
 
 ## 🔧 Development
@@ -396,14 +436,17 @@ oci-dr-hpc level1 --test=gpu_count_check --verbose
 ### Building
 
 ```bash
-# Build for current platform
-go build -o oci-dr-hpc main.go
+# Build for current platform using Makefile
+make build
+
+# Build for current platform manually
+go build -o oci-dr-hpc-v2 main.go
 
 # Build with version information
-go build -ldflags "-X github.com/oracle/oci-dr-hpc-v2/cmd.version=v1.0.0" -o oci-dr-hpc main.go
+go build -ldflags "-X main.version=v1.0.0" -o oci-dr-hpc-v2 main.go
 
 # Cross-compile for different platforms
-GOOS=linux GOARCH=amd64 go build -o oci-dr-hpc-linux-amd64 main.go
+GOOS=linux GOARCH=amd64 go build -o oci-dr-hpc-v2-linux-amd64 main.go
 ```
 
 ### Testing
@@ -419,6 +462,8 @@ go test -v -cover ./...
 go test -v ./internal/level1_tests/
 go test -v ./internal/shapes/
 go test -v ./internal/config/
+go test -v ./internal/recommender/
+go test -v ./internal/autodiscover/
 
 # Run tests with race detection
 go test -race ./...
@@ -458,18 +503,18 @@ go test -race ./...
 
 **Solutions**:
 ```bash
-# Check current shapes file location
-oci-dr-hpc test-shapes  # (if test command available)
-
-# Install shapes file using script
-sudo ./scripts/install-shapes.sh
+# Install using Makefile
+sudo make install  # Installs shapes.json to /etc/oci-dr-hpc-shapes.json
 
 # Or set custom location
 export OCI_DR_HPC_SHAPES_FILE="/path/to/shapes.json"
-oci-dr-hpc level1
+oci-dr-hpc-v2 level1
 
-# Or check file exists
+# Check file exists
 ls -la /etc/oci-dr-hpc-shapes.json
+
+# Debug shapes loading (with verbose mode)
+oci-dr-hpc-v2 level1 --verbose
 ```
 
 ### IMDS Connection Issues
@@ -486,16 +531,20 @@ ls -la /etc/oci-dr-hpc-shapes.json
 
 **Solutions**:
 ```bash
-# Fix log directory permissions
+# Use setup script included in package installation
+sudo ./scripts/setup-logging.sh
+
+# Or manually fix log directory permissions
 sudo mkdir -p /var/log/oci-dr-hpc
 sudo chmod 755 /var/log/oci-dr-hpc
 
 # Fix config file permissions
 sudo chmod 644 /etc/oci-dr-hpc.yaml
 sudo chmod 644 /etc/oci-dr-hpc-shapes.json
+sudo chmod 644 /usr/share/oci-dr-hpc/recommendations.json
 
 # Run with appropriate privileges
-sudo oci-dr-hpc level1  # If system-level access needed
+sudo oci-dr-hpc-v2 level1  # If system-level access needed
 ```
 
 ### GPU Detection Issues
@@ -507,19 +556,45 @@ sudo oci-dr-hpc level1  # If system-level access needed
 # Check NVIDIA drivers
 nvidia-smi
 
-# Check if running on correct instance type
-oci-dr-hpc autodiscover  # See detected hardware
+# Check if running on correct instance type (shows IMDS integration)
+oci-dr-hpc-v2 autodiscover  # See detected hardware with cluster detection
 
 # Verify shapes configuration
 cat /etc/oci-dr-hpc-shapes.json | grep -A 10 "BM.GPU.H100.8"
+
+# Debug GPU detection with verbose output
+oci-dr-hpc-v2 level1 --test=gpu_count_check --verbose
+```
+
+### Configuration Issues
+
+**Problem**: Recommendations not loading or showing unexpected behavior
+
+**Solutions**:
+```bash
+# Debug configuration loading (shows where config is loaded from)
+oci-dr-hpc-v2 recommender -r results.json --verbose
+# Output: INFO: Loading recommendation config from: /usr/share/oci-dr-hpc/recommendations.json
+
+# Check if custom config exists
+ls -la ./recommendations.json ~/.config/oci-dr-hpc/recommendations.json
+
+# Validate JSON syntax
+python -m json.tool /usr/share/oci-dr-hpc/recommendations.json
+
+# Test with debug logging to see search paths
+export OCI_DR_HPC_LOGGING_LEVEL="debug"
+oci-dr-hpc-v2 recommender -r results.json
 ```
 
 ## 📚 Additional Documentation
 
+- **[Recommender System](docs/recommender-system.md)**: Complete guide to the intelligent diagnostic recommendation engine
+- **[Autodiscovery Algorithm](docs/autodiscovery.md)**: Comprehensive guide to hardware discovery (@rekharoy)
+- **[Recommendations Configuration](docs/recommendations-config.md)**: JSON-based recommendation system configuration
 - **[Deployment Guide](docs/deployment.md)**: Complete customer deployment instructions
-- **[Host Metadata and IMDS Documentation](docs/host_metadata_and_imds.md)**: Instance Metadata Service integration and host metadata details
+- **[Host Metadata and IMDS Documentation](docs/host_metadata_and_imds.md)**: Instance Metadata Service integration
 - **[Shapes Package](internal/shapes/README.md)**: Hardware shape configuration management
-- **[Installation Notes](docs/installation_notes_*.md)**: OS-specific installation guides
 
 ## 🤝 Contributing
 

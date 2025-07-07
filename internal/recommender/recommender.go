@@ -46,6 +46,7 @@ type AppendedReport struct {
 type Recommendation struct {
 	Type       string   `json:"type"` // "critical", "warning", "info"
 	TestName   string   `json:"test_name"`
+	FaultCode  string   `json:"fault_code,omitempty"`
 	Issue      string   `json:"issue"`
 	Suggestion string   `json:"suggestion"`
 	Commands   []string `json:"commands,omitempty"`
@@ -114,49 +115,84 @@ func parseResults(data []byte) (HostResults, error) {
 	return hostResults, nil
 }
 
-// generateRecommendations analyzes test results and generates recommendations
+// generateRecommendations analyzes test results and generates recommendations using config
 func generateRecommendations(results HostResults) RecommendationReport {
+	// Load recommendation configuration
+	config, err := LoadRecommendationConfig()
+	if err != nil {
+		logger.Errorf("Failed to load recommendation config: %v", err)
+		return generateFallbackRecommendations(results)
+	}
+
 	var recommendations []Recommendation
 	var criticalCount, warningCount, infoCount int
 
-	// Analyze GPU test results
+	// Process all test types using config
+	testMappings := []struct {
+		testName string
+		results  []TestResult
+	}{
+		{"gpu_count_check", results.GPUCountCheck},
+		{"pcie_error_check", results.PCIeErrorCheck},
+		{"rdma_nics_count", results.RDMANicsCount},
+	}
+
+	for _, mapping := range testMappings {
+		for _, testResult := range mapping.results {
+			if rec := config.GetRecommendation(mapping.testName, testResult.Status, testResult); rec != nil {
+				recommendations = append(recommendations, *rec)
+
+				// Count by type
+				switch rec.Type {
+				case "critical":
+					criticalCount++
+				case "warning":
+					warningCount++
+				case "info":
+					infoCount++
+				}
+			}
+		}
+	}
+
+	// Generate summary using config
+	totalIssues := criticalCount + warningCount
+	summary := config.GetSummary(totalIssues, criticalCount, warningCount)
+
+	return RecommendationReport{
+		Summary:         summary,
+		TotalIssues:     totalIssues,
+		CriticalIssues:  criticalCount,
+		WarningIssues:   warningCount,
+		InfoIssues:      infoCount,
+		Recommendations: recommendations,
+		GeneratedAt:     time.Now().UTC().Format(time.RFC3339),
+	}
+}
+
+// generateFallbackRecommendations provides basic recommendations when config loading fails
+func generateFallbackRecommendations(results HostResults) RecommendationReport {
+	logger.Info("Using fallback recommendations due to config load failure")
+
+	var recommendations []Recommendation
+	var criticalCount, warningCount, infoCount int
+
+	// Basic GPU recommendations
 	for _, gpu := range results.GPUCountCheck {
 		if gpu.Status == "FAIL" {
 			rec := Recommendation{
 				Type:       "critical",
 				TestName:   "gpu_count_check",
-				Issue:      fmt.Sprintf("GPU count mismatch detected. Expected count not met (found: %d)", gpu.GPUCount),
+				Issue:      fmt.Sprintf("GPU count mismatch detected (found: %d)", gpu.GPUCount),
 				Suggestion: "Verify GPU hardware installation and driver status",
-				Commands: []string{
-					"nvidia-smi",
-					"lspci | grep -i nvidia",
-					"dmesg | grep -i nvidia",
-					"sudo nvidia-smi -pm 1",
-				},
-				References: []string{
-					"https://docs.nvidia.com/datacenter/tesla/tesla-installation-notes/",
-					"https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm",
-				},
+				Commands:   []string{"nvidia-smi", "lspci | grep -i nvidia"},
 			}
 			recommendations = append(recommendations, rec)
 			criticalCount++
-		} else if gpu.Status == "PASS" {
-			rec := Recommendation{
-				Type:       "info",
-				TestName:   "gpu_count_check",
-				Issue:      fmt.Sprintf("GPU count check passed (%d GPUs detected)", gpu.GPUCount),
-				Suggestion: "GPU hardware is properly detected and configured",
-				Commands: []string{
-					"nvidia-smi -q",
-					"nvidia-smi topo -m",
-				},
-			}
-			recommendations = append(recommendations, rec)
-			infoCount++
 		}
 	}
 
-	// Analyze PCIe test results
+	// Basic PCIe recommendations
 	for _, pcie := range results.PCIeErrorCheck {
 		if pcie.Status == "FAIL" {
 			rec := Recommendation{
@@ -164,37 +200,14 @@ func generateRecommendations(results HostResults) RecommendationReport {
 				TestName:   "pcie_error_check",
 				Issue:      "PCIe errors detected in system logs",
 				Suggestion: "Check PCIe bus health and reseat hardware if necessary",
-				Commands: []string{
-					"dmesg | grep -i pcie",
-					"dmesg | grep -i 'corrected error'",
-					"dmesg | grep -i 'uncorrectable error'",
-					"lspci -tv",
-					"sudo pcieport-error-inject (advanced debugging)",
-				},
-				References: []string{
-					"https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm",
-					"https://www.kernel.org/doc/Documentation/PCI/pci-error-recovery.txt",
-				},
+				Commands:   []string{"dmesg | grep -i pcie", "lspci -tv"},
 			}
 			recommendations = append(recommendations, rec)
 			criticalCount++
-		} else if pcie.Status == "PASS" {
-			rec := Recommendation{
-				Type:       "info",
-				TestName:   "pcie_error_check",
-				Issue:      "PCIe error check passed",
-				Suggestion: "PCIe bus appears healthy with no errors detected",
-				Commands: []string{
-					"lspci -tv",
-					"dmesg | tail -50",
-				},
-			}
-			recommendations = append(recommendations, rec)
-			infoCount++
 		}
 	}
 
-	// Analyze RDMA test results
+	// Basic RDMA recommendations
 	for _, rdma := range results.RDMANicsCount {
 		if rdma.Status == "FAIL" {
 			rec := Recommendation{
@@ -202,45 +215,19 @@ func generateRecommendations(results HostResults) RecommendationReport {
 				TestName:   "rdma_nics_count",
 				Issue:      fmt.Sprintf("RDMA NIC count mismatch (found: %d)", rdma.NumRDMANics),
 				Suggestion: "Verify RDMA hardware installation and driver configuration",
-				Commands: []string{
-					"ibstat",
-					"ibv_devices",
-					"lspci | grep -i mellanox",
-					"rdma link show",
-					"systemctl status openibd",
-				},
-				References: []string{
-					"https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/configuringrdma.htm",
-					"https://docs.mellanox.com/display/MLNXOFEDv461000/",
-				},
+				Commands:   []string{"ibstat", "ibv_devices"},
 			}
 			recommendations = append(recommendations, rec)
 			warningCount++
-		} else if rdma.Status == "PASS" {
-			rec := Recommendation{
-				Type:       "info",
-				TestName:   "rdma_nics_count",
-				Issue:      fmt.Sprintf("RDMA NIC count check passed (%d NICs detected)", rdma.NumRDMANics),
-				Suggestion: "RDMA hardware is properly detected and configured",
-				Commands: []string{
-					"ibstat",
-					"ibv_devinfo",
-					"rdma link show",
-				},
-			}
-			recommendations = append(recommendations, rec)
-			infoCount++
 		}
 	}
 
-	// Generate summary
 	totalIssues := criticalCount + warningCount
-	var summary string
+	summary := fmt.Sprintf("Found %d issue(s) requiring attention: %d critical, %d warning (fallback mode)",
+		totalIssues, criticalCount, warningCount)
+
 	if totalIssues == 0 {
-		summary = "🎉 All diagnostic tests passed! Your HPC environment appears healthy."
-	} else {
-		summary = fmt.Sprintf("⚠️ Found %d issue(s) requiring attention: %d critical, %d warning",
-			totalIssues, criticalCount, warningCount)
+		summary = "All diagnostic tests passed! Your HPC environment appears healthy. (fallback mode)"
 	}
 
 	return RecommendationReport{
@@ -323,13 +310,16 @@ func formatRecommendationsTable(report RecommendationReport) (string, error) {
 			}
 
 			output.WriteString(fmt.Sprintf("│ %d. [%s] %-51s │\n", i+1, strings.ToUpper(rec.Type), rec.TestName))
+			if rec.FaultCode != "" {
+				output.WriteString(fmt.Sprintf("│    Fault Code: %-50s │\n", rec.FaultCode))
+			}
 			output.WriteString(fmt.Sprintf("│    Issue: %-55s │\n", issue))
 			output.WriteString(fmt.Sprintf("│    Suggestion: %-50s │\n", suggestion))
-			
+
 			if len(rec.Commands) > 0 && len(rec.Commands[0]) <= 59 {
 				output.WriteString(fmt.Sprintf("│    Command: %-53s │\n", rec.Commands[0]))
 			}
-			
+
 			if i < len(report.Recommendations)-1 {
 				output.WriteString("├─────────────────────────────────────────────────────────────────┤\n")
 			}
@@ -380,6 +370,9 @@ func formatRecommendationsFriendly(report RecommendationReport) (string, error) 
 		}
 
 		output.WriteString(fmt.Sprintf("\n%s %d. %s [%s]\n", icon, i+1, strings.ToUpper(rec.Type), rec.TestName))
+		if rec.FaultCode != "" {
+			output.WriteString(fmt.Sprintf("   Fault Code: %s\n", rec.FaultCode))
+		}
 		output.WriteString(fmt.Sprintf("   Issue: %s\n", rec.Issue))
 		output.WriteString(fmt.Sprintf("   Suggestion: %s\n", rec.Suggestion))
 
