@@ -221,9 +221,71 @@ oci-dr-hpc level1 --output=json
 # Friendly format - detailed human-readable
 oci-dr-hpc level1 --output=friendly
 
-# Save output to file
+# Save output to file (appends by default)
 oci-dr-hpc level1 --output=json --output-file=results.json
+
+# Append to existing file (default behavior)
+oci-dr-hpc level1 --output=json --output-file=results.json --append
+
+# Overwrite existing file
+oci-dr-hpc level1 --output=json --output-file=results.json --append=false
 ```
+
+### File Append Format
+
+When using the `--append` flag (default behavior), the tool creates a JSON file with multiple test runs:
+
+```json
+{
+  "test_runs": [
+    {
+      "run_id": "run_1704067200",
+      "timestamp": "2024-01-01T10:00:00Z",
+      "test_results": {
+        "gpu_count_check": [
+          {
+            "status": "PASS",
+            "gpu_count": 8,
+            "timestamp_utc": "2024-01-01T10:00:00Z"
+          }
+        ],
+        "pcie_error_check": [
+          {
+            "status": "PASS",
+            "timestamp_utc": "2024-01-01T10:00:00Z"
+          }
+        ],
+        "rdma_nics_count": [
+          {
+            "status": "PASS",
+            "num_rdma_nics": 16,
+            "timestamp_utc": "2024-01-01T10:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "run_id": "run_1704070800",
+      "timestamp": "2024-01-01T11:00:00Z",
+      "test_results": {
+        "gpu_count_check": [
+          {
+            "status": "PASS",
+            "gpu_count": 8,
+            "timestamp_utc": "2024-01-01T11:00:00Z"
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+
+This format allows you to:
+- **Track test history** over time
+- **Compare results** between different runs
+- **Analyze trends** in system health
+- **Maintain historical records** for auditing
 
 ### Verbose and Debug Mode
 

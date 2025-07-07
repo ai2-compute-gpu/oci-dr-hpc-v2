@@ -27,6 +27,11 @@ var level1Cmd = &cobra.Command{
 		// Initialize reporter
 		rep := reporter.GetReporter()
 		outputFile := viper.GetString("output-file")
+
+		// Set append mode based on CLI flag
+		appendMode := viper.GetBool("append")
+		rep.SetAppendMode(appendMode)
+
 		if err := rep.Initialize(outputFile); err != nil {
 			logger.Errorf("Failed to initialize reporter: %v", err)
 			return fmt.Errorf("failed to initialize reporter: %w", err)

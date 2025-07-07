@@ -32,6 +32,7 @@ var (
 	testLevel    string
 	showVersion  bool
 	outputFile   string
+	appendMode   bool
 )
 
 var rootCmd = &cobra.Command{
@@ -62,12 +63,14 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "table", "output format (json|table|friendly)")
 	rootCmd.PersistentFlags().StringVarP(&testLevel, "level", "l", "L1", "test level (L1|L2|L3)")
 	rootCmd.PersistentFlags().StringVarP(&outputFile, "output-file", "f", "", "output file for JSON report (default: console output)")
+	rootCmd.PersistentFlags().BoolVar(&appendMode, "append", true, "append to existing file instead of overwriting (default: true)")
 	rootCmd.Flags().BoolVar(&showVersion, "version", false, "show version information")
 
 	viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))
 	viper.BindPFlag("output", rootCmd.PersistentFlags().Lookup("output"))
 	viper.BindPFlag("level", rootCmd.PersistentFlags().Lookup("level"))
 	viper.BindPFlag("output-file", rootCmd.PersistentFlags().Lookup("output-file"))
+	viper.BindPFlag("append", rootCmd.PersistentFlags().Lookup("append"))
 }
 
 func initConfig() {

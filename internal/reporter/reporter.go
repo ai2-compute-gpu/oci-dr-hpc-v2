@@ -53,6 +53,18 @@ type ReportOutput struct {
 	Localhost HostResults `json:"localhost"`
 }
 
+// TestRun represents a single test run with timestamp
+type TestRun struct {
+	RunID       string      `json:"run_id"`
+	Timestamp   string      `json:"timestamp"`
+	TestResults HostResults `json:"test_results"`
+}
+
+// AppendedReport represents multiple test runs in a single file
+type AppendedReport struct {
+	TestRuns []TestRun `json:"test_runs"`
+}
+
 // Reporter handles collecting and formatting test results
 type Reporter struct {
 	mutex       sync.RWMutex
@@ -60,6 +72,7 @@ type Reporter struct {
 	outputFile  string
 	hostname    string
 	initialized bool
+	appendMode  bool
 }
 
 // Global reporter instance
@@ -70,8 +83,9 @@ var once sync.Once
 func GetReporter() *Reporter {
 	once.Do(func() {
 		globalReporter = &Reporter{
-			results:  make(map[string]TestResult),
-			hostname: "localhost", // Default hostname
+			results:    make(map[string]TestResult),
+			hostname:   "localhost", // Default hostname
+			appendMode: true,        // Default to append mode
 		}
 	})
 	return globalReporter
@@ -95,6 +109,13 @@ func (r *Reporter) Initialize(outputFile string) error {
 
 	logger.Debugf("Reporter initialized with output file: %s", outputFile)
 	return nil
+}
+
+// SetAppendMode sets whether to append to existing files or overwrite them
+func (r *Reporter) SetAppendMode(append bool) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	r.appendMode = append
 }
 
 // SetHostname sets the hostname for the report
@@ -230,7 +251,13 @@ func (r *Reporter) WriteReportWithFormat(format string) error {
 
 	// Write to file if configured
 	if r.outputFile != "" {
-		if err := os.WriteFile(r.outputFile, []byte(output), 0644); err != nil {
+		if r.appendMode && format == "json" {
+			err = r.appendToFile(report)
+		} else {
+			err = os.WriteFile(r.outputFile, []byte(output), 0644)
+		}
+
+		if err != nil {
 			return fmt.Errorf("failed to write report to file %s: %w", r.outputFile, err)
 		}
 		logger.Infof("Report written to file: %s", r.outputFile)
@@ -239,6 +266,59 @@ func (r *Reporter) WriteReportWithFormat(format string) error {
 		fmt.Print(output)
 	}
 
+	return nil
+}
+
+// appendToFile appends the current test results to an existing file
+func (r *Reporter) appendToFile(currentReport *ReportOutput) error {
+	var appendedReport AppendedReport
+
+	// Try to read existing file
+	if _, err := os.Stat(r.outputFile); err == nil {
+		// File exists, read it
+		existingData, err := os.ReadFile(r.outputFile)
+		if err != nil {
+			return fmt.Errorf("failed to read existing file: %w", err)
+		}
+
+		// Try to parse as AppendedReport first
+		if err := json.Unmarshal(existingData, &appendedReport); err != nil {
+			// If that fails, try to parse as single ReportOutput (backward compatibility)
+			var singleReport ReportOutput
+			if err := json.Unmarshal(existingData, &singleReport); err != nil {
+				return fmt.Errorf("failed to parse existing file as JSON: %w", err)
+			}
+
+			// Convert single report to appended format
+			appendedReport.TestRuns = []TestRun{
+				{
+					RunID:       fmt.Sprintf("run_%d", time.Now().Unix()),
+					Timestamp:   time.Now().UTC().Format(time.RFC3339),
+					TestResults: singleReport.Localhost,
+				},
+			}
+		}
+	}
+
+	// Add current test run
+	newRun := TestRun{
+		RunID:       fmt.Sprintf("run_%d", time.Now().Unix()),
+		Timestamp:   time.Now().UTC().Format(time.RFC3339),
+		TestResults: currentReport.Localhost,
+	}
+	appendedReport.TestRuns = append(appendedReport.TestRuns, newRun)
+
+	// Write back to file
+	jsonData, err := json.MarshalIndent(appendedReport, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal appended report: %w", err)
+	}
+
+	if err := os.WriteFile(r.outputFile, jsonData, 0644); err != nil {
+		return fmt.Errorf("failed to write appended report: %w", err)
+	}
+
+	logger.Infof("Test results appended to file: %s", r.outputFile)
 	return nil
 }
 
@@ -466,4 +546,11 @@ func (r *Reporter) IsInitialized() bool {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 	return r.initialized
+}
+
+// GetAppendMode returns whether append mode is enabled
+func (r *Reporter) GetAppendMode() bool {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+	return r.appendMode
 }
