@@ -389,7 +389,7 @@ cat /etc/oci-dr-hpc-shapes.json | grep -A 10 "BM.GPU.H100.8"
 ## 📚 Additional Documentation
 
 - **[Deployment Guide](docs/deployment.md)**: Complete customer deployment instructions
-- **[IMDS Documentation](docs/imds.md)**: Instance Metadata Service integration details
+- **[Host Metadata and IMDS Documentation](docs/host_metadata_and_imds.md)**: Instance Metadata Service integration and host metadata details
 - **[Shapes Package](internal/shapes/README.md)**: Hardware shape configuration management
 - **[Installation Notes](docs/installation_notes_*.md)**: OS-specific installation guides
 
