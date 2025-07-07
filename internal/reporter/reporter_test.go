@@ -393,14 +393,34 @@ func TestReporter_JSONMarshal(t *testing.T) {
 	if testReport.Localhost.GPU[0].DeviceCount != "PASS" {
 		t.Error("GPU device_count field not properly marshaled")
 	}
+	if testReport.Localhost.GPU[0].TimestampUTC == "" {
+		t.Error("GPU timestamp_utc field not properly marshaled")
+	}
 	if testReport.Localhost.PCIeError[0].Status != "PASS" {
 		t.Error("PCIe status field not properly marshaled")
+	}
+	if testReport.Localhost.PCIeError[0].TimestampUTC == "" {
+		t.Error("PCIe timestamp_utc field not properly marshaled")
 	}
 	if testReport.Localhost.RDMANicCount[0].NumRDMANics != 16 {
 		t.Error("RDMA num_rdma_nics field not properly marshaled")
 	}
 	if testReport.Localhost.RDMANicCount[0].Status != "PASS" {
 		t.Error("RDMA status field not properly marshaled")
+	}
+	if testReport.Localhost.RDMANicCount[0].TimestampUTC == "" {
+		t.Error("RDMA timestamp_utc field not properly marshaled")
+	}
+
+	// Verify timestamp format (should be RFC3339 format)
+	if _, err := time.Parse(time.RFC3339, testReport.Localhost.GPU[0].TimestampUTC); err != nil {
+		t.Errorf("GPU timestamp_utc is not in valid RFC3339 format: %s", testReport.Localhost.GPU[0].TimestampUTC)
+	}
+	if _, err := time.Parse(time.RFC3339, testReport.Localhost.PCIeError[0].TimestampUTC); err != nil {
+		t.Errorf("PCIe timestamp_utc is not in valid RFC3339 format: %s", testReport.Localhost.PCIeError[0].TimestampUTC)
+	}
+	if _, err := time.Parse(time.RFC3339, testReport.Localhost.RDMANicCount[0].TimestampUTC); err != nil {
+		t.Errorf("RDMA timestamp_utc is not in valid RFC3339 format: %s", testReport.Localhost.RDMANicCount[0].TimestampUTC)
 	}
 
 	t.Logf("Generated JSON structure matches expected format:\n%s", string(jsonData))

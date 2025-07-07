@@ -23,18 +23,21 @@ type TestResult struct {
 
 // GPUTestResult represents GPU test results
 type GPUTestResult struct {
-	DeviceCount string `json:"device_count"`
+	DeviceCount  string `json:"device_count"`
+	TimestampUTC string `json:"timestamp_utc"`
 }
 
 // PCIeTestResult represents PCIe test results
 type PCIeTestResult struct {
-	Status string `json:"status"`
+	Status       string `json:"status"`
+	TimestampUTC string `json:"timestamp_utc"`
 }
 
 // RDMATestResult represents RDMA test results
 type RDMATestResult struct {
-	NumRDMANics int    `json:"num_rdma_nics"`
-	Status      string `json:"status"`
+	NumRDMANics  int    `json:"num_rdma_nics"`
+	Status       string `json:"status"`
+	TimestampUTC string `json:"timestamp_utc"`
 }
 
 // HostResults represents test results for a host
@@ -154,7 +157,8 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 	// Process GPU results
 	if result, exists := r.results["gpu_count_check"]; exists {
 		gpuResult := GPUTestResult{
-			DeviceCount: result.Status,
+			DeviceCount:  result.Status,
+			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
 		}
 		report.Localhost.GPU = []GPUTestResult{gpuResult}
 	}
@@ -162,7 +166,8 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 	// Process PCIe results
 	if result, exists := r.results["pcie_error_check"]; exists {
 		pcieResult := PCIeTestResult{
-			Status: result.Status,
+			Status:       result.Status,
+			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
 		}
 		report.Localhost.PCIeError = []PCIeTestResult{pcieResult}
 	}
@@ -176,8 +181,9 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 			}
 		}
 		rdmaResult := RDMATestResult{
-			NumRDMANics: rdmaCount,
-			Status:      result.Status,
+			NumRDMANics:  rdmaCount,
+			Status:       result.Status,
+			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
 		}
 		report.Localhost.RDMANicCount = []RDMATestResult{rdmaResult}
 	}
