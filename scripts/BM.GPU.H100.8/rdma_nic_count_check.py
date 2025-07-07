@@ -68,18 +68,13 @@ def run_rdma_nic_count_check():
         raw_result = run_cmd(cmd)
         list_of_results.append(raw_result)
 
-    # TODO: bhrajan - How to determine host is not in cluster
     result = parse_rdma_nic_count_results(results=list_of_results,
                                           expected_nics_count=len(rdma_pci_ids_list))
     return result
 
 
 # Parse all the results and determine pass/fail status
-def parse_rdma_nic_count_results(results, expected_nics_count, is_host_not_in_cluster=False):
-    # Handle special case where host doesn't support RDMA
-    if is_host_not_in_cluster:
-        return {"rdma_nic_count": {"status": "PASS - This host doesn't support RDMA link."}}
-
+def parse_rdma_nic_count_results(results, expected_nics_count):
     # Initialize counter for detected RDMA NICs
     num_rdma_nics = 0
 
