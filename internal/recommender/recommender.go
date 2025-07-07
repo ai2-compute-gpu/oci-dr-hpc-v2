@@ -64,7 +64,7 @@ type RecommendationReport struct {
 }
 
 // AnalyzeResults analyzes test results and provides recommendations
-func AnalyzeResults(resultsFile string) error {
+func AnalyzeResults(resultsFile, outputFormat string) error {
 	logger.Info(fmt.Sprintf("Analyzing results file: %s", resultsFile))
 
 	// Read the results file
@@ -82,8 +82,10 @@ func AnalyzeResults(resultsFile string) error {
 	// Generate recommendations
 	recommendations := generateRecommendations(hostResults)
 
-	// Display recommendations
-	displayRecommendations(recommendations)
+	// Format and display recommendations based on output format
+	if err := outputRecommendations(recommendations, outputFormat); err != nil {
+		return fmt.Errorf("failed to output recommendations: %w", err)
+	}
 
 	return nil
 }
@@ -252,26 +254,117 @@ func generateRecommendations(results HostResults) RecommendationReport {
 	}
 }
 
-// displayRecommendations displays the recommendations in a user-friendly format
-func displayRecommendations(report RecommendationReport) {
-	fmt.Println("\n" + strings.Repeat("=", 70))
-	fmt.Println("🔍 HPC DIAGNOSTIC RECOMMENDATIONS")
-	fmt.Println(strings.Repeat("=", 70))
+// outputRecommendations outputs recommendations in the specified format
+func outputRecommendations(report RecommendationReport, outputFormat string) error {
+	var output string
+	var err error
 
-	fmt.Printf("\n📊 SUMMARY: %s\n", report.Summary)
-	fmt.Printf("   • Total Issues: %d\n", report.TotalIssues)
-	fmt.Printf("   • Critical: %d\n", report.CriticalIssues)
-	fmt.Printf("   • Warning: %d\n", report.WarningIssues)
-	fmt.Printf("   • Info: %d\n", report.InfoIssues)
-
-	if len(report.Recommendations) == 0 {
-		fmt.Println("\n✅ No recommendations needed. System appears healthy!")
-		return
+	switch outputFormat {
+	case "json":
+		output, err = formatRecommendationsJSON(report)
+	case "table":
+		output, err = formatRecommendationsTable(report)
+	case "friendly":
+		output, err = formatRecommendationsFriendly(report)
+	default:
+		return fmt.Errorf("unsupported output format: %s", outputFormat)
 	}
 
-	fmt.Println("\n" + strings.Repeat("-", 70))
-	fmt.Println("📋 DETAILED RECOMMENDATIONS")
-	fmt.Println(strings.Repeat("-", 70))
+	if err != nil {
+		return err
+	}
+
+	fmt.Print(output)
+	return nil
+}
+
+// formatRecommendationsJSON formats recommendations as JSON
+func formatRecommendationsJSON(report RecommendationReport) (string, error) {
+	jsonData, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal JSON: %w", err)
+	}
+	return string(jsonData) + "\n", nil
+}
+
+// formatRecommendationsTable formats recommendations as a table
+func formatRecommendationsTable(report RecommendationReport) (string, error) {
+	var output strings.Builder
+
+	output.WriteString("┌─────────────────────────────────────────────────────────────────┐\n")
+	output.WriteString("│                    HPC DIAGNOSTIC RECOMMENDATIONS              │\n")
+	output.WriteString("├─────────────────────────────────────────────────────────────────┤\n")
+
+	// Summary section
+	output.WriteString("│ SUMMARY                                                         │\n")
+	output.WriteString("├─────────────────────────────────────────────────────────────────┤\n")
+	output.WriteString(fmt.Sprintf("│ %-63s │\n", fmt.Sprintf("Total Issues: %d", report.TotalIssues)))
+	output.WriteString(fmt.Sprintf("│ %-63s │\n", fmt.Sprintf("Critical: %d", report.CriticalIssues)))
+	output.WriteString(fmt.Sprintf("│ %-63s │\n", fmt.Sprintf("Warning: %d", report.WarningIssues)))
+	output.WriteString(fmt.Sprintf("│ %-63s │\n", fmt.Sprintf("Info: %d", report.InfoIssues)))
+	output.WriteString("├─────────────────────────────────────────────────────────────────┤\n")
+
+	// Recommendations section
+	output.WriteString("│ RECOMMENDATIONS                                                 │\n")
+	output.WriteString("├─────────────────────────────────────────────────────────────────┤\n")
+
+	if len(report.Recommendations) == 0 {
+		output.WriteString("│ No recommendations needed. System appears healthy!             │\n")
+	} else {
+		for i, rec := range report.Recommendations {
+			// Truncate long text to fit in table
+			issue := rec.Issue
+			if len(issue) > 59 {
+				issue = issue[:56] + "..."
+			}
+			suggestion := rec.Suggestion
+			if len(suggestion) > 59 {
+				suggestion = suggestion[:56] + "..."
+			}
+
+			output.WriteString(fmt.Sprintf("│ %d. [%s] %-51s │\n", i+1, strings.ToUpper(rec.Type), rec.TestName))
+			output.WriteString(fmt.Sprintf("│    Issue: %-55s │\n", issue))
+			output.WriteString(fmt.Sprintf("│    Suggestion: %-50s │\n", suggestion))
+			
+			if len(rec.Commands) > 0 && len(rec.Commands[0]) <= 59 {
+				output.WriteString(fmt.Sprintf("│    Command: %-53s │\n", rec.Commands[0]))
+			}
+			
+			if i < len(report.Recommendations)-1 {
+				output.WriteString("├─────────────────────────────────────────────────────────────────┤\n")
+			}
+		}
+	}
+
+	output.WriteString("├─────────────────────────────────────────────────────────────────┤\n")
+	output.WriteString(fmt.Sprintf("│ Generated at: %-49s │\n", report.GeneratedAt))
+	output.WriteString("└─────────────────────────────────────────────────────────────────┘\n")
+
+	return output.String(), nil
+}
+
+// formatRecommendationsFriendly formats recommendations in a user-friendly format
+func formatRecommendationsFriendly(report RecommendationReport) (string, error) {
+	var output strings.Builder
+
+	output.WriteString("\n" + strings.Repeat("=", 70) + "\n")
+	output.WriteString("🔍 HPC DIAGNOSTIC RECOMMENDATIONS\n")
+	output.WriteString(strings.Repeat("=", 70) + "\n")
+
+	output.WriteString(fmt.Sprintf("\n📊 SUMMARY: %s\n", report.Summary))
+	output.WriteString(fmt.Sprintf("   • Total Issues: %d\n", report.TotalIssues))
+	output.WriteString(fmt.Sprintf("   • Critical: %d\n", report.CriticalIssues))
+	output.WriteString(fmt.Sprintf("   • Warning: %d\n", report.WarningIssues))
+	output.WriteString(fmt.Sprintf("   • Info: %d\n", report.InfoIssues))
+
+	if len(report.Recommendations) == 0 {
+		output.WriteString("\n✅ No recommendations needed. System appears healthy!\n")
+		return output.String(), nil
+	}
+
+	output.WriteString("\n" + strings.Repeat("-", 70) + "\n")
+	output.WriteString("📋 DETAILED RECOMMENDATIONS\n")
+	output.WriteString(strings.Repeat("-", 70) + "\n")
 
 	for i, rec := range report.Recommendations {
 		var icon string
@@ -286,28 +379,30 @@ func displayRecommendations(report RecommendationReport) {
 			icon = "•"
 		}
 
-		fmt.Printf("\n%s %d. %s [%s]\n", icon, i+1, strings.ToUpper(rec.Type), rec.TestName)
-		fmt.Printf("   Issue: %s\n", rec.Issue)
-		fmt.Printf("   Suggestion: %s\n", rec.Suggestion)
+		output.WriteString(fmt.Sprintf("\n%s %d. %s [%s]\n", icon, i+1, strings.ToUpper(rec.Type), rec.TestName))
+		output.WriteString(fmt.Sprintf("   Issue: %s\n", rec.Issue))
+		output.WriteString(fmt.Sprintf("   Suggestion: %s\n", rec.Suggestion))
 
 		if len(rec.Commands) > 0 {
-			fmt.Printf("   Commands to run:\n")
+			output.WriteString("   Commands to run:\n")
 			for _, cmd := range rec.Commands {
-				fmt.Printf("     $ %s\n", cmd)
+				output.WriteString(fmt.Sprintf("     $ %s\n", cmd))
 			}
 		}
 
 		if len(rec.References) > 0 {
-			fmt.Printf("   References:\n")
+			output.WriteString("   References:\n")
 			for _, ref := range rec.References {
-				fmt.Printf("     - %s\n", ref)
+				output.WriteString(fmt.Sprintf("     - %s\n", ref))
 			}
 		}
 	}
 
-	fmt.Printf("\n" + strings.Repeat("=", 70))
-	fmt.Printf("\nGenerated at: %s", report.GeneratedAt)
-	fmt.Printf("\n" + strings.Repeat("=", 70) + "\n")
+	output.WriteString("\n" + strings.Repeat("=", 70) + "\n")
+	output.WriteString(fmt.Sprintf("Generated at: %s\n", report.GeneratedAt))
+	output.WriteString(strings.Repeat("=", 70) + "\n")
+
+	return output.String(), nil
 }
 
 // PrintHello prints a simple hello message (keeping for backward compatibility)
