@@ -68,6 +68,7 @@ func runAllLevel1Tests() error {
 		{"gpu_count_check", level1_tests.RunGPUCountCheck},
 		{"pcie_error_check", level1_tests.RunPCIeErrorCheck},
 		{"rdma_nics_count", level1_tests.RunRDMANicsCount},
+		{"rx_discards_check", level1_tests.RunRXDiscardsCheck},
 	}
 
 	var failedTests []string
@@ -126,6 +127,7 @@ func runSpecificTests(testFilter string) error {
 		{"gpu_count_check", "Check GPU count using nvidia-smi", level1_tests.RunGPUCountCheck},
 		{"pcie_error_check", "Check for PCIe errors in system logs", level1_tests.RunPCIeErrorCheck},
 		{"rdma_nics_count", "Check RDMA NICs count", level1_tests.RunRDMANicsCount},
+		{"rx_discards_check", "Check Network Interface", level1_tests.RunRDMANicsCount},
 	}
 
 	// If testFilter is empty, show available tests

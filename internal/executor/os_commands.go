@@ -419,3 +419,40 @@ func getInterfaceIP(interfaceName string) (string, error) {
 
 	return "", fmt.Errorf("could not find IP address for interface %s", interfaceName)
 }
+
+// RunEthtoolStats executes ethtool -S command to get interface statistics with optional grep pattern
+func RunEthtoolStats(interfaceName string, grepPattern string) (*OSCommandResult, error) {
+	logger.Infof("Running ethtool -S for interface: %s", interfaceName)
+
+	var cmd string
+	if grepPattern != "" {
+		// Use grep to filter the output
+		cmd = fmt.Sprintf("sudo ethtool -S %s | grep %s", interfaceName, grepPattern)
+	} else {
+		cmd = fmt.Sprintf("sudo ethtool -S %s", interfaceName)
+	}
+
+	// Execute the command using shell since we're using pipes
+	cmdExec := exec.Command("bash", "-c", cmd)
+	output, err := cmdExec.CombinedOutput()
+
+	result := &OSCommandResult{
+		Command: cmd,
+		Output:  string(output),
+		Error:   err,
+	}
+
+	if err != nil {
+		if exitError, ok := err.(*exec.ExitError); ok {
+			result.ExitCode = exitError.ExitCode()
+		}
+		logger.Errorf("ethtool command failed: %v", err)
+		logger.Debugf("ethtool output: %s", result.Output)
+		return result, err
+	}
+
+	logger.Info("ethtool command completed successfully")
+	logger.Debugf("ethtool output for %s: %s", interfaceName, result.Output)
+
+	return result, nil
+}
