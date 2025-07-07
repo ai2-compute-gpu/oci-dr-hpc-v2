@@ -393,3 +393,42 @@ func TestGPUStructure(t *testing.T) {
 		t.Errorf("ID mismatch: expected %s, got %s", gpu.ID, unmarshaled.ID)
 	}
 }
+
+func TestInClusterLogic(t *testing.T) {
+	testCases := []struct {
+		name               string
+		networkBlockId     string
+		expectedInCluster  bool
+		description        string
+	}{
+		{
+			name:               "Valid network block ID",
+			networkBlockId:     "9877ad75a930eec924e1bb971688e0c338ab613cba5afc9793b5b4754902477d",
+			expectedInCluster:  true,
+			description:        "Should be in cluster with valid network block ID",
+		},
+		{
+			name:               "Empty network block ID",
+			networkBlockId:     "",
+			expectedInCluster:  false,
+			description:        "Should not be in cluster with empty network block ID",
+		},
+		{
+			name:               "Unknown network block ID",
+			networkBlockId:     "unknown",
+			expectedInCluster:  false,
+			description:        "Should not be in cluster with unknown network block ID",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Test the logic from the autodiscover function
+			inCluster := tc.networkBlockId != "" && tc.networkBlockId != "unknown"
+			
+			if inCluster != tc.expectedInCluster {
+				t.Errorf("Expected InCluster=%v, got %v (%s)", tc.expectedInCluster, inCluster, tc.description)
+			}
+		})
+	}
+}

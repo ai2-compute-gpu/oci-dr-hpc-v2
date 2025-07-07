@@ -221,6 +221,9 @@ func Run() {
 	// Discover real VCN NIC based on shape
 	discoveredVCNNic := DiscoverVCNNicWithFallback(sysInfo.Shape)
 
+	// Determine if instance is in cluster based on networkBlockId availability
+	inCluster := sysInfo.NetworkBlockId != "" && sysInfo.NetworkBlockId != "unknown"
+
 	// Build the complete hardware map with real data
 	mapHost := MapHost{
 		Hostname:         sysInfo.Hostname,
@@ -231,7 +234,7 @@ func Run() {
 		Rack:             sysInfo.Rack,
 		NetworkBlockId:   sysInfo.NetworkBlockId,
 		BuildingId:       sysInfo.BuildingId,
-		InCluster:        true,
+		InCluster:        inCluster,
 		Gpus:             discoveredGPUs,
 		RdmaNics:         discoveredRDMANics,
 		VcnNic:           discoveredVCNNic,
