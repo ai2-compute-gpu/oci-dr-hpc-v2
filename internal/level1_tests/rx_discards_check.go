@@ -2,8 +2,11 @@ package level1_tests
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/oracle/oci-dr-hpc-v2/internal/Utils"
+	"github.com/oracle/oci-dr-hpc-v2/internal/test_limits"
+	"github.com/oracle/oci-dr-hpc-v2/internal/utils"
+	"math"
 	"strconv"
 	"strings"
 
@@ -25,8 +28,14 @@ type RXDiscardsDevice struct {
 
 // RXDiscardsConfig represents the configuration for RX discards checking
 type RXDiscardsConfig struct {
-	Interfaces               []string `json:"interfaces"`
-	RXDiscardsCheckThreshold int      `json:"rx_discards_check_threshold"`
+	Interfaces []string `json:"interfaces"`
+}
+
+// RxDiscardTestConfig represents the config needed to run this test
+type RxDiscardTestConfig struct {
+	Threshold float64 `json:"threshold"`
+	IsEnabled bool    `json:"enabled"`
+	Shape     string  `json:"shape"`
 }
 
 // TODO: bhrajan read configs from file
@@ -43,14 +52,11 @@ func getRXDiscardsConfig() *RXDiscardsConfig {
 			"rdma12", "rdma13",
 			"rdma14", "rdma15",
 		},
-		// Threshold for considering RX discards problematic
-		// Values above this indicate potential network issues
-		RXDiscardsCheckThreshold: 100,
 	}
 }
 
 // parseRXDiscardsResults parses RX discards results for a single interface
-func parseRXDiscardsResults(interfaceName string, results []string, threshold int) RXDiscardsResult {
+func parseRXDiscardsResults(interfaceName string, results []string, threshold float64) RXDiscardsResult {
 	// Create default result structure with PASS status
 	result := RXDiscardsResult{
 		RXDiscards: RXDiscardsDevice{
@@ -78,10 +84,10 @@ func parseRXDiscardsResults(interfaceName string, results []string, threshold in
 				discardsStr := parts[1]
 
 				// Validate that the discard count is a valid integer
-				if Utils.IsInt(discardsStr) {
+				if utils.IsInt(discardsStr) {
 					discards, _ := strconv.Atoi(discardsStr)
 					// Check if discard count exceeds threshold
-					if discards > threshold {
+					if float64(discards) > threshold {
 						result.RXDiscards.Status = "FAIL"
 						break // Exit early on first failure
 					}
@@ -97,16 +103,67 @@ func parseRXDiscardsResults(interfaceName string, results []string, threshold in
 	return result
 }
 
+// Gets test config needed to run this test
+func getTestConfig() (*RxDiscardTestConfig, error) {
+	// Get shape from IMDS
+	shape, err := executor.GetCurrentShape()
+	if err != nil {
+		return nil, err
+	}
+
+	// Load configuration from test_limits.json
+	limits, err := test_limits.LoadTestLimits()
+	if err != nil {
+		return nil, err
+	}
+
+	// Result
+	rxDiscardTestConfig := &RxDiscardTestConfig{
+		Threshold: math.MinInt,
+		IsEnabled: false,
+		Shape:     shape,
+	}
+
+	enabled, err := limits.IsTestEnabled(shape, "rx_discards_check")
+	if err != nil {
+		return nil, err
+	}
+	rxDiscardTestConfig.IsEnabled = enabled
+
+	if !enabled {
+		return rxDiscardTestConfig, nil
+	}
+	defaultThreshold, err := limits.GetThresholdForTest(shape, "rx_discards_check")
+	logger.Info("Fetched test config for this test ", rxDiscardTestConfig)
+	if threshold, ok := defaultThreshold.(float64); ok {
+		rxDiscardTestConfig.Threshold = threshold
+	}
+	return rxDiscardTestConfig, nil
+}
+
 // runRXDiscardsCheck executes RX discards health check across all relevant network interfaces
 func runRXDiscardsCheck() ([]RXDiscardsResult, error) {
-	config := getRXDiscardsConfig()
-	interfacesList := config.Interfaces
-	threshold := config.RXDiscardsCheckThreshold
-
-	logger.Info("Running RX discards check with threshold:", threshold)
-
 	// Process each interface and collect results
 	var results []RXDiscardsResult
+
+	config := getRXDiscardsConfig()
+	interfacesList := config.Interfaces
+
+	testConfig, err := getTestConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	if !testConfig.IsEnabled {
+		errorStatement := fmt.Sprintf("Test not applicable for this shape %s", testConfig.Shape)
+		logger.Info(errorStatement)
+		return nil, errors.New(errorStatement)
+	}
+
+	// Threshold for considering RX discards problematic
+	// Values above this indicate potential network issues
+	threshold := testConfig.Threshold
+	logger.Info("Running RX discards check with threshold:", threshold)
 
 	for _, interfaceName := range interfacesList {
 		logger.Debugf("Checking interface: %s", interfaceName)

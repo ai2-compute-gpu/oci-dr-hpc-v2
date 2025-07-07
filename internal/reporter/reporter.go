@@ -46,6 +46,7 @@ type NetworkRXDiscardsTestResult struct {
 	InterfaceCount int    `json:"interface_count"`
 	FailedCount    int    `json:"failed_count,omitempty"`
 	Status         string `json:"status"`
+	TimestampUTC   string `json:"timestamp_utc"`
 }
 
 // HostResults represents test results for a host
@@ -264,6 +265,7 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 			InterfaceCount: interfaceCount,
 			FailedCount:    failedCount,
 			Status:         result.Status,
+			TimestampUTC:   result.Timestamp.UTC().Format(time.RFC3339),
 		}
 		report.Localhost.NetworkRXDiscards = []NetworkRXDiscardsTestResult{networkResult}
 	}
@@ -387,9 +389,9 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 	var output strings.Builder
 
 	output.WriteString("┌─────────────────────────────────────────────────────────────────┐\n")
-	output.WriteString("│                    DIAGNOSTIC TEST RESULTS                     │\n")
+	output.WriteString("│                    DIAGNOSTIC TEST RESULTS                      │\n")
 	output.WriteString("├─────────────────────────────────────────────────────────────────┤\n")
-	output.WriteString("│ TEST NAME              │ STATUS │ DETAILS                     │\n")
+	output.WriteString("│ TEST NAME              │ STATUS │ DETAILS                       │\n")
 	output.WriteString("├─────────────────────────────────────────────────────────────────┤\n")
 
 	// GPU Tests
@@ -400,7 +402,7 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 			if status == "FAIL" {
 				statusSymbol = "❌"
 			}
-			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s GPU Count: %s          │\n",
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s GPU Count: %s           │\n",
 				"GPU Count Check", statusSymbol, statusSymbol, gpu.Status))
 		}
 	}
@@ -426,7 +428,7 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 			if status == "FAIL" {
 				statusSymbol = "❌"
 			}
-			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s RDMA NICs: %d            │\n",
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s RDMA NICs: %d             │\n",
 				"RDMA NIC Count", statusSymbol, statusSymbol, rdma.NumRDMANics))
 		}
 	}
@@ -443,7 +445,7 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 			if network.FailedCount > 0 {
 				details = fmt.Sprintf("Failed: %d/%d", network.FailedCount, network.InterfaceCount)
 			}
-			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s          │\n",
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s            │\n",
 				"Network RX Discards", statusSymbol, statusSymbol, details))
 		}
 	}
