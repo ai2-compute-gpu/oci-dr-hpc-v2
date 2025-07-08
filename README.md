@@ -221,6 +221,7 @@ make help          # Show all available targets
 | **Main Config** | `configs/oci-dr-hpc.yaml` | `/etc/oci-dr-hpc.yaml` | Application configuration |
 | **Shapes Config** | `internal/shapes/shapes.json` | `/etc/oci-dr-hpc-shapes.json` | Hardware shape definitions |
 | **Recommendations** | `configs/recommendations.json` | `/usr/share/oci-dr-hpc/recommendations.json` | Diagnostic recommendations with fault codes |
+| **Test Limits** | `internal/test_limits/test_limits.json` | `/etc/oci-dr-hpc-test-limits.json` | Test limits and thresholds per shape |
 | **Binary** | `./oci-dr-hpc-v2` | `/usr/bin/oci-dr-hpc-v2` | Executable |
 | **Logs** | Console/file | `/var/log/oci-dr-hpc/oci-dr-hpc.log` | Application logs |
 
@@ -242,6 +243,12 @@ The application automatically resolves file paths using this logic:
 4. Check system data: /usr/share/oci-dr-hpc/recommendations.json
 5. Check legacy location: /etc/oci-dr-hpc-recommendations.json
 6. Fall back to development: configs/recommendations.json
+
+// For test_limits.json file:
+1. Check current directory: ./test_limits.json (highest priority override)
+2. Check system config: /etc/oci-dr-hpc-test-limits.json
+3. Check user config: ~/.config/oci-dr-hpc/test_limits.json
+4. Fall back to development: internal/test_limits/test_limits.json
 ```
 
 ### Environment Variables

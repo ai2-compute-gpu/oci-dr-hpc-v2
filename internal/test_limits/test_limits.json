@@ -57,6 +57,38 @@
         "enabled": false,
         "test_category": "LEVEL_1"
       }
+    },
+    "BM.GPU.GB200.4": {
+      "gid_index_check": {
+        "enabled": true,
+        "test_category": "LEVEL_1",
+        "threshold": [ 0, 1, 2, 3]
+      },
+      "rx_discards_check": {
+        "enabled": true,
+        "test_category": "LEVEL_1",
+        "threshold": 100
+      },
+      "pcie_error_check": {
+        "enabled": true,
+        "test_category": "LEVEL_1"
+      },
+      "gpu_count_check": {
+        "enabled": true,
+        "test_category": "LEVEL_1"
+      },
+      "rdma_nic_count": {
+        "enabled": true,
+        "test_category": "LEVEL_1"
+      },
+      "sram_error_check": {
+        "enabled": true,
+        "test_category": "LEVEL_1",
+        "threshold": {
+          "uncorrectable": 10,
+          "correctable": 100
+        }
+      }
     }
   }
 }

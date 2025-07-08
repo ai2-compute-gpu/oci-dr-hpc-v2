@@ -42,17 +42,41 @@ func getPackageDir() (string, error) {
 
 // getDefaultConfigPath returns the default path for test_limits.json
 func getDefaultConfigPath() (string, error) {
-	packageDir, err := getPackageDir()
-	if err != nil {
-		return "", err
+	// Check multiple locations in order of priority
+	paths := []string{
+		"./test_limits.json",                                  // Current directory override
+		"/etc/oci-dr-hpc-test-limits.json",                   // System installation path
+		func() string {                                        // User config directory
+			if home := os.Getenv("HOME"); home != "" {
+				return filepath.Join(home, ".config", "oci-dr-hpc", "test_limits.json")
+			}
+			return ""
+		}(),
 	}
-	return filepath.Join(packageDir, "test_limits.json"), nil
+	
+	// Add development path as fallback
+	packageDir, err := getPackageDir()
+	if err == nil {
+		paths = append(paths, filepath.Join(packageDir, "test_limits.json"))
+	}
+	
+	// Try each path in order
+	for _, path := range paths {
+		if path != "" {
+			if _, err := os.Stat(path); err == nil {
+				logger.Infof("LoadTestLimits: using config path %s", path)
+				return path, nil
+			}
+		}
+	}
+	
+	// No config file found
+	return "", fmt.Errorf("test_limits.json not found in any of the expected locations: %v", paths)
 }
 
 // LoadTestLimits reads and parses the test limits JSON configuration file from the package directory
 func LoadTestLimits() (*TestLimits, error) {
 	configPath, err := getDefaultConfigPath()
-	logger.Infof("LoadTestLimits: using config path %s", configPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to determine config path: %w", err)
 	}
