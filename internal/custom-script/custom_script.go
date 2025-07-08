@@ -12,6 +12,7 @@ import (
 	"github.com/oracle/oci-dr-hpc-v2/internal/logger"
 	"github.com/oracle/oci-dr-hpc-v2/internal/recommender"
 	"github.com/oracle/oci-dr-hpc-v2/internal/test_limits"
+	"github.com/spf13/viper"
 )
 
 // ScriptResult represents the result of executing a custom script
@@ -169,6 +170,24 @@ func loadRecommendations(filePath string) error {
 	return nil
 }
 
+// writeOutput writes content to either a file or stdout based on configuration
+func writeOutput(content string) error {
+	outputFile := viper.GetString("output-file")
+
+	if outputFile != "" {
+		// Write to file
+		if err := os.WriteFile(outputFile, []byte(content), 0644); err != nil {
+			return fmt.Errorf("failed to write to file %s: %w", outputFile, err)
+		}
+		logger.Infof("Output written to file: %s", outputFile)
+	} else {
+		// Write to stdout
+		fmt.Print(content)
+	}
+
+	return nil
+}
+
 // outputResult formats and outputs the script result
 func outputResult(result *ScriptResult, outputFormat string) error {
 	switch outputFormat {
@@ -189,40 +208,41 @@ func outputJSON(result *ScriptResult) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal JSON: %w", err)
 	}
-	fmt.Printf("%s\n", jsonData)
-	return nil
+	return writeOutput(string(jsonData) + "\n")
 }
 
 // outputTable outputs the result in table format
 func outputTable(result *ScriptResult) error {
-	fmt.Printf("┌─────────────────────────────────────────────────────────────────┐\n")
-	fmt.Printf("│                    CUSTOM SCRIPT EXECUTION RESULT              │\n")
-	fmt.Printf("├─────────────────────────────────────────────────────────────────┤\n")
-	fmt.Printf("│ Script Path: %-50s │\n", truncate(result.ScriptPath, 50))
-	fmt.Printf("│ Status: %-56s │\n", result.Status)
-	fmt.Printf("│ Exit Code: %-53d │\n", result.ExitCode)
-	fmt.Printf("│ Execution Time: %-46.2f seconds │\n", result.ExecutionTime)
-	fmt.Printf("│ Timestamp: %-51s │\n", result.TimestampUTC)
-	fmt.Printf("├─────────────────────────────────────────────────────────────────┤\n")
+	var output strings.Builder
+
+	output.WriteString("┌─────────────────────────────────────────────────────────────────┐\n")
+	output.WriteString("│                    CUSTOM SCRIPT EXECUTION RESULT              │\n")
+	output.WriteString("├─────────────────────────────────────────────────────────────────┤\n")
+	output.WriteString(fmt.Sprintf("│ Script Path: %-50s │\n", truncate(result.ScriptPath, 50)))
+	output.WriteString(fmt.Sprintf("│ Status: %-56s │\n", result.Status))
+	output.WriteString(fmt.Sprintf("│ Exit Code: %-53d │\n", result.ExitCode))
+	output.WriteString(fmt.Sprintf("│ Execution Time: %-46.2f seconds │\n", result.ExecutionTime))
+	output.WriteString(fmt.Sprintf("│ Timestamp: %-51s │\n", result.TimestampUTC))
+	output.WriteString("├─────────────────────────────────────────────────────────────────┤\n")
 
 	if result.ConfigsUsed.LimitsFile != "" {
-		fmt.Printf("│ Limits File: %-49s │\n", truncate(result.ConfigsUsed.LimitsFile, 49))
+		output.WriteString(fmt.Sprintf("│ Limits File: %-49s │\n", truncate(result.ConfigsUsed.LimitsFile, 49)))
 	}
 	if result.ConfigsUsed.RecommendationsFile != "" {
-		fmt.Printf("│ Recommendations File: %-42s │\n", truncate(result.ConfigsUsed.RecommendationsFile, 42))
+		output.WriteString(fmt.Sprintf("│ Recommendations File: %-42s │\n", truncate(result.ConfigsUsed.RecommendationsFile, 42)))
 	}
 
-	fmt.Printf("├─────────────────────────────────────────────────────────────────┤\n")
-	fmt.Printf("│ OUTPUT                                                          │\n")
-	fmt.Printf("├─────────────────────────────────────────────────────────────────┤\n")
+	output.WriteString("├─────────────────────────────────────────────────────────────────┤\n")
+	output.WriteString("│ OUTPUT                                                          │\n")
+	output.WriteString("├─────────────────────────────────────────────────────────────────┤\n")
 
-	output := result.Output
+	scriptOutput := result.Output
 	if result.Status == "FAIL" && result.ErrorOutput != "" {
-		output = result.ErrorOutput
+		scriptOutput = result.ErrorOutput
 	}
 
 	// Split output into lines and format for table
-	lines := strings.Split(strings.TrimSpace(output), "\n")
+	lines := strings.Split(strings.TrimSpace(scriptOutput), "\n")
 	for _, line := range lines {
 		if len(line) > 63 {
 			// Split long lines
@@ -231,58 +251,60 @@ func outputTable(result *ScriptResult) error {
 				if end > len(line) {
 					end = len(line)
 				}
-				fmt.Printf("│ %-63s │\n", line[i:end])
+				output.WriteString(fmt.Sprintf("│ %-63s │\n", line[i:end]))
 			}
 		} else {
-			fmt.Printf("│ %-63s │\n", line)
+			output.WriteString(fmt.Sprintf("│ %-63s │\n", line))
 		}
 	}
 
-	fmt.Printf("└─────────────────────────────────────────────────────────────────┘\n")
-	return nil
+	output.WriteString("└─────────────────────────────────────────────────────────────────┘\n")
+	return writeOutput(output.String())
 }
 
 // outputFriendly outputs the result in friendly format
 func outputFriendly(result *ScriptResult) error {
-	fmt.Printf("\n" + strings.Repeat("=", 70) + "\n")
-	fmt.Printf("🔧 CUSTOM SCRIPT EXECUTION RESULT\n")
-	fmt.Printf(strings.Repeat("=", 70) + "\n")
+	var output strings.Builder
+
+	output.WriteString("\n" + strings.Repeat("=", 70) + "\n")
+	output.WriteString("🔧 CUSTOM SCRIPT EXECUTION RESULT\n")
+	output.WriteString(strings.Repeat("=", 70) + "\n")
 
 	statusIcon := "✅"
 	if result.Status == "FAIL" {
 		statusIcon = "❌"
 	}
 
-	fmt.Printf("\n📊 EXECUTION SUMMARY:\n")
-	fmt.Printf("   • Script: %s\n", result.ScriptPath)
-	fmt.Printf("   • Status: %s %s\n", statusIcon, result.Status)
-	fmt.Printf("   • Exit Code: %d\n", result.ExitCode)
-	fmt.Printf("   • Execution Time: %.2f seconds\n", result.ExecutionTime)
-	fmt.Printf("   • Timestamp: %s\n", result.TimestampUTC)
+	output.WriteString("\n📊 EXECUTION SUMMARY:\n")
+	output.WriteString(fmt.Sprintf("   • Script: %s\n", result.ScriptPath))
+	output.WriteString(fmt.Sprintf("   • Status: %s %s\n", statusIcon, result.Status))
+	output.WriteString(fmt.Sprintf("   • Exit Code: %d\n", result.ExitCode))
+	output.WriteString(fmt.Sprintf("   • Execution Time: %.2f seconds\n", result.ExecutionTime))
+	output.WriteString(fmt.Sprintf("   • Timestamp: %s\n", result.TimestampUTC))
 
 	if result.ConfigsUsed.LimitsFile != "" || result.ConfigsUsed.RecommendationsFile != "" {
-		fmt.Printf("\n📁 CONFIGURATION FILES USED:\n")
+		output.WriteString("\n📁 CONFIGURATION FILES USED:\n")
 		if result.ConfigsUsed.LimitsFile != "" {
-			fmt.Printf("   • Limits File: %s\n", result.ConfigsUsed.LimitsFile)
+			output.WriteString(fmt.Sprintf("   • Limits File: %s\n", result.ConfigsUsed.LimitsFile))
 		}
 		if result.ConfigsUsed.RecommendationsFile != "" {
-			fmt.Printf("   • Recommendations File: %s\n", result.ConfigsUsed.RecommendationsFile)
+			output.WriteString(fmt.Sprintf("   • Recommendations File: %s\n", result.ConfigsUsed.RecommendationsFile))
 		}
 	}
 
-	fmt.Printf("\n" + strings.Repeat("-", 70) + "\n")
-	fmt.Printf("📋 SCRIPT OUTPUT:\n")
-	fmt.Printf(strings.Repeat("-", 70) + "\n")
+	output.WriteString("\n" + strings.Repeat("-", 70) + "\n")
+	output.WriteString("📋 SCRIPT OUTPUT:\n")
+	output.WriteString(strings.Repeat("-", 70) + "\n")
 
-	output := result.Output
+	scriptOutput := result.Output
 	if result.Status == "FAIL" && result.ErrorOutput != "" {
-		output = result.ErrorOutput
+		scriptOutput = result.ErrorOutput
 	}
 
-	fmt.Printf("%s\n", output)
+	output.WriteString(fmt.Sprintf("%s\n", scriptOutput))
+	output.WriteString("\n" + strings.Repeat("=", 70) + "\n")
 
-	fmt.Printf("\n" + strings.Repeat("=", 70) + "\n")
-	return nil
+	return writeOutput(output.String())
 }
 
 // truncate truncates a string to the specified length

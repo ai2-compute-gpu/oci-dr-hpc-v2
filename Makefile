@@ -86,6 +86,7 @@ rpm: build install-fpm
 		internal/shapes/shapes.json=/etc/oci-dr-hpc-shapes.json \
 		configs/recommendations.json=/usr/share/oci-dr-hpc/recommendations.json \
 		internal/test_limits/test_limits.json=/etc/oci-dr-hpc-test-limits.json \
+		examples/custom-scripts=/usr/share/oci-dr-hpc/examples/custom-scripts \
 		scripts/setup-logging.sh=/usr/share/oci-dr-hpc/setup-logging.sh
 
 # Cross-compilation RPM targets
@@ -111,6 +112,7 @@ rpm-amd64: build-amd64 install-fpm
 		internal/shapes/shapes.json=/etc/oci-dr-hpc-shapes.json \
 		configs/recommendations.json=/usr/share/oci-dr-hpc/recommendations.json \
 		internal/test_limits/test_limits.json=/etc/oci-dr-hpc-test-limits.json \
+		examples/custom-scripts=/usr/share/oci-dr-hpc/examples/custom-scripts \
 		scripts/setup-logging.sh=/usr/share/oci-dr-hpc/setup-logging.sh
 
 rpm-arm64: build-arm64 install-fpm
@@ -135,6 +137,7 @@ rpm-arm64: build-arm64 install-fpm
 		internal/shapes/shapes.json=/etc/oci-dr-hpc-shapes.json \
 		configs/recommendations.json=/usr/share/oci-dr-hpc/recommendations.json \
 		internal/test_limits/test_limits.json=/etc/oci-dr-hpc-test-limits.json \
+		examples/custom-scripts=/usr/share/oci-dr-hpc/examples/custom-scripts \
 		scripts/setup-logging.sh=/usr/share/oci-dr-hpc/setup-logging.sh
 
 rpm-all: rpm-amd64 rpm-arm64
@@ -167,6 +170,7 @@ deb-ubuntu: build install-fpm
 		internal/shapes/shapes.json=/etc/oci-dr-hpc-shapes.json \
 		configs/recommendations.json=/usr/share/oci-dr-hpc/recommendations.json \
 		internal/test_limits/test_limits.json=/etc/oci-dr-hpc-test-limits.json \
+		examples/custom-scripts=/usr/share/oci-dr-hpc/examples/custom-scripts \
 		scripts/setup-logging.sh=/usr/share/oci-dr-hpc/setup-logging.sh
 
 deb-debian: build install-fpm
@@ -192,6 +196,7 @@ deb-debian: build install-fpm
 		internal/shapes/shapes.json=/etc/oci-dr-hpc-shapes.json \
 		configs/recommendations.json=/usr/share/oci-dr-hpc/recommendations.json \
 		internal/test_limits/test_limits.json=/etc/oci-dr-hpc-test-limits.json \
+		examples/custom-scripts=/usr/share/oci-dr-hpc/examples/custom-scripts \
 		scripts/setup-logging.sh=/usr/share/oci-dr-hpc/setup-logging.sh
 
 # Cross-compilation DEB Ubuntu targets
@@ -218,6 +223,7 @@ deb-ubuntu-amd64: build-amd64 install-fpm
 		internal/shapes/shapes.json=/etc/oci-dr-hpc-shapes.json \
 		configs/recommendations.json=/usr/share/oci-dr-hpc/recommendations.json \
 		internal/test_limits/test_limits.json=/etc/oci-dr-hpc-test-limits.json \
+		examples/custom-scripts=/usr/share/oci-dr-hpc/examples/custom-scripts \
 		scripts/setup-logging.sh=/usr/share/oci-dr-hpc/setup-logging.sh
 
 deb-ubuntu-arm64: build-arm64 install-fpm
@@ -243,6 +249,7 @@ deb-ubuntu-arm64: build-arm64 install-fpm
 		internal/shapes/shapes.json=/etc/oci-dr-hpc-shapes.json \
 		configs/recommendations.json=/usr/share/oci-dr-hpc/recommendations.json \
 		internal/test_limits/test_limits.json=/etc/oci-dr-hpc-test-limits.json \
+		examples/custom-scripts=/usr/share/oci-dr-hpc/examples/custom-scripts \
 		scripts/setup-logging.sh=/usr/share/oci-dr-hpc/setup-logging.sh
 
 deb-ubuntu-all: deb-ubuntu-amd64 deb-ubuntu-arm64
@@ -273,6 +280,7 @@ deb-debian-amd64: build-amd64 install-fpm
 		internal/shapes/shapes.json=/etc/oci-dr-hpc-shapes.json \
 		configs/recommendations.json=/usr/share/oci-dr-hpc/recommendations.json \
 		internal/test_limits/test_limits.json=/etc/oci-dr-hpc-test-limits.json \
+		examples/custom-scripts=/usr/share/oci-dr-hpc/examples/custom-scripts \
 		scripts/setup-logging.sh=/usr/share/oci-dr-hpc/setup-logging.sh
 
 deb-debian-arm64: build-arm64 install-fpm
@@ -298,6 +306,7 @@ deb-debian-arm64: build-arm64 install-fpm
 		internal/shapes/shapes.json=/etc/oci-dr-hpc-shapes.json \
 		configs/recommendations.json=/usr/share/oci-dr-hpc/recommendations.json \
 		internal/test_limits/test_limits.json=/etc/oci-dr-hpc-test-limits.json \
+		examples/custom-scripts=/usr/share/oci-dr-hpc/examples/custom-scripts \
 		scripts/setup-logging.sh=/usr/share/oci-dr-hpc/setup-logging.sh
 
 deb-debian-all: deb-debian-amd64 deb-debian-arm64
@@ -323,11 +332,13 @@ coverage:
 install: build
 	@echo "Installing $(APP_NAME) system-wide..."
 	@sudo mkdir -p /usr/bin
-	@sudo mkdir -p /usr/share/oci-dr-hpc
+	@sudo mkdir -p /usr/share/oci-dr-hpc/examples
 	@sudo mkdir -p /etc/oci-dr-hpc
 	@sudo install -m 755 $(BUILD_DIR)/$(APP_NAME) /usr/bin/
 	@sudo install -m 644 configs/recommendations.json /usr/share/oci-dr-hpc/
 	@sudo install -m 644 internal/test_limits/test_limits.json /etc/oci-dr-hpc-test-limits.json
+	@sudo cp -r examples/custom-scripts /usr/share/oci-dr-hpc/examples/
+	@sudo chmod -R 755 /usr/share/oci-dr-hpc/examples/custom-scripts
 	@if [ ! -f /etc/oci-dr-hpc/recommendations.json ]; then \
 		sudo install -m 644 configs/recommendations.json /etc/oci-dr-hpc/; \
 	fi
@@ -336,24 +347,30 @@ install: build
 	@echo "Default config: /usr/share/oci-dr-hpc/recommendations.json"
 	@echo "System config: /etc/oci-dr-hpc/recommendations.json"
 	@echo "Test limits config: /etc/oci-dr-hpc-test-limits.json"
+	@echo "Example scripts: /usr/share/oci-dr-hpc/examples/custom-scripts/"
 
 install-dev: build
 	@echo "Installing $(APP_NAME) for development..."
 	@mkdir -p ~/.local/bin
 	@mkdir -p ~/.config/oci-dr-hpc
+	@mkdir -p ~/.local/share/oci-dr-hpc/examples
 	@cp $(BUILD_DIR)/$(APP_NAME) ~/.local/bin/
 	@cp configs/recommendations.json ~/.config/oci-dr-hpc/
 	@cp internal/test_limits/test_limits.json ~/.config/oci-dr-hpc/
+	@cp -r examples/custom-scripts ~/.local/share/oci-dr-hpc/examples/
+	@chmod -R 755 ~/.local/share/oci-dr-hpc/examples/custom-scripts
 	@echo "Development installation complete!"
 	@echo "Binary: ~/.local/bin/$(APP_NAME)"
 	@echo "Config: ~/.config/oci-dr-hpc/recommendations.json"
 	@echo "Test limits config: ~/.config/oci-dr-hpc/test_limits.json"
+	@echo "Example scripts: ~/.local/share/oci-dr-hpc/examples/custom-scripts/"
 	@echo "Make sure ~/.local/bin is in your PATH"
 
 uninstall:
 	@echo "Uninstalling $(APP_NAME)..."
 	@sudo rm -f /usr/bin/$(APP_NAME)
 	@sudo rm -f /usr/share/oci-dr-hpc/recommendations.json
+	@sudo rm -rf /usr/share/oci-dr-hpc/examples
 	@echo "Note: Custom configs in /etc/oci-dr-hpc/ were preserved"
 	@echo "Remove manually if needed: sudo rm -rf /etc/oci-dr-hpc/"
 

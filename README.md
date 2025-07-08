@@ -8,6 +8,7 @@ A comprehensive diagnostic and repair tool for High Performance Computing (HPC) 
 - **🔗 RDMA Network Testing**: Validate RDMA NIC count, PCI addresses, and connectivity with hybrid discovery
 - **⚡ PCIe Error Detection**: Scan system logs for PCIe-related hardware errors
 - **🔍 Hardware Autodiscovery**: Generate logical hardware models with IMDS integration and cluster detection
+- **🧪 Custom Script Framework**: Execute custom Python and Bash diagnostic scripts with configuration integration
 - **📊 Multiple Output Formats**: Support for table, JSON, and friendly human-readable output
 - **🔧 Smart Recommendations**: JSON-configurable diagnostic recommendations with fault codes
 - **⚙️ Flexible Configuration**: Support for config files, environment variables, and CLI flags
@@ -51,7 +52,8 @@ oci-dr-hpc-v2/
 │   ├── root.go            # Main CLI entry point and config initialization
 │   ├── level1.go          # Level 1 diagnostic commands
 │   ├── autodiscover.go    # Hardware autodiscovery commands
-│   └── recommender.go     # Recommendation analysis commands
+│   ├── recommender.go     # Recommendation analysis commands
+│   └── custom_script.go   # Custom script execution commands
 ├── configs/               # Configuration files
 │   ├── oci-dr-hpc.yaml   # Default application configuration
 │   └── recommendations.json # Diagnostic recommendations with fault codes
@@ -61,6 +63,11 @@ oci-dr-hpc-v2/
 │   ├── deployment.md     # Customer deployment guide
 │   ├── imds.md          # IMDS (Instance Metadata Service) documentation
 │   └── *.md             # Additional documentation
+├── examples/              # Example scripts and templates
+│   └── custom-scripts/   # Custom script examples for users
+│       ├── gpu_count_check.py    # Python GPU count validation example
+│       ├── gpu_count_check.sh    # Bash GPU count validation example
+│       └── README.md             # Custom scripts documentation
 ├── internal/              # Internal application logic
 │   ├── autodiscover/     # Hardware discovery and modeling
 │   │   ├── autodiscover.go       # Main autodiscovery logic with IMDS integration
@@ -69,6 +76,8 @@ oci-dr-hpc-v2/
 │   │   └── system_info.go        # System info with networkBlockId and buildingId
 │   ├── config/           # Configuration management (Viper integration)
 │   │   └── config.go     # Config loading with smart path resolution
+│   ├── custom-script/    # Custom script execution framework
+│   │   └── custom_script.go      # Script execution engine with configuration support
 │   ├── executor/         # System command execution
 │   │   ├── nvidia_smi.go # NVIDIA GPU command execution
 │   │   ├── os_commands.go # OS-level commands with runtime hardware discovery
@@ -106,6 +115,7 @@ oci-dr-hpc-v2/
 
 - **`cmd/`**: CLI interface using Cobra framework for command handling and subcommands
 - **`internal/config/`**: Configuration management with Viper, supporting files and environment variables
+- **`internal/custom-script/`**: Custom script execution framework with configuration integration
 - **`internal/executor/`**: System command execution layer with IMDS, nvidia-smi, lspci, and OS discovery
 - **`internal/level1_tests/`**: Core diagnostic test implementations for GPU, PCIe, and RDMA
 - **`internal/shapes/`**: OCI hardware shape definitions and query interface
@@ -113,6 +123,7 @@ oci-dr-hpc-v2/
 - **`internal/recommender/`**: JSON-configurable recommendation engine with fault codes
 - **`internal/logger/`**: Structured logging with configurable output levels and debug visibility
 - **`internal/reporter/`**: Multi-format result reporting (table, JSON, friendly)
+- **`examples/custom-scripts/`**: Production-ready example scripts for custom diagnostic development
 
 ### Configuration System
 
@@ -132,6 +143,7 @@ make install-dev
 
 # Binary installed to: ~/.local/bin/oci-dr-hpc-v2
 # Config installed to: ~/.config/oci-dr-hpc/recommendations.json
+# Example scripts: ~/.local/share/oci-dr-hpc/examples/custom-scripts/
 ```
 
 ### Production Installation
@@ -142,6 +154,7 @@ sudo make install
 # Binary installed to: /usr/bin/oci-dr-hpc-v2
 # Default config: /usr/share/oci-dr-hpc/recommendations.json  
 # System config: /etc/oci-dr-hpc/recommendations.json
+# Example scripts: /usr/share/oci-dr-hpc/examples/custom-scripts/
 ```
 
 ### Package Installation
@@ -222,6 +235,7 @@ make help          # Show all available targets
 | **Shapes Config** | `internal/shapes/shapes.json` | `/etc/oci-dr-hpc-shapes.json` | Hardware shape definitions |
 | **Recommendations** | `configs/recommendations.json` | `/usr/share/oci-dr-hpc/recommendations.json` | Diagnostic recommendations with fault codes |
 | **Test Limits** | `internal/test_limits/test_limits.json` | `/etc/oci-dr-hpc-test-limits.json` | Test limits and thresholds per shape |
+| **Example Scripts** | `examples/custom-scripts/` | `/usr/share/oci-dr-hpc/examples/custom-scripts/` | Custom script templates and examples |
 | **Binary** | `./oci-dr-hpc-v2` | `/usr/bin/oci-dr-hpc-v2` | Executable |
 | **Logs** | Console/file | `/var/log/oci-dr-hpc/oci-dr-hpc.log` | Application logs |
 
@@ -249,6 +263,11 @@ The application automatically resolves file paths using this logic:
 2. Check system config: /etc/oci-dr-hpc-test-limits.json
 3. Check user config: ~/.config/oci-dr-hpc/test_limits.json
 4. Fall back to development: internal/test_limits/test_limits.json
+
+// For custom script examples:
+1. Production installation: /usr/share/oci-dr-hpc/examples/custom-scripts/
+2. Development installation: ~/.local/share/oci-dr-hpc/examples/custom-scripts/
+3. Development source: examples/custom-scripts/
 ```
 
 ### Environment Variables
@@ -258,6 +277,12 @@ Override any configuration setting with environment variables:
 ```bash
 # Override shapes file location
 export OCI_DR_HPC_SHAPES_FILE="/custom/path/shapes.json"
+
+# Override test limits file location
+export OCI_DR_HPC_LIMITS_FILE="/custom/path/test_limits.json"
+
+# Override OCI shape for testing custom scripts
+export OCI_SHAPE="BM.GPU.H100.8"
 
 # Override logging configuration (enables config path visibility)
 export OCI_DR_HPC_LOGGING_LEVEL="debug"
@@ -301,6 +326,15 @@ oci-dr-hpc level1 --test=gpu_count_check,rdma_nics_count
 # List available tests
 oci-dr-hpc level1 --list-tests
 
+# Execute custom diagnostic scripts
+oci-dr-hpc-v2 custom-script --script /path/to/script.py
+
+# Execute custom scripts with configuration
+oci-dr-hpc-v2 custom-script \
+  --script examples/custom-scripts/gpu_count_check.py \
+  --limits-file /etc/oci-dr-hpc-test-limits.json \
+  --output json
+
 # Generate hardware discovery model with IMDS integration
 oci-dr-hpc-v2 autodiscover
 
@@ -319,6 +353,155 @@ oci-dr-hpc-v2 recommender -r results.json --output table
 
 # Show version and build information
 oci-dr-hpc-v2 --version
+```
+
+### Custom Script Framework
+
+The `custom-script` command provides a powerful framework for executing custom diagnostic scripts with full integration into the OCI DR HPC ecosystem:
+
+#### Basic Usage
+```bash
+# Execute a Python script
+oci-dr-hpc-v2 custom-script --script /path/to/diagnostic.py
+
+# Execute a Bash script  
+oci-dr-hpc-v2 custom-script --script /path/to/diagnostic.sh
+
+# Execute with configuration files
+oci-dr-hpc-v2 custom-script \
+  --script examples/custom-scripts/gpu_count_check.py \
+  --limits-file /etc/oci-dr-hpc-test-limits.json \
+  --recommendations-file /usr/share/oci-dr-hpc/recommendations.json
+```
+
+#### Output Format Options
+```bash
+# JSON output (machine-readable)
+oci-dr-hpc-v2 custom-script --script gpu_check.py --output json
+
+# Friendly output (human-readable with emojis)
+oci-dr-hpc-v2 custom-script --script gpu_check.py --output friendly
+
+# Table output (structured text)
+oci-dr-hpc-v2 custom-script --script gpu_check.py --output table
+
+# Save output to file
+oci-dr-hpc-v2 custom-script --script gpu_check.py --output json -f results.json
+```
+
+#### Production Examples with Installed Scripts
+```bash
+# Run GPU count check from installed examples (RPM/DEB installation)
+oci-dr-hpc-v2 custom-script \
+  --script /usr/share/oci-dr-hpc/examples/custom-scripts/gpu_count_check.py \
+  --limits-file /etc/oci-dr-hpc-test-limits.json \
+  --output json
+
+# Run Bash version
+oci-dr-hpc-v2 custom-script \
+  --script /usr/share/oci-dr-hpc/examples/custom-scripts/gpu_count_check.sh \
+  --limits-file /etc/oci-dr-hpc-test-limits.json \
+  --output friendly
+
+# Copy example and customize for your environment
+cp /usr/share/oci-dr-hpc/examples/custom-scripts/gpu_count_check.py \
+   /home/opc/my_custom_check.py
+# Edit my_custom_check.py with your custom logic
+oci-dr-hpc-v2 custom-script --script /home/opc/my_custom_check.py --output friendly
+```
+
+#### Integration with Recommender System
+```bash
+# Run custom script and pipe results to recommender
+oci-dr-hpc-v2 custom-script \
+  --script /usr/share/oci-dr-hpc/examples/custom-scripts/gpu_count_check.py \
+  --output json | \
+oci-dr-hpc-v2 recommender --results-file /dev/stdin --output friendly
+
+# Save results and analyze later
+oci-dr-hpc-v2 custom-script \
+  --script examples/custom-scripts/gpu_count_check.py \
+  --output json -f /tmp/gpu_results.json
+
+oci-dr-hpc-v2 recommender --results-file /tmp/gpu_results.json --output friendly
+```
+
+#### Testing on Different OCI Shapes
+```bash
+# Override shape for testing (useful for development)
+OCI_SHAPE="BM.GPU.H100.8" oci-dr-hpc-v2 custom-script \
+  --script examples/custom-scripts/gpu_count_check.py \
+  --output json
+
+# Test with different shapes
+OCI_SHAPE="BM.GPU.GB200.4" oci-dr-hpc-v2 custom-script \
+  --script examples/custom-scripts/gpu_count_check.sh \
+  --output friendly
+```
+
+#### Available Example Scripts
+
+| Script | Language | Purpose | Features |
+|--------|----------|---------|----------|
+| **`gpu_count_check.py`** | Python | GPU count validation | Uses test_limits.json, IMDS integration, recommender-compatible output |
+| **`gpu_count_check.sh`** | Bash | GPU count validation | Uses test_limits.json, jq for JSON, terminal detection |
+
+#### Custom Script Requirements
+
+Your custom scripts should:
+- **Use configuration files**: Read from test_limits.json for shape-specific settings
+- **Detect OCI shape**: Query IMDS or use environment variables  
+- **Produce structured output**: JSON format compatible with recommender system
+- **Handle errors gracefully**: Proper exit codes (0=success, 1=failure, 2=error)
+- **Support both terminal and captured output**: Clean text for automation, rich formatting for interactive use
+
+#### Example Custom Script Structure
+```python
+#!/usr/bin/env python3
+import json
+import sys
+import os
+from datetime import datetime
+
+# Your test logic here
+def run_custom_test():
+    # Read test_limits.json if needed
+    limits_file = os.environ.get("OCI_DR_HPC_LIMITS_FILE", "test_limits.json")
+    
+    # Detect OCI shape
+    shape = os.environ.get("OCI_SHAPE", "UNKNOWN")
+    
+    # Run your diagnostic logic
+    test_result = {
+        "test_name": "my_custom_test",
+        "test_category": "LEVEL_1", 
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "status": "PASS",  # or "FAIL", "SKIP", "ERROR"
+        "shape": shape,
+        "message": "Test completed successfully"
+    }
+    
+    # Output in recommender-compatible format
+    output = {
+        "test_suite": "my_custom_test_suite",
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "test_results": {
+            "my_custom_test": [test_result]
+        },
+        "summary": {
+            "total_tests": 1,
+            "passed": 1,
+            "failed": 0,
+            "skipped": 0,
+            "errors": 0
+        }
+    }
+    
+    print(json.dumps(output, indent=2))
+    return 0  # Success
+
+if __name__ == "__main__":
+    sys.exit(run_custom_test())
 ```
 
 ### Output Format Options
@@ -492,6 +675,13 @@ oci-dr-hpc-v2 recommender -r results.json --verbose
 | **`pcie_error_check`** | Scan system logs for PCIe errors | Parses dmesg output for hardware errors | HPCGPU-0002-0001 |
 | **`rdma_nics_count`** | Validate RDMA NIC count and PCI addresses | Uses hybrid discovery (shapes.json + OS) | HPCGPU-0003-0001 |
 
+### Custom Script Framework Tests
+
+| Script | Description | Features | Integration |
+|--------|-------------|----------|-------------|
+| **`examples/custom-scripts/gpu_count_check.py`** | Python GPU count validation | test_limits.json integration, IMDS shape detection, recommender-compatible output | ✅ Recommender compatible |
+| **`examples/custom-scripts/gpu_count_check.sh`** | Bash GPU count validation | jq JSON processing, terminal detection, configuration loading | ✅ Recommender compatible |
+
 ### Example Test Execution
 
 ```bash
@@ -507,6 +697,12 @@ oci-dr-hpc-v2 level1 --test=gpu_count_check --verbose
 # INFO: Step 3: Getting actual GPU count from nvidia-smi...
 # INFO: Actual GPU count from nvidia-smi: 8
 # INFO: GPU Count Check: PASS - Expected: 8, Actual: 8
+
+# Run custom script with verbose output
+oci-dr-hpc-v2 custom-script \
+  --script /usr/share/oci-dr-hpc/examples/custom-scripts/gpu_count_check.py \
+  --limits-file /etc/oci-dr-hpc-test-limits.json \
+  --verbose
 
 # Run autodiscovery with verbose output (shows IMDS integration)
 oci-dr-hpc-v2 autodiscover --verbose
@@ -568,6 +764,7 @@ go test -v ./internal/shapes/
 go test -v ./internal/config/
 go test -v ./internal/recommender/
 go test -v ./internal/autodiscover/
+go test -v ./internal/custom-script/
 
 # Run tests with race detection
 go test -race ./...
@@ -591,6 +788,34 @@ go test -race ./...
 
 3. **Update documentation** in README.md and relevant docs
 
+### Creating Custom Scripts
+
+1. **Copy example template**:
+   ```bash
+   cp examples/custom-scripts/gpu_count_check.py my_custom_test.py
+   # or
+   cp examples/custom-scripts/gpu_count_check.sh my_custom_test.sh
+   ```
+
+2. **Modify for your specific test**:
+   - Update test name and description
+   - Implement your diagnostic logic
+   - Ensure proper error handling
+   - Follow output format requirements
+
+3. **Test your script**:
+   ```bash
+   # Test directly
+   python3 my_custom_test.py
+   
+   # Test with framework
+   oci-dr-hpc-v2 custom-script --script my_custom_test.py --output json
+   
+   # Test with recommender integration
+   oci-dr-hpc-v2 custom-script --script my_custom_test.py --output json | \
+   oci-dr-hpc-v2 recommender --results-file /dev/stdin --output friendly
+   ```
+
 ### Code Structure Guidelines
 
 - **Use structured logging**: `logger.Info()`, `logger.Error()`, `logger.Debug()`
@@ -598,6 +823,7 @@ go test -race ./...
 - **Use configuration system**: Access paths via `config.GetShapesFilePath()`
 - **Test thoroughly**: Add unit tests for new functionality
 - **Document changes**: Update README.md and package documentation
+- **Follow custom script conventions**: Use proper output formats and error codes
 
 ## 🔧 Troubleshooting
 
@@ -619,6 +845,77 @@ ls -la /etc/oci-dr-hpc-shapes.json
 
 # Debug shapes loading (with verbose mode)
 oci-dr-hpc-v2 level1 --verbose
+```
+
+### Custom Script Issues
+
+**Problem**: `custom-script execution failed`
+
+**Solutions**:
+```bash
+# Test script directly first
+python3 /path/to/script.py
+echo "Exit code: $?"
+
+# Check script permissions
+chmod +x /path/to/script.py
+
+# Test with verbose output
+oci-dr-hpc-v2 custom-script --script /path/to/script.py --verbose
+
+# Check if dependencies are installed
+# For Python scripts:
+python3 -c "import json, sys, subprocess, os"
+
+# For Bash scripts:
+which jq bash curl
+```
+
+**Problem**: `Test limits file not found`
+
+**Solutions**:
+```bash
+# Check if test limits file exists
+ls -la /etc/oci-dr-hpc-test-limits.json
+
+# Use explicit path
+oci-dr-hpc-v2 custom-script \
+  --script script.py \
+  --limits-file /path/to/test_limits.json
+
+# Set environment variable
+export OCI_DR_HPC_LIMITS_FILE="/path/to/test_limits.json"
+oci-dr-hpc-v2 custom-script --script script.py
+```
+
+**Problem**: `Could not determine OCI shape`
+
+**Solutions**:
+```bash
+# Test IMDS connectivity (only works on OCI instances)
+curl -s http://169.254.169.254/opc/v1/instance/shape
+
+# Use environment variable override for testing
+export OCI_SHAPE="BM.GPU.H100.8"
+oci-dr-hpc-v2 custom-script --script script.py
+
+# Check script logic handles missing shape gracefully
+```
+
+**Problem**: Custom script output not compatible with recommender
+
+**Solutions**:
+```bash
+# Validate JSON output
+oci-dr-hpc-v2 custom-script --script script.py --output json | jq .
+
+# Check output format requirements in examples
+cat /usr/share/oci-dr-hpc/examples/custom-scripts/README.md
+
+# Compare your output with working examples
+oci-dr-hpc-v2 custom-script \
+  --script /usr/share/oci-dr-hpc/examples/custom-scripts/gpu_count_check.py \
+  --output json
 ```
 
 ### IMDS Connection Issues
@@ -647,6 +944,9 @@ sudo chmod 644 /etc/oci-dr-hpc.yaml
 sudo chmod 644 /etc/oci-dr-hpc-shapes.json
 sudo chmod 644 /usr/share/oci-dr-hpc/recommendations.json
 
+# Fix example script permissions
+sudo chmod -R 755 /usr/share/oci-dr-hpc/examples/custom-scripts
+
 # Run with appropriate privileges
 sudo oci-dr-hpc-v2 level1  # If system-level access needed
 ```
@@ -668,6 +968,11 @@ cat /etc/oci-dr-hpc-shapes.json | grep -A 10 "BM.GPU.H100.8"
 
 # Debug GPU detection with verbose output
 oci-dr-hpc-v2 level1 --test=gpu_count_check --verbose
+
+# Test custom GPU script
+oci-dr-hpc-v2 custom-script \
+  --script /usr/share/oci-dr-hpc/examples/custom-scripts/gpu_count_check.py \
+  --verbose
 ```
 
 ### Configuration Issues
@@ -693,6 +998,7 @@ oci-dr-hpc-v2 recommender -r results.json
 
 ## 📚 Additional Documentation
 
+- **[Custom Scripts Guide](examples/custom-scripts/README.md)**: Complete guide to creating and using custom diagnostic scripts
 - **[Recommender System](docs/recommender-system.md)**: Complete guide to the intelligent diagnostic recommendation engine
 - **[Autodiscovery Algorithm](docs/autodiscovery.md)**: Comprehensive guide to hardware discovery (@rekharoy)
 - **[Recommendations Configuration](docs/recommendations-config.md)**: JSON-based recommendation system configuration
@@ -708,6 +1014,7 @@ oci-dr-hpc-v2 recommender -r results.json
 4. **Documentation**: Update README.md and relevant documentation for changes
 5. **Testing**: Add unit tests for new functionality
 6. **Dependencies**: Minimize external dependencies, prefer standard library
+7. **Custom Scripts**: Follow the example patterns for new script contributions
 
 ## 📄 License
 
