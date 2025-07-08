@@ -104,7 +104,7 @@ func parseRXDiscardsResults(interfaceName string, results []string, threshold fl
 }
 
 // Gets test config needed to run this test
-func getTestConfig() (*RxDiscardTestConfig, error) {
+func getRxDiscardTestConfig() (*RxDiscardTestConfig, error) {
 	// Get shape from IMDS
 	shape, err := executor.GetCurrentShape()
 	if err != nil {
@@ -149,7 +149,7 @@ func runRXDiscardsCheck() ([]RXDiscardsResult, error) {
 	config := getRXDiscardsConfig()
 	interfacesList := config.Interfaces
 
-	testConfig, err := getTestConfig()
+	testConfig, err := getRxDiscardTestConfig()
 	if err != nil {
 		return nil, err
 	}

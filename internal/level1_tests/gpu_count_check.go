@@ -2,7 +2,9 @@ package level1_tests
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/oracle/oci-dr-hpc-v2/internal/test_limits"
 	"os"
 	"strings"
 
@@ -26,6 +28,31 @@ type ShapeHardware struct {
 	GPU      *[]GPU        `json:"-"` // Handle manually
 	VCNNics  []interface{} `json:"vcn-nics"`
 	RDMANics []interface{} `json:"rdma-nics"`
+}
+
+type GpuCountCheckTestConfig struct {
+	IsEnabled bool `json:"enabled"`
+}
+
+// Gets test config needed to run this test
+func getGpuCountCheckTestConfig(shape string) (*GpuCountCheckTestConfig, error) {
+	// Load configuration from test_limits.json
+	limits, err := test_limits.LoadTestLimits()
+	if err != nil {
+		return nil, err
+	}
+
+	// Result
+	gpuCountCheckTestConfig := &GpuCountCheckTestConfig{
+		IsEnabled: false,
+	}
+
+	enabled, err := limits.IsTestEnabled(shape, "gpu_count_check")
+	if err != nil {
+		return nil, err
+	}
+	gpuCountCheckTestConfig.IsEnabled = enabled
+	return gpuCountCheckTestConfig, nil
 }
 
 // UnmarshalJSON handles the custom GPU field
@@ -169,7 +196,19 @@ func RunGPUCountCheck() error {
 	}
 	logger.Info("Current shape from IMDS:", shape)
 
-	// Step 2: Look up expected GPU count from shapes.json
+	// Step 2: Check if the test is enabled for this shape
+	gpuCountCheckTestConfig, err := getGpuCountCheckTestConfig(shape)
+	if err != nil {
+		return err
+	}
+
+	if !gpuCountCheckTestConfig.IsEnabled {
+		errorStatement := fmt.Sprintf("Test not applicable for this shape %s", shape)
+		logger.Error(errorStatement)
+		return errors.New(errorStatement)
+	}
+
+	// Step 3: Look up expected GPU count from shapes.json
 	logger.Info("Step 2: Getting expected GPU count from shapes.json...")
 	expectedCount, err := getExpectedGPUCount(shape)
 	if err != nil {
@@ -179,7 +218,7 @@ func RunGPUCountCheck() error {
 	}
 	logger.Info("Expected GPU count for shape", shape+":", expectedCount)
 
-	// Step 3: Get actual GPU count from nvidia-smi
+	// Step 4: Get actual GPU count from nvidia-smi
 	logger.Info("Step 3: Getting actual GPU count from nvidia-smi...")
 	actualCount, err := getActualGPUCount()
 	if err != nil {
@@ -189,7 +228,7 @@ func RunGPUCountCheck() error {
 	}
 	logger.Info("Actual GPU count from nvidia-smi:", actualCount)
 
-	// Step 4: Compare expected vs actual
+	// Step 5: Compare expected vs actual
 	logger.Info("Step 4: Comparing expected vs actual GPU counts...")
 	if expectedCount == actualCount {
 		logger.Info("GPU Count Check: PASS - Expected:", expectedCount, "Actual:", actualCount)

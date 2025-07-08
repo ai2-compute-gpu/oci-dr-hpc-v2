@@ -11,6 +11,18 @@
         "test_category": "LEVEL_1",
         "threshold":100
       },
+      "pcie_error_check": {
+        "enabled": true,
+        "test_category": "LEVEL_1"
+      },
+      "gpu_count_check": {
+        "enabled": true,
+        "test_category": "LEVEL_1"
+      },
+      "rdma_nic_count": {
+        "enabled": true,
+        "test_category": "LEVEL_1"
+      },
       "sram_error_check": {
         "enabled": true,
         "test_category": "LEVEL_1",
@@ -26,6 +38,18 @@
         "test_category": "LEVEL_1"
       },
       "rx_discards_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1"
+      },
+      "pcie_error_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1"
+      },
+      "gpu_count_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1"
+      },
+      "rdma_nic_count": {
         "enabled": false,
         "test_category": "LEVEL_1"
       },
