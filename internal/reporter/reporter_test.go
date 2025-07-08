@@ -431,3 +431,338 @@ func TestReporter_JSONMarshal(t *testing.T) {
 
 	t.Logf("Generated JSON structure matches expected format:\n%s", string(jsonData))
 }
+
+func TestReporter_AddNetworkRxDiscardsResult(t *testing.T) {
+	reporter := &Reporter{
+		results: make(map[string]TestResult),
+	}
+
+	// Test adding network result with PASS status
+	reporter.AddNetworkRxDiscardsResult("PASS", 16, nil)
+
+	// Check if result was added
+	if len(reporter.results) != 1 {
+		t.Errorf("Expected 1 result, got %d", len(reporter.results))
+	}
+
+	// Check network result
+	if result, exists := reporter.results["network_rx_discards"]; exists {
+		if result.Status != "PASS" {
+			t.Errorf("Expected network status PASS, got %s", result.Status)
+		}
+		if interfaceCount, ok := result.Details["interface_count"]; ok {
+			if interfaceCount != 16 {
+				t.Errorf("Expected interface count 16, got %v", interfaceCount)
+			}
+		} else {
+			t.Error("Interface count not found in details")
+		}
+		// For PASS status, failed_count should not be present
+		if _, ok := result.Details["failed_count"]; ok {
+			t.Error("Failed count should not be present for PASS status")
+		}
+	} else {
+		t.Error("Network result not found")
+	}
+}
+
+func TestReporter_AddNetworkRxDiscardsResultWithFailure(t *testing.T) {
+	reporter := &Reporter{
+		results: make(map[string]TestResult),
+	}
+
+	// Test adding network result with FAIL status
+	networkErr := fmt.Errorf("2 interfaces failed RX discards check")
+	reporter.AddNetworkRxDiscardsResult("FAIL", 2, networkErr)
+
+	// Check network result
+	if result, exists := reporter.results["network_rx_discards"]; exists {
+		if result.Status != "FAIL" {
+			t.Errorf("Expected network status FAIL, got %s", result.Status)
+		}
+		if interfaceCount, ok := result.Details["interface_count"]; ok {
+			if interfaceCount != 2 {
+				t.Errorf("Expected interface count 2, got %v", interfaceCount)
+			}
+		} else {
+			t.Error("Interface count not found in details")
+		}
+		if result.Error != networkErr.Error() {
+			t.Errorf("Expected network error %s, got %s", networkErr.Error(), result.Error)
+		}
+	} else {
+		t.Error("Network result not found")
+	}
+}
+
+func TestReporter_GenerateReportWithNetwork(t *testing.T) {
+	reporter := &Reporter{
+		results: make(map[string]TestResult),
+	}
+
+	// Add test results including network
+	reporter.AddGPUResult("PASS", 8, nil)
+	reporter.AddPCIeResult("PASS", nil)
+	reporter.AddRDMAResult("PASS", 16, nil)
+	reporter.AddNetworkRxDiscardsResult("PASS", 16, nil)
+
+	// Generate report
+	report, err := reporter.GenerateReport()
+	if err != nil {
+		t.Fatalf("Failed to generate report: %v", err)
+	}
+
+	// Check Network result
+	if len(report.Localhost.NetworkRXDiscards) != 1 {
+		t.Errorf("Expected 1 Network result, got %d", len(report.Localhost.NetworkRXDiscards))
+	} else {
+		if report.Localhost.NetworkRXDiscards[0].Status != "PASS" {
+			t.Errorf("Expected Network status PASS, got %s", report.Localhost.NetworkRXDiscards[0].Status)
+		}
+		if report.Localhost.NetworkRXDiscards[0].InterfaceCount != 16 {
+			t.Errorf("Expected Network interface count 16, got %d", report.Localhost.NetworkRXDiscards[0].InterfaceCount)
+		}
+		if report.Localhost.NetworkRXDiscards[0].FailedCount != 0 {
+			t.Errorf("Expected Network failed count 0, got %d", report.Localhost.NetworkRXDiscards[0].FailedCount)
+		}
+	}
+}
+
+func TestReporter_GenerateReportWithNetworkFailure(t *testing.T) {
+	reporter := &Reporter{
+		results: make(map[string]TestResult),
+	}
+
+	// Add network result with failure
+	networkErr := fmt.Errorf("3 interfaces failed RX discards check")
+	reporter.AddNetworkRxDiscardsResult("FAIL", 3, networkErr)
+
+	// Generate report
+	report, err := reporter.GenerateReport()
+	if err != nil {
+		t.Fatalf("Failed to generate report: %v", err)
+	}
+
+	// Check Network result with failure
+	if len(report.Localhost.NetworkRXDiscards) != 1 {
+		t.Errorf("Expected 1 Network result, got %d", len(report.Localhost.NetworkRXDiscards))
+	} else {
+		if report.Localhost.NetworkRXDiscards[0].Status != "FAIL" {
+			t.Errorf("Expected Network status FAIL, got %s", report.Localhost.NetworkRXDiscards[0].Status)
+		}
+		if report.Localhost.NetworkRXDiscards[0].InterfaceCount != 3 {
+			t.Errorf("Expected Network interface count 3, got %d", report.Localhost.NetworkRXDiscards[0].InterfaceCount)
+		}
+		if report.Localhost.NetworkRXDiscards[0].FailedCount != 3 {
+			t.Errorf("Expected Network failed count 3, got %d", report.Localhost.NetworkRXDiscards[0].FailedCount)
+		}
+	}
+}
+
+func TestReporter_WriteReportWithNetwork(t *testing.T) {
+	tempDir := t.TempDir()
+	outputFile := filepath.Join(tempDir, "test_report_network.json")
+
+	reporter := &Reporter{
+		results:    make(map[string]TestResult),
+		outputFile: outputFile,
+	}
+
+	// Add test results including network
+	reporter.AddGPUResult("PASS", 8, nil)
+	reporter.AddPCIeResult("PASS", nil)
+	reporter.AddRDMAResult("PASS", 16, nil)
+	reporter.AddNetworkRxDiscardsResult("PASS", 16, nil)
+
+	// Write report
+	err := reporter.WriteReport()
+	if err != nil {
+		t.Fatalf("Failed to write report: %v", err)
+	}
+
+	// Check if file was created
+	if _, err := os.Stat(outputFile); os.IsNotExist(err) {
+		t.Error("Report file was not created")
+	}
+
+	// Read and validate the JSON
+	data, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("Failed to read report file: %v", err)
+	}
+
+	var report ReportOutput
+	if err := json.Unmarshal(data, &report); err != nil {
+		t.Fatalf("Failed to unmarshal report JSON: %v", err)
+	}
+
+	// Validate the network structure in file
+	if len(report.Localhost.NetworkRXDiscards) != 1 {
+		t.Errorf("Expected 1 Network result in file, got %d", len(report.Localhost.NetworkRXDiscards))
+	}
+
+	// Verify network result content
+	networkResult := report.Localhost.NetworkRXDiscards[0]
+	if networkResult.Status != "PASS" {
+		t.Errorf("Expected Network status PASS in file, got %s", networkResult.Status)
+	}
+	if networkResult.InterfaceCount != 16 {
+		t.Errorf("Expected Network interface count 16 in file, got %d", networkResult.InterfaceCount)
+	}
+}
+
+func TestReporter_AllResultTypesWithNetwork(t *testing.T) {
+	reporter := &Reporter{
+		results: make(map[string]TestResult),
+	}
+
+	// Add all types of results including network
+	reporter.AddGPUResult("PASS", 8, nil)
+	reporter.AddPCIeResult("FAIL", fmt.Errorf("PCIe error found"))
+	reporter.AddRDMAResult("PASS", 16, nil)
+	reporter.AddNetworkRxDiscardsResult("FAIL", 2, fmt.Errorf("2 interfaces failed"))
+
+	// Test counts
+	if len(reporter.results) != 4 {
+		t.Errorf("Expected 4 results, got %d", len(reporter.results))
+	}
+
+	// Test failed tests (should include PCIe and Network)
+	failedTests := reporter.GetFailedTests()
+	if len(failedTests) != 2 {
+		t.Errorf("Expected 2 failed tests, got %d", len(failedTests))
+	}
+
+	// Test passed tests (should include GPU and RDMA)
+	passedTests := reporter.GetPassedTests()
+	if len(passedTests) != 2 {
+		t.Errorf("Expected 2 passed tests, got %d", len(passedTests))
+	}
+
+	// Check if network test is in failed tests
+	networkTestFound := false
+	for _, testName := range failedTests {
+		if testName == "network_rx_discards" {
+			networkTestFound = true
+			break
+		}
+	}
+	if !networkTestFound {
+		t.Error("Network test should be in failed tests list")
+	}
+}
+
+func TestReporter_NetworkResultEdgeCases(t *testing.T) {
+	reporter := &Reporter{
+		results: make(map[string]TestResult),
+	}
+
+	// Test with zero interface count
+	reporter.AddNetworkRxDiscardsResult("FAIL", 0, fmt.Errorf("no interfaces found"))
+
+	if result, exists := reporter.results["network_rx_discards"]; exists {
+		if interfaceCount, ok := result.Details["interface_count"]; ok {
+			if interfaceCount != 0 {
+				t.Errorf("Expected interface count 0, got %v", interfaceCount)
+			}
+		}
+	}
+
+	// Clear and test with large interface count
+	reporter.Clear()
+	reporter.AddNetworkRxDiscardsResult("PASS", 32, nil)
+
+	if result, exists := reporter.results["network_rx_discards"]; exists {
+		if interfaceCount, ok := result.Details["interface_count"]; ok {
+			if interfaceCount != 32 {
+				t.Errorf("Expected interface count 32, got %v", interfaceCount)
+			}
+		}
+	}
+}
+
+func TestReporter_NetworkJSONMarshal(t *testing.T) {
+	reporter := &Reporter{
+		results: make(map[string]TestResult),
+	}
+
+	// Add network result
+	reporter.AddNetworkRxDiscardsResult("PASS", 16, nil)
+
+	// Generate report
+	report, err := reporter.GenerateReport()
+	if err != nil {
+		t.Fatalf("Failed to generate report: %v", err)
+	}
+
+	// Marshal to JSON
+	jsonData, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		t.Fatalf("Failed to marshal report to JSON: %v", err)
+	}
+
+	// Verify it's valid JSON by unmarshaling
+	var testReport ReportOutput
+	if err := json.Unmarshal(jsonData, &testReport); err != nil {
+		t.Fatalf("Generated JSON is not valid: %v", err)
+	}
+
+	// Verify network-specific fields
+	if len(testReport.Localhost.NetworkRXDiscards) != 1 {
+		t.Error("Network RX discards field not properly marshaled")
+	}
+
+	networkResult := testReport.Localhost.NetworkRXDiscards[0]
+	if networkResult.Status != "PASS" {
+		t.Error("Network status field not properly marshaled")
+	}
+	if networkResult.InterfaceCount != 16 {
+		t.Error("Network interface_count field not properly marshaled")
+	}
+	if networkResult.FailedCount != 0 {
+		t.Error("Network failed_count field should be 0 for PASS status")
+	}
+
+	t.Logf("Generated JSON with network results:\n%s", string(jsonData))
+}
+
+func TestReporter_NetworkJSONMarshalWithFailure(t *testing.T) {
+	reporter := &Reporter{
+		results: make(map[string]TestResult),
+	}
+
+	// Add network result with failure
+	reporter.AddNetworkRxDiscardsResult("FAIL", 3, fmt.Errorf("interfaces failed"))
+
+	// Generate report
+	report, err := reporter.GenerateReport()
+	if err != nil {
+		t.Fatalf("Failed to generate report: %v", err)
+	}
+
+	// Marshal to JSON
+	jsonData, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		t.Fatalf("Failed to marshal report to JSON: %v", err)
+	}
+
+	// Verify it's valid JSON by unmarshaling
+	var testReport ReportOutput
+	if err := json.Unmarshal(jsonData, &testReport); err != nil {
+		t.Fatalf("Generated JSON is not valid: %v", err)
+	}
+
+	// Verify network failure fields
+	networkResult := testReport.Localhost.NetworkRXDiscards[0]
+	if networkResult.Status != "FAIL" {
+		t.Error("Network status field should be FAIL")
+	}
+	if networkResult.InterfaceCount != 3 {
+		t.Error("Network interface_count field not properly marshaled for failure case")
+	}
+	if networkResult.FailedCount != 3 {
+		t.Error("Network failed_count field not properly marshaled for failure case")
+	}
+
+	t.Logf("Generated JSON with network failure:\n%s", string(jsonData))
+}
