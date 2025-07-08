@@ -102,22 +102,28 @@ get_current_shape() {
     # Try IMDS
     log "Querying OCI shape from IMDS..."
     
-    # Try IMDS v2 first
+    # Try IMDS v2 first with proper JSON parsing
     local imds_response
-    imds_response=$(get_command_output "curl -s -H 'Authorization: Bearer Oracle' -L http://169.254.169.254/opc/v2/instance/" 10)
+    imds_response=$(get_command_output "curl -s -H 'Authorization: Bearer Oracle' -H 'User-Agent: rekharoy-oci-dr-hpc-v2' http://169.254.169.254/opc/v2/instance" 10)
     
     if [ -n "$imds_response" ]; then
-        shape=$(echo "$imds_response" | grep '"shape"' | cut -d':' -f2 | tr -d ' ",')
-        if [ -n "$shape" ]; then
+        # Use jq for proper JSON parsing
+        shape=$(echo "$imds_response" | jq -r '.shape' 2>/dev/null)
+        if [ -n "$shape" ] && [ "$shape" != "null" ]; then
             log "Detected shape from IMDS v2: $shape"
             echo "$shape"
             return 0
+        else
+            log "Failed to parse shape from IMDS v2 JSON response" "WARN"
         fi
+    else
+        log "IMDS v2 request failed" "WARN"
     fi
     
     # Try IMDS v1 fallback
+    log "Trying IMDS v1 fallback..."
     shape=$(get_command_output "curl -s http://169.254.169.254/opc/v1/instance/shape" 5)
-    if [ -n "$shape" ]; then
+    if [ -n "$shape" ] && [[ ! "$shape" =~ ^\<! ]]; then  # Avoid HTML error pages
         log "Detected shape from IMDS v1: $shape"
         echo "$shape"
         return 0

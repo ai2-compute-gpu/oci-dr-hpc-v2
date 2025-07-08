@@ -117,29 +117,36 @@ class GPUCountChecker:
             self.log(f"Using shape from environment: {shape}")
             return shape
         
-        # Try IMDS
-        self.log("Querying OCI shape from IMDS...")
-        cmd = "curl -s -H 'Authorization: Bearer Oracle' -L http://169.254.169.254/opc/v2/instance/ | grep shape"
+        # Try IMDS v2 with proper JSON parsing
+        self.log("Querying OCI shape from IMDS v2...")
+        cmd = 'curl -s -H "Authorization: Bearer Oracle" -H "User-Agent: rekharoy-oci-dr-hpc-v2" http://169.254.169.254/opc/v2/instance'
         result = self.run_command(cmd, timeout=10)
         
         if result["success"] and result["stdout"]:
             try:
-                # Parse shape from IMDS response 
-                for line in result["stdout"].split('\n'):
-                    if '"shape"' in line:
-                        shape = line.split(':')[1].strip().strip('",')
-                        self.log(f"Detected shape from IMDS: {shape}")
-                        return shape
+                # Parse JSON response properly
+                import json
+                metadata = json.loads(result["stdout"])
+                if "shape" in metadata:
+                    shape = metadata["shape"]
+                    self.log(f"Detected shape from IMDS v2: {shape}")
+                    return shape
+            except json.JSONDecodeError as e:
+                self.log(f"Failed to parse IMDS v2 JSON response: {e}", "WARN")
             except Exception as e:
-                self.log(f"Failed to parse IMDS response: {e}", "WARN")
+                self.log(f"Failed to extract shape from IMDS v2 response: {e}", "WARN")
+        else:
+            self.log(f"IMDS v2 request failed: {result.get('stderr', 'Unknown error')}", "WARN")
         
-        # Fallback - try alternative IMDS endpoint
+        # Fallback - try v1 endpoint (for older instances)
+        self.log("Trying IMDS v1 fallback...")
         cmd = "curl -s http://169.254.169.254/opc/v1/instance/shape"
         result = self.run_command(cmd, timeout=5)
         if result["success"] and result["stdout"]:
             shape = result["stdout"].strip()
-            self.log(f"Detected shape from IMDS v1: {shape}")
-            return shape
+            if shape and not shape.startswith("<!"):  # Avoid HTML error pages
+                self.log(f"Detected shape from IMDS v1: {shape}")
+                return shape
         
         raise Exception("Could not determine OCI shape from IMDS")
     
