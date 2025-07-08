@@ -83,6 +83,28 @@
           "rdma link show"
         ]
       }
+    },
+    "rx_discards_check": {
+      "fail": {
+        "type": "warning",
+        "fault_code": "HPCGPU-0004-0001",
+        "issue": "RX discards exceeded the specified threshold for {failed_interfaces}",
+        "suggestion": "TODO: Suggestion",
+        "commands": [
+          "TODO: commands"
+        ],
+        "references": [
+          "TODO: references"
+        ]
+      },
+      "pass": {
+        "type": "info",
+        "issue": "RX discards check passed",
+        "suggestion": "RX discards does not exceed a specified threshold",
+        "commands": [
+            "sudo ethtool -S {interface} | grep rx_prio.*_discards"
+        ]
+      }
     }
   },
   "summary_templates": {

@@ -28,19 +28,19 @@ type TestRecommendations struct {
 
 // RecommendationConfig represents the entire recommendation configuration
 type RecommendationConfig struct {
-	Recommendations   map[string]TestRecommendations `json:"recommendations"`
-	SummaryTemplates  map[string]string              `json:"summary_templates"`
+	Recommendations  map[string]TestRecommendations `json:"recommendations"`
+	SummaryTemplates map[string]string              `json:"summary_templates"`
 }
 
 // LoadRecommendationConfig loads recommendation configuration from JSON file
 func LoadRecommendationConfig() (*RecommendationConfig, error) {
 	logger.Debugf("Starting recommendation config search...")
-	
+
 	// Look for config file in multiple locations (order matters - local override > user > system > development)
 	configPaths := []string{
-		"./recommendations.json",                                    // Current directory (highest priority override)
+		"./recommendations.json", // Current directory (highest priority override)
 	}
-	
+
 	// Add user home directory for user-specific configs
 	if home, err := os.UserHomeDir(); err == nil {
 		userConfigPath := filepath.Join(home, ".config/oci-dr-hpc/recommendations.json")
@@ -49,13 +49,13 @@ func LoadRecommendationConfig() (*RecommendationConfig, error) {
 	} else {
 		logger.Debugf("Could not determine user home directory: %v", err)
 	}
-	
+
 	// Add system locations
 	configPaths = append(configPaths, []string{
-		"/etc/oci-dr-hpc/recommendations.json",                    // System config location
-		"/usr/share/oci-dr-hpc/recommendations.json",              // System data location  
-		"/etc/oci-dr-hpc-recommendations.json",                    // Legacy location
-		"configs/recommendations.json",                             // Development location
+		"/etc/oci-dr-hpc/recommendations.json",       // System config location
+		"/usr/share/oci-dr-hpc/recommendations.json", // System data location
+		"/etc/oci-dr-hpc-recommendations.json",       // Legacy location
+		"configs/recommendations.json",               // Development location
 	}...)
 
 	logger.Debugf("Searching for recommendation config in %d locations: %v", len(configPaths), configPaths)
@@ -65,13 +65,13 @@ func LoadRecommendationConfig() (*RecommendationConfig, error) {
 
 	for i, path := range configPaths {
 		logger.Debugf("Checking path %d/%d: %s", i+1, len(configPaths), path)
-		
+
 		if absPath, err := filepath.Abs(path); err == nil {
 			logger.Debugf("  Absolute path: %s", absPath)
-			
+
 			if _, err := os.Stat(absPath); err == nil {
 				logger.Debugf("  File exists, attempting to read...")
-				
+
 				if data, err := os.ReadFile(absPath); err == nil {
 					configData = data
 					configFile = absPath
@@ -162,10 +162,11 @@ func (config *RecommendationConfig) GetSummary(totalIssues, criticalCount, warni
 // applyVariableSubstitution replaces template variables with actual values
 func applyVariableSubstitution(template string, testResult TestResult) string {
 	result := template
-	
+
 	// Replace common variables
 	result = strings.ReplaceAll(result, "{gpu_count}", fmt.Sprintf("%d", testResult.GPUCount))
 	result = strings.ReplaceAll(result, "{num_rdma_nics}", fmt.Sprintf("%d", testResult.NumRDMANics))
-	
+	result = strings.ReplaceAll(result, "{failed_interfaces}", fmt.Sprintf("%s", testResult.FailedInterfaces))
+
 	return result
 }

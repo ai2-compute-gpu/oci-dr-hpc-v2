@@ -12,17 +12,21 @@ import (
 
 // TestResult represents a single test result from the reporter
 type TestResult struct {
-	Status       string `json:"status"`
-	GPUCount     int    `json:"gpu_count,omitempty"`
-	NumRDMANics  int    `json:"num_rdma_nics,omitempty"`
-	TimestampUTC string `json:"timestamp_utc"`
+	Status           string `json:"status"`
+	GPUCount         int    `json:"gpu_count,omitempty"`
+	NumRDMANics      int    `json:"num_rdma_nics,omitempty"`
+	FailedCount      int    `json:"failed_count,omitempty"`
+	FailedInterfaces string `json:"failed_interfaces,omitempty"`
+	InterfaceCount   int    `json:"interface_count,omitempty"`
+	TimestampUTC     string `json:"timestamp_utc"`
 }
 
 // HostResults represents test results for a host
 type HostResults struct {
-	GPUCountCheck  []TestResult `json:"gpu_count_check,omitempty"`
-	PCIeErrorCheck []TestResult `json:"pcie_error_check,omitempty"`
-	RDMANicsCount  []TestResult `json:"rdma_nics_count,omitempty"`
+	GPUCountCheck   []TestResult `json:"gpu_count_check,omitempty"`
+	PCIeErrorCheck  []TestResult `json:"pcie_error_check,omitempty"`
+	RDMANicsCount   []TestResult `json:"rdma_nics_count,omitempty"`
+	RxDiscardsCheck []TestResult `json:"rx_discards_check,omitempty"`
 }
 
 // ReportOutput represents the single report format
@@ -135,6 +139,7 @@ func generateRecommendations(results HostResults) RecommendationReport {
 		{"gpu_count_check", results.GPUCountCheck},
 		{"pcie_error_check", results.PCIeErrorCheck},
 		{"rdma_nics_count", results.RDMANicsCount},
+		{"rx_discards_check", results.RxDiscardsCheck},
 	}
 
 	for _, mapping := range testMappings {
@@ -216,6 +221,25 @@ func generateFallbackRecommendations(results HostResults) RecommendationReport {
 				Issue:      fmt.Sprintf("RDMA NIC count mismatch (found: %d)", rdma.NumRDMANics),
 				Suggestion: "Verify RDMA hardware installation and driver configuration",
 				Commands:   []string{"ibstat", "ibv_devices"},
+			}
+			recommendations = append(recommendations, rec)
+			warningCount++
+		}
+	}
+
+	// Basic RX Discards recommendations
+	for _, rxDiscard := range results.RxDiscardsCheck {
+		if rxDiscard.Status == "FAIL" {
+			commands := []string{}
+			for _, failedInterface := range strings.Split(rxDiscard.FailedInterfaces, ",") {
+				commands = append(commands, fmt.Sprintf("sudo ethtool -S %s | grep rx_prio.*_discards", failedInterface))
+			}
+			rec := Recommendation{
+				Type:       "warning",
+				TestName:   "rx_discards_check",
+				Issue:      fmt.Sprintf("RX discards exceeded the specified threshold for %s", rxDiscard.FailedInterfaces),
+				Suggestion: "Verify Rx discard for the failed interface",
+				Commands:   commands,
 			}
 			recommendations = append(recommendations, rec)
 			warningCount++
