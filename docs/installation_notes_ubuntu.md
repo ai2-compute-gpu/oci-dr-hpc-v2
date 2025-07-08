@@ -15,13 +15,43 @@ Remove older Go (optional):
 sudo apt remove -y golang-go
 ````
 
-Download and install Go:
+Download and install Go based on your system architecture:
+
+### For x86_64 (amd64) systems:
 
 ```bash
 cd /tmp
 wget https://go.dev/dl/go1.22.3.linux-amd64.tar.gz
 sudo rm -rf /usr/local/go
 sudo tar -C /usr/local -xzf go1.22.3.linux-amd64.tar.gz
+```
+
+### For ARM64 (aarch64) systems:
+
+```bash
+cd /tmp
+wget https://go.dev/dl/go1.22.3.linux-arm64.tar.gz
+sudo rm -rf /usr/local/go
+sudo tar -C /usr/local -xzf go1.22.3.linux-arm64.tar.gz
+```
+
+### Auto-detect architecture (recommended):
+
+```bash
+cd /tmp
+ARCH=$(uname -m)
+if [ "$ARCH" = "x86_64" ]; then
+    GO_ARCH="amd64"
+elif [ "$ARCH" = "aarch64" ]; then
+    GO_ARCH="arm64"
+else
+    echo "Unsupported architecture: $ARCH"
+    exit 1
+fi
+
+wget https://go.dev/dl/go1.22.3.linux-${GO_ARCH}.tar.gz
+sudo rm -rf /usr/local/go
+sudo tar -C /usr/local -xzf go1.22.3.linux-${GO_ARCH}.tar.gz
 ```
 
 Update your `PATH`:
@@ -35,7 +65,8 @@ Verify installation:
 
 ```bash
 go version
-# Expected output: go version go1.22.3 linux/amd64
+# Expected output for x86_64: go version go1.22.3 linux/amd64
+# Expected output for ARM64: go version go1.22.3 linux/arm64
 ```
 
 ---
