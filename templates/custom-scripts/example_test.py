@@ -29,19 +29,24 @@ class CustomTestRunner:
     def __init__(self):
         self.results = []
         self.start_time = time.time()
+        # Detect if output is going to terminal or being captured
+        self.is_terminal = sys.stdout.isatty()
         
     def run_test(self, test_name, test_func, expected_result="PASS"):
         """Run a single test and record the result."""
-        print(f"🧪 Running test: {test_name}")
+        test_icon = "🧪" if self.is_terminal else "[TEST]"
+        print(f"{test_icon} Running test: {test_name}")
         
         try:
             result = test_func()
             if result:
                 status = "PASS"
-                print(f"✅ PASS: {test_name}")
+                pass_icon = "✅" if self.is_terminal else "[PASS]"
+                print(f"{pass_icon} PASS: {test_name}")
             else:
                 status = "FAIL"
-                print(f"❌ FAIL: {test_name}")
+                fail_icon = "❌" if self.is_terminal else "[FAIL]"
+                print(f"{fail_icon} FAIL: {test_name}")
                 
             self.results.append({
                 "test_name": test_name,
@@ -52,7 +57,8 @@ class CustomTestRunner:
             
         except Exception as e:
             status = "ERROR"
-            print(f"💥 ERROR: {test_name} - {str(e)}")
+            error_icon = "💥" if self.is_terminal else "[ERROR]"
+            print(f"{error_icon} ERROR: {test_name} - {str(e)}")
             self.results.append({
                 "test_name": test_name,
                 "status": status,
@@ -64,7 +70,8 @@ class CustomTestRunner:
     
     def skip_test(self, test_name, reason):
         """Skip a test with a reason."""
-        print(f"⚠️ SKIP: {test_name} - {reason}")
+        skip_icon = "⚠️" if self.is_terminal else "[SKIP]"
+        print(f"{skip_icon} SKIP: {test_name} - {reason}")
         self.results.append({
             "test_name": test_name,
             "status": "SKIP",
@@ -99,7 +106,8 @@ class CustomTestRunner:
     
     def check_system_requirements(self):
         """Check basic system requirements."""
-        print("📋 Checking system requirements...")
+        header_icon = "📋" if self.is_terminal else "[INFO]"
+        print(f"{header_icon} Checking system requirements...")
         
         # Check Python version
         def python_version_test():
@@ -133,7 +141,8 @@ class CustomTestRunner:
         
     def check_network_connectivity(self):
         """Check network connectivity."""
-        print("🌐 Checking network connectivity...")
+        header_icon = "🌐" if self.is_terminal else "[NET]"
+        print(f"{header_icon} Checking network connectivity...")
         
         # Check localhost connectivity
         def localhost_test():
@@ -154,7 +163,8 @@ class CustomTestRunner:
     
     def check_gpu_availability(self):
         """Check GPU availability."""
-        print("🖥️ Checking GPU availability...")
+        header_icon = "🖥️" if self.is_terminal else "[GPU]"
+        print(f"{header_icon} Checking GPU availability...")
         
         # Check if nvidia-smi is available
         nvidia_result = self.run_command("which nvidia-smi")
@@ -171,7 +181,8 @@ class CustomTestRunner:
                 if result["success"]:
                     try:
                         count = len(result["stdout"].split('\n'))
-                        print(f"ℹ️ Found {count} GPU(s)")
+                        info_icon = "ℹ️" if self.is_terminal else "[INFO]"
+                        print(f"{info_icon} Found {count} GPU(s)")
                         return count > 0
                     except:
                         return False
@@ -183,7 +194,8 @@ class CustomTestRunner:
     
     def run_custom_tests(self):
         """Run custom tests."""
-        print("🧪 Running custom tests...")
+        header_icon = "🧪" if self.is_terminal else "[CUSTOM]"
+        print(f"{header_icon} Running custom tests...")
         
         # Example: Check if a specific file exists
         def config_file_test():
@@ -196,7 +208,8 @@ class CustomTestRunner:
             start = time.time()
             time.sleep(0.1)  # Simulate work
             duration = time.time() - start
-            print(f"ℹ️ Performance test took {duration:.3f}s")
+            info_icon = "ℹ️" if self.is_terminal else "[INFO]"
+            print(f"{info_icon} Performance test took {duration:.3f}s")
             return duration < 1.0
         
         self.run_test("performance_test", performance_test)
@@ -243,7 +256,8 @@ class CustomTestRunner:
     def print_summary(self, summary):
         """Print test summary."""
         print("\n" + "=" * 50)
-        print("📊 TEST SUMMARY")
+        summary_icon = "📊" if self.is_terminal else ""
+        print(f"{summary_icon} TEST SUMMARY".strip())
         print("=" * 50)
         print(f"Total Tests: {summary['summary']['total_tests']}")
         print(f"Passed: {summary['summary']['passed']}")
@@ -253,24 +267,36 @@ class CustomTestRunner:
         print(f"Success Rate: {summary['summary']['success_rate']}%")
         print(f"Execution Time: {summary['execution_time_seconds']}s")
         
-        print("\n📋 DETAILED RESULTS:")
+        results_icon = "📋" if self.is_terminal else ""
+        print(f"\n{results_icon} DETAILED RESULTS:".strip())
         print("-" * 50)
         for result in self.results:
-            status_icon = {
-                "PASS": "✅",
-                "FAIL": "❌",
-                "SKIP": "⚠️",
-                "ERROR": "💥"
-            }.get(result["status"], "❓")
+            if self.is_terminal:
+                status_icon = {
+                    "PASS": "✅",
+                    "FAIL": "❌",
+                    "SKIP": "⚠️",
+                    "ERROR": "💥"
+                }.get(result["status"], "❓")
+            else:
+                status_icon = {
+                    "PASS": "[PASS]",
+                    "FAIL": "[FAIL]",
+                    "SKIP": "[SKIP]",
+                    "ERROR": "[ERROR]"
+                }.get(result["status"], "[?]")
             
             print(f"{status_icon} {result['test_name']}: {result['message']}")
         
-        print("\n📄 JSON OUTPUT:")
+        json_icon = "📄" if self.is_terminal else ""
+        print(f"\n{json_icon} JSON OUTPUT:".strip())
         print(json.dumps(summary, indent=2))
 
 def main():
     """Main test execution function."""
-    print("🚀 Starting Custom Python Test Script")
+    is_terminal = sys.stdout.isatty()
+    start_icon = "🚀" if is_terminal else ""
+    print(f"{start_icon} Starting Custom Python Test Script".strip())
     print("=" * 50)
     
     try:
@@ -291,14 +317,17 @@ def main():
         
         # Return appropriate exit code
         if success:
-            print("\n✅ All tests passed!")
+            success_icon = "✅" if is_terminal else "[SUCCESS]"
+            print(f"\n{success_icon} All tests passed!")
             return 0
         else:
-            print(f"\n❌ Some tests failed or had errors")
+            fail_icon = "❌" if is_terminal else "[FAILED]"
+            print(f"\n{fail_icon} Some tests failed or had errors")
             return 1
             
     except Exception as e:
-        print(f"\n💥 Script execution error: {e}")
+        error_icon = "💥" if is_terminal else "[ERROR]"
+        print(f"\n{error_icon} Script execution error: {e}")
         error_report = {
             "test_suite": "custom_python_template",
             "timestamp": datetime.utcnow().isoformat() + "Z",

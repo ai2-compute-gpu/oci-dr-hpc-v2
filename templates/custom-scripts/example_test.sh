@@ -17,12 +17,22 @@
 
 set -e  # Exit on error
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Colors for output (only if outputting to terminal)
+if [ -t 1 ]; then
+    # Output is going to terminal
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    BLUE='\033[0;34m'
+    NC='\033[0m' # No Color
+else
+    # Output is being captured/redirected - no colors
+    RED=''
+    GREEN=''
+    YELLOW=''
+    BLUE=''
+    NC=''
+fi
 
 # Test counters
 TOTAL_TESTS=0
@@ -203,7 +213,11 @@ EOF
 # Main execution
 main() {
     echo -e "${BLUE}🚀 Starting Custom Shell Script Test${NC}"
-    echo "=" | tr ' ' '=' | head -c 50; echo
+    if [ -t 1 ]; then
+        echo "=" | tr ' ' '=' | head -c 50; echo
+    else
+        echo "=================================================="
+    fi
     
     local start_time=$(date +%s)
     
@@ -221,9 +235,17 @@ main() {
     
     # Print summary
     echo
-    echo "=" | tr ' ' '=' | head -c 50; echo
+    if [ -t 1 ]; then
+        echo "=" | tr ' ' '=' | head -c 50; echo
+    else
+        echo "=================================================="
+    fi
     echo -e "${BLUE}📊 TEST SUMMARY${NC}"
-    echo "=" | tr ' ' '=' | head -c 50; echo
+    if [ -t 1 ]; then
+        echo "=" | tr ' ' '=' | head -c 50; echo
+    else
+        echo "=================================================="
+    fi
     echo "Total Tests: $TOTAL_TESTS"
     echo "Passed: $PASSED_TESTS"
     echo "Failed: $FAILED_TESTS"
