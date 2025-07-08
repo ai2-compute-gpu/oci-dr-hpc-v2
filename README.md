@@ -14,6 +14,34 @@ A comprehensive diagnostic and repair tool for High Performance Computing (HPC) 
 - **🏗️ Smart Path Resolution**: Automatic detection of development vs production environments
 - **📦 Customer-Ready Deployment**: Makefile-based installation with filesystem hierarchy compliance
 - **🐛 Debug-Friendly**: Comprehensive logging with config path visibility for troubleshooting
+- **🏗️ Cross-Platform Build**: Support for AMD64 and ARM64 architectures with cross-compilation
+
+## 🌐 Cross-Platform Support
+
+The OCI DR HPC v2 tool supports multiple architectures with automatic detection and cross-compilation capabilities:
+
+### Supported Architectures
+- **AMD64 (x86_64)**: Intel and AMD 64-bit processors
+- **ARM64 (aarch64)**: ARM 64-bit processors (AWS Graviton, Apple Silicon, etc.)
+
+### Build System Features
+- **Automatic Architecture Detection**: Detects your system architecture and builds accordingly
+- **Cross-Compilation**: Build binaries for both architectures from any supported system
+- **Multi-Architecture Packages**: Create RPM and DEB packages for both architectures simultaneously
+- **Smart Binary Naming**: Architecture-specific binaries (`oci-dr-hpc-v2-amd64`, `oci-dr-hpc-v2-arm64`)
+
+### Quick Cross-Compilation Example
+```bash
+# Build for both architectures on any system
+make build-all
+
+# Results:
+# build/oci-dr-hpc-v2-amd64    # For x86_64 systems
+# build/oci-dr-hpc-v2-arm64    # For ARM64 systems
+
+# Create packages for distribution
+make all-cross               # Build everything for both architectures
+```
 
 ## 📁 Project Structure
 
@@ -118,21 +146,70 @@ sudo make install
 
 ### Package Installation
 ```bash
-# Build and install RPM package
+# Build and install RPM package (auto-detected architecture)
 make rpm
 sudo rpm -i dist/oci-dr-hpc-v2-*.rpm
 
-# Or build and install DEB package
+# Or build and install DEB package (auto-detected architecture)
 make deb
 sudo dpkg -i dist/oci-dr-hpc-v2-*.deb
 ```
 
+### Cross-Platform Package Building
+```bash
+# Build packages for both AMD64 and ARM64 architectures
+make all-cross      # Build everything for both architectures
+
+# Build specific architecture packages
+make rpm-amd64      # RPM for x86_64 systems
+make rpm-arm64      # RPM for ARM64 systems
+
+make deb-ubuntu-amd64    # Ubuntu DEB for x86_64
+make deb-ubuntu-arm64    # Ubuntu DEB for ARM64
+
+make deb-debian-amd64    # Debian DEB for x86_64  
+make deb-debian-arm64    # Debian DEB for ARM64
+
+# Build all packages for both architectures
+make rpm-all        # All RPM packages
+make deb-all        # All DEB packages
+```
+
+### Architecture-Specific Installation
+```bash
+# After building with make all-cross, install the appropriate package:
+
+# For Intel/AMD x86_64 systems:
+sudo rpm -i dist/oci-dr-hpc-v2-*-amd64-*.rpm
+# or
+sudo dpkg -i dist/oci-dr-hpc-v2-*-amd64*.deb
+
+# For ARM64 systems (AWS Graviton, Apple Silicon Linux VMs):
+sudo rpm -i dist/oci-dr-hpc-v2-*-arm64-*.rpm  
+# or
+sudo dpkg -i dist/oci-dr-hpc-v2-*-arm64*.deb
+
+# Check your system architecture:
+uname -m
+# x86_64 = use amd64 packages
+# aarch64 = use arm64 packages
+```
+
 ### Build Targets
 ```bash
-make build       # Build binary only
+# Single architecture (auto-detected)
+make build       # Build binary for detected architecture
 make test        # Run tests
 make clean       # Clean build artifacts
 make uninstall   # Remove installation
+
+# Cross-compilation
+make build-amd64    # Build for x86_64 (Intel/AMD)
+make build-arm64    # Build for ARM64 (AWS Graviton, Apple Silicon)
+make build-all      # Build for both architectures
+
+# Comprehensive help
+make help          # Show all available targets
 ```
 
 ## ⚙️ Configuration
@@ -436,17 +513,37 @@ oci-dr-hpc-v2 autodiscover --verbose
 ### Building
 
 ```bash
-# Build for current platform using Makefile
+# Build for detected architecture using Makefile (recommended)
 make build
 
-# Build for current platform manually
+# Cross-compilation using Makefile (recommended)
+make build-amd64    # Build for x86_64
+make build-arm64    # Build for ARM64
+make build-all      # Build for both architectures
+
+# Manual building for current platform
 go build -o oci-dr-hpc-v2 main.go
 
-# Build with version information
-go build -ldflags "-X main.version=v1.0.0" -o oci-dr-hpc-v2 main.go
+# Manual cross-compilation (use Makefile instead)
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=v1.0.0 -s -w" -o oci-dr-hpc-v2-amd64 .
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "-X main.version=v1.0.0 -s -w" -o oci-dr-hpc-v2-arm64 .
+```
 
-# Cross-compile for different platforms
-GOOS=linux GOARCH=amd64 go build -o oci-dr-hpc-v2-linux-amd64 main.go
+### Package Building
+
+```bash
+# Build packages for detected architecture
+make rpm            # RPM package
+make deb-ubuntu     # Ubuntu DEB package  
+make deb-debian     # Debian DEB package
+
+# Cross-platform package building
+make rpm-all        # RPM packages for both architectures
+make deb-all        # DEB packages for both architectures
+make all-cross      # Everything for both architectures
+
+# View all available build targets
+make help
 ```
 
 ### Testing
@@ -619,5 +716,6 @@ For support and questions:
 
 **Version**: Development
 **Go Version**: 1.21.5+
-**Platforms**: Linux (Oracle Linux, Ubuntu)
-**Architecture**: x86_64
+**Platforms**: Linux (Oracle Linux, Ubuntu, Debian, RHEL)
+**Architectures**: AMD64 (x86_64), ARM64 (aarch64)
+**Cross-Compilation**: Supported for both architectures from any build system
