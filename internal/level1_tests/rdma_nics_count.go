@@ -2,7 +2,9 @@ package level1_tests
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/oracle/oci-dr-hpc-v2/internal/test_limits"
 	"os"
 	"strings"
 
@@ -125,6 +127,31 @@ type ShapesConfigRDMA struct {
 	RDMANetwork  []interface{}       `json:"rdma-network"`
 	RDMASettings []interface{}       `json:"rdma-settings"`
 	HPCShapes    []ShapeHardwareRDMA `json:"hpc-shapes"`
+}
+
+type RdmaNicsCountTestConfig struct {
+	IsEnabled bool `json:"enabled"`
+}
+
+// Gets test config needed to run this test
+func getRdmaNicsCountTestConfig(shape string) (*RdmaNicsCountTestConfig, error) {
+	// Load configuration from test_limits.json
+	limits, err := test_limits.LoadTestLimits()
+	if err != nil {
+		return nil, err
+	}
+
+	// Result
+	rdmaNicsCountTestConfig := &RdmaNicsCountTestConfig{
+		IsEnabled: false,
+	}
+
+	enabled, err := limits.IsTestEnabled(shape, "rdma_nic_count")
+	if err != nil {
+		return nil, err
+	}
+	rdmaNicsCountTestConfig.IsEnabled = enabled
+	return rdmaNicsCountTestConfig, nil
 }
 
 // getExpectedRDMANicConfig reads shapes.json and returns the expected RDMA NIC count and PCI IDs for the given shape
@@ -251,7 +278,19 @@ func RunRDMANicsCount() error {
 	}
 	logger.Info("Current shape from IMDS:", shape)
 
-	// Step 2: Look up for Shape and corresponding RDMA NICs - get count and PCI IDs
+	// Step 2: Check if the test is enabled for this shape
+	rdmaNicsCountTestConfig, err := getRdmaNicsCountTestConfig(shape)
+	if err != nil {
+		return err
+	}
+
+	if !rdmaNicsCountTestConfig.IsEnabled {
+		errorStatement := fmt.Sprintf("Test not applicable for this shape %s", shape)
+		logger.Error(errorStatement)
+		return errors.New(errorStatement)
+	}
+
+	// Step 3: Look up for Shape and corresponding RDMA NICs - get count and PCI IDs
 	logger.Info("Step 2: Getting expected RDMA NIC count and PCI IDs from shapes.json...")
 	expectedCount, expectedPCIIDs, err := getExpectedRDMANicConfig(shape)
 	if err != nil {
@@ -262,7 +301,7 @@ func RunRDMANicsCount() error {
 	logger.Info("Expected RDMA NIC count for shape", shape+":", expectedCount)
 	logger.Debugf("Expected PCI IDs: %v", expectedPCIIDs)
 
-	// Step 3: Using PCI IDs from Step 2, find the RDMA NICs count from OS using lspci
+	// Step 4: Using PCI IDs from Step 2, find the RDMA NICs count from OS using lspci
 	logger.Info("Step 3: Checking actual RDMA NIC count using lspci...")
 	actualCount, err := getActualRDMANicCount(expectedPCIIDs)
 	if err != nil {
@@ -272,7 +311,7 @@ func RunRDMANicsCount() error {
 	}
 	logger.Info("Actual RDMA NIC count from lspci:", actualCount)
 
-	// Step 4: Compare expected vs actual
+	// Step 5: Compare expected vs actual
 	logger.Info("Step 4: Comparing expected vs actual RDMA NIC counts...")
 	if expectedCount == actualCount {
 		logger.Info("RDMA NIC Count Check: PASS - Expected:", expectedCount, "Actual:", actualCount)

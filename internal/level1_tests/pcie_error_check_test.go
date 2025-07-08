@@ -114,6 +114,32 @@ func canRunSudo() bool {
 	return err == nil
 }
 
+// Test the PcieErrorCheckTestConfig struct
+func TestPcieErrorCheckTestConfig(t *testing.T) {
+	config := &PcieErrorCheckTestConfig{
+		IsEnabled: true,
+		Shape:     "BM.GPU.H100.8",
+	}
+
+	if !config.IsEnabled {
+		t.Error("Expected IsEnabled to be true")
+	}
+
+	if config.Shape != "BM.GPU.H100.8" {
+		t.Errorf("Expected shape 'BM.GPU.H100.8', got '%s'", config.Shape)
+	}
+
+	// Test default values
+	defaultConfig := &PcieErrorCheckTestConfig{}
+	if defaultConfig.IsEnabled {
+		t.Error("Expected default IsEnabled to be false")
+	}
+
+	if defaultConfig.Shape != "" {
+		t.Errorf("Expected default shape to be empty, got '%s'", defaultConfig.Shape)
+	}
+}
+
 // testPCIeErrorDetectionLogic tests the core PCIe error detection logic
 // without actually calling dmesg
 func testPCIeErrorDetectionLogic(t *testing.T, dmesgOutput string, expectError bool, testName string) {

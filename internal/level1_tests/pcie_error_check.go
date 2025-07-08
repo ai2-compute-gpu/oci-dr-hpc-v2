@@ -1,7 +1,9 @@
 package level1_tests
 
 import (
+	"errors"
 	"fmt"
+	"github.com/oracle/oci-dr-hpc-v2/internal/test_limits"
 	"strings"
 
 	"github.com/oracle/oci-dr-hpc-v2/internal/executor"
@@ -9,8 +11,53 @@ import (
 	"github.com/oracle/oci-dr-hpc-v2/internal/reporter"
 )
 
+// PcieErrorCheckTestConfig represents the config needed to run this test
+type PcieErrorCheckTestConfig struct {
+	IsEnabled bool   `json:"enabled"`
+	Shape     string `json:"shape"`
+}
+
+// Gets test config needed to run this test
+func getPcieErrorCheckTestConfig() (*PcieErrorCheckTestConfig, error) {
+	// Get shape from IMDS
+	shape, err := executor.GetCurrentShape()
+	if err != nil {
+		return nil, err
+	}
+
+	// Load configuration from test_limits.json
+	limits, err := test_limits.LoadTestLimits()
+	if err != nil {
+		return nil, err
+	}
+
+	// Result
+	pcieErrorCheckTestConfig := &PcieErrorCheckTestConfig{
+		IsEnabled: false,
+		Shape:     shape,
+	}
+
+	enabled, err := limits.IsTestEnabled(shape, "pcie_error_check")
+	if err != nil {
+		return nil, err
+	}
+	pcieErrorCheckTestConfig.IsEnabled = enabled
+	return pcieErrorCheckTestConfig, nil
+}
+
 func RunPCIeErrorCheck() error {
 	logger.Info("=== PCIe Error Check ===")
+	testConfig, err := getPcieErrorCheckTestConfig()
+	if err != nil {
+		return err
+	}
+
+	if !testConfig.IsEnabled {
+		errorStatement := fmt.Sprintf("Test not applicable for this shape %s", testConfig.Shape)
+		logger.Info(errorStatement)
+		return errors.New(errorStatement)
+	}
+
 	logger.Info("Starting PCIe health check...")
 	logger.Info("This will take about 1 minute to complete.")
 	rep := reporter.GetReporter()
