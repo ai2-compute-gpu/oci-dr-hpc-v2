@@ -2,22 +2,22 @@
 
 ## Overview
 
-The OCI DR HPC v2 recommender now supports a flexible, JSON-based configuration system for defining diagnostic recommendations. This allows you to customize recommendations for each test type without modifying the source code.
+The OCI DR HPC v2 recommender supports a flexible, JSON-based configuration system for defining diagnostic recommendations. This allows you to customize recommendations for each test type without modifying the source code.
 
 ## Configuration File Locations
 
 The recommender looks for configuration files in the following order (first found wins):
 
-1. `~/.config/oci-dr-hpc/recommendations.json` (user-specific config)
-2. `./recommendations.json` (current directory override)
+1. `./recommendations.json` (current directory override - highest priority)
+2. `~/.config/oci-dr-hpc/recommendations.json` (user-specific config)
 3. `/etc/oci-dr-hpc/recommendations.json` (system configuration)
 4. `/usr/share/oci-dr-hpc/recommendations.json` (default system config)
 5. `/etc/oci-dr-hpc-recommendations.json` (legacy location)
 6. `configs/recommendations.json` (development location)
 
 This hierarchy allows for:
+- **Local overrides**: Project-specific configs in working directory
 - **User customization**: Personal configs in home directory
-- **Project overrides**: Local configs in working directory
 - **System administration**: System-wide configs in /etc
 - **Package defaults**: Immutable defaults in /usr/share
 
@@ -31,6 +31,7 @@ This hierarchy allows for:
     "test_name": {
       "fail": {
         "type": "critical|warning|info",
+        "fault_code": "HPCGPU-XXXX-XXXX",
         "issue": "Description of the issue",
         "suggestion": "Suggested remediation steps",
         "commands": ["command1", "command2"],
@@ -51,13 +52,29 @@ This hierarchy allows for:
 }
 ```
 
-### Supported Test Names
+### Currently Supported Test Names
+
+The following test names are currently implemented and supported:
 
 - `gpu_count_check` - GPU hardware detection and count verification
 - `pcie_error_check` - PCIe bus error detection
 - `rdma_nics_count` - RDMA/InfiniBand NIC count verification
-- `memory_check` - System memory configuration validation
-- `cpu_check` - CPU configuration and performance checks
+
+### Fault Code System
+
+Fault codes follow the pattern: `HPCGPU-XXXX-XXXX`
+
+- **HPCGPU**: Product identifier for HPC GPU diagnostics
+- **First XXXX**: Test category (0001=GPU, 0002=PCIe, 0003=RDMA)
+- **Second XXXX**: Specific error type (0001=count mismatch, etc.)
+
+#### Current Fault Codes
+
+| Fault Code | Test | Description |
+|------------|------|-------------|
+| `HPCGPU-0001-0001` | gpu_count_check | GPU count mismatch |
+| `HPCGPU-0002-0001` | pcie_error_check | PCIe errors detected |
+| `HPCGPU-0003-0001` | rdma_nics_count | RDMA NIC count mismatch |
 
 ### Variable Substitution
 
@@ -75,20 +92,9 @@ The following variables can be used in `issue` and `suggestion` fields:
 - **warning** - Issues that may impact performance but don't prevent operation
 - **info** - Informational messages about successful tests
 
-## Example Configurations
+## Current Configuration Example
 
-### Basic Configuration (Default)
-
-The current `configs/recommendations.json` contains the basic configuration with support for:
-- GPU count checks  
-- PCIe error detection
-- RDMA NIC count verification
-
-This file is actively used by the system and contains production-ready recommendations.
-
-### Extended Configuration Example
-
-For more comprehensive diagnostics, you can extend the configuration with additional test types:
+The current `configs/recommendations.json` contains:
 
 ```json
 {
@@ -96,18 +102,18 @@ For more comprehensive diagnostics, you can extend the configuration with additi
     "gpu_count_check": {
       "fail": {
         "type": "critical",
+        "fault_code": "HPCGPU-0001-0001",
         "issue": "GPU count mismatch detected. Expected count not met (found: {gpu_count})",
-        "suggestion": "Verify GPU hardware installation and driver status. Check if all GPUs are properly seated.",
+        "suggestion": "Verify GPU hardware installation and driver status",
         "commands": [
           "nvidia-smi",
           "lspci | grep -i nvidia",
           "dmesg | grep -i nvidia",
-          "nvidia-smi -L",
-          "sudo lshw -C display"
+          "sudo nvidia-smi -pm 1"
         ],
         "references": [
           "https://docs.nvidia.com/datacenter/tesla/tesla-installation-notes/",
-          "https://developer.nvidia.com/nvidia-system-management-interface"
+          "https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm"
         ]
       },
       "pass": {
@@ -120,31 +126,67 @@ For more comprehensive diagnostics, you can extend the configuration with additi
         ]
       }
     },
-    "memory_check": {
+    "pcie_error_check": {
       "fail": {
         "type": "critical",
-        "issue": "Insufficient memory detected for HPC workloads",
-        "suggestion": "Verify system memory configuration and check for memory errors",
+        "fault_code": "HPCGPU-0002-0001",
+        "issue": "PCIe errors detected in system logs",
+        "suggestion": "Check PCIe bus health and reseat hardware if necessary",
         "commands": [
-          "free -h",
-          "dmidecode --type memory",
-          "dmesg | grep -i memory"
+          "dmesg | grep -i pcie",
+          "dmesg | grep -i 'corrected error'",
+          "dmesg | grep -i 'uncorrectable error'",
+          "lspci -tv",
+          "sudo pcieport-error-inject"
         ],
         "references": [
-          "https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm"
+          "https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm",
+          "https://www.kernel.org/doc/Documentation/PCI/pci-error-recovery.txt"
         ]
       },
       "pass": {
         "type": "info",
-        "issue": "Memory configuration check passed",
-        "suggestion": "System memory is properly configured for HPC workloads",
-        "commands": ["free -h"]
+        "issue": "PCIe error check passed",
+        "suggestion": "PCIe bus appears healthy with no errors detected",
+        "commands": [
+          "lspci -tv",
+          "dmesg | tail -50"
+        ]
+      }
+    },
+    "rdma_nics_count": {
+      "fail": {
+        "type": "warning",
+        "fault_code": "HPCGPU-0003-0001",
+        "issue": "RDMA NIC count mismatch (found: {num_rdma_nics})",
+        "suggestion": "Verify RDMA hardware installation and driver configuration",
+        "commands": [
+          "ibstat",
+          "ibv_devices",
+          "lspci | grep -i mellanox",
+          "rdma link show",
+          "systemctl status openibd"
+        ],
+        "references": [
+          "https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/configuringrdma.htm",
+          "https://docs.mellanox.com/display/MLNXOFEDv461000/"
+        ]
+      },
+      "pass": {
+        "type": "info",
+        "issue": "RDMA NIC count check passed ({num_rdma_nics} NICs detected)",
+        "suggestion": "RDMA hardware is properly detected and configured",
+        "commands": [
+          "ibstat",
+          "ibv_devinfo",
+          "rdma link show"
+        ]
       }
     }
   },
   "summary_templates": {
-    "no_issues": "🎉 All diagnostic tests passed! Your HPC environment is ready for high-performance computing workloads.",
-    "has_issues": "⚠️ Found {total_issues} issue(s) requiring attention: {critical_count} critical, {warning_count} warning. Please review the recommendations below."
+    "no_issues": "All diagnostic tests passed. Your HPC environment appears healthy.",
+    "has_issues": "Found {total_issues} issue(s) requiring attention: {critical_count} critical, {warning_count} warning"
   }
 }
 ```
@@ -164,7 +206,7 @@ make install-dev
 #### System-wide Installation
 ```bash
 # Build and install system-wide (requires sudo)
-sudo make install
+make install
 ```
 
 #### Package Installation
@@ -172,8 +214,9 @@ sudo make install
 # Build RPM package
 make rpm
 
-# Build DEB package
-make deb
+# Build DEB packages
+make deb-ubuntu    # Ubuntu-specific package
+make deb-debian    # Debian-specific package
 
 # Then install with package manager
 sudo rpm -i dist/oci-dr-hpc-v2-*.rpm
@@ -188,6 +231,9 @@ make build
 
 # Run tests
 make test
+
+# Run tests with coverage
+make coverage
 
 # Clean build artifacts
 make clean
@@ -221,19 +267,21 @@ vi my-custom-recommendations.json
 
 ### 2. Place Configuration File
 
-Option A: Use current directory
+Option A: Use current directory (highest priority)
 ```bash
 cp my-custom-recommendations.json ./recommendations.json
 ```
 
-Option B: Use system-wide location
+Option B: Use user-specific location
 ```bash
-sudo cp my-custom-recommendations.json /etc/oci-dr-hpc-recommendations.json
+mkdir -p ~/.config/oci-dr-hpc
+cp my-custom-recommendations.json ~/.config/oci-dr-hpc/recommendations.json
 ```
 
-Option C: Use project configs directory
+Option C: Use system-wide location
 ```bash
-cp my-custom-recommendations.json configs/recommendations.json
+sudo mkdir -p /etc/oci-dr-hpc
+sudo cp my-custom-recommendations.json /etc/oci-dr-hpc/recommendations.json
 ```
 
 ### 3. Run Recommender
@@ -255,6 +303,7 @@ To add support for a new test type:
     "your_new_test": {
       "fail": {
         "type": "warning",
+        "fault_code": "HPCGPU-0004-0001",
         "issue": "Your test failed with {custom_variable}",
         "suggestion": "Here's how to fix it",
         "commands": ["diagnostic-command", "fix-command"],
@@ -281,7 +330,7 @@ result = strings.ReplaceAll(result, "{custom_variable}", fmt.Sprintf("%d", testR
 
 ### 3. Update Test Processing
 
-Add your test to the `testMappings` in `generateRecommendations` function:
+Add your test to the `testMappings` in `generateRecommendations` function in `internal/recommender/recommender.go`:
 
 ```go
 testMappings := []struct {
@@ -329,6 +378,43 @@ Fallback mode indicators:
 - Summary includes "(fallback mode)"
 - Reduced set of commands and references
 
+## Usage Examples
+
+### Basic Usage
+
+```bash
+# Run Level 1 diagnostic tests
+oci-dr-hpc-v2 level1
+
+# Run specific tests
+oci-dr-hpc-v2 level1 --test=gpu_count_check,rdma_nics_count
+
+# List available tests
+oci-dr-hpc-v2 level1 --list-tests
+
+# Generate hardware discovery
+oci-dr-hpc-v2 autodiscover
+
+# Analyze test results
+oci-dr-hpc-v2 recommender -r results.json
+
+# Specify output format
+oci-dr-hpc-v2 recommender -r results.json --output friendly
+oci-dr-hpc-v2 recommender -r results.json --output json
+oci-dr-hpc-v2 recommender -r results.json --output table
+```
+
+### Debug Configuration
+
+```bash
+# See where configuration is loaded from
+oci-dr-hpc-v2 recommender -r results.json --verbose
+
+# Debug configuration search paths
+export OCI_DR_HPC_LOGGING_LEVEL="debug"
+oci-dr-hpc-v2 recommender -r results.json
+```
+
 ## Best Practices
 
 ### 1. Version Control Configuration
@@ -373,6 +459,24 @@ Document any custom test types you add:
 }
 ```
 
+## Available Test Scripts
+
+The system includes comprehensive test scripts in the `scripts/` directory, organized by OCI shape:
+
+### BM.GPU.H100.8 Scripts
+- `gpu_count_check.py/sh` - GPU hardware detection
+- `gpu_driver_check.py/sh` - GPU driver verification
+- `gpu_clk_check.py/sh` - GPU clock validation
+- `gpu_mode_check.py/sh` - GPU mode checks
+- `pcie_error_check.py/sh` - PCIe error detection
+- `rdma_nic_count_check.py/sh` - RDMA NIC validation
+- `rx_discards_check.py/sh` - Network RX discards monitoring
+- `gid_index_check.py/sh` - GID index validation
+- `max_acc_check.py/sh` - Max accelerator checks
+- `sram_check.py/sh` - SRAM validation
+
+These scripts provide detailed diagnostics and can be referenced or integrated into the recommendation system.
+
 ## Troubleshooting
 
 ### Configuration Not Loading
@@ -396,16 +500,16 @@ Document any custom test types you add:
 
 ## Advanced Features
 
-### Conditional Recommendations
+### Multi-format Result Support
 
-You can create different recommendations based on context by using multiple configuration files and switching between them:
+The recommender supports both single-run and multi-run result formats:
 
 ```bash
-# Development environment
-cp configs/dev-recommendations.json ./recommendations.json
+# Works with single run results
+oci-dr-hpc-v2 recommender -r single_run_results.json
 
-# Production environment  
-cp configs/prod-recommendations.json ./recommendations.json
+# Works with appended multi-run results (uses latest run)
+oci-dr-hpc-v2 recommender -r historical_results.json
 ```
 
 ### Integration with CI/CD
