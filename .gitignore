@@ -54,3 +54,5 @@ CL*E.md
 *.deb
 *.rpm
 .idea
+build/
+dist/
