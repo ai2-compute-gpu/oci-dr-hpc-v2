@@ -41,11 +41,20 @@ type RDMATestResult struct {
 	TimestampUTC string `json:"timestamp_utc"`
 }
 
+// NetworkTestResult represents network test results
+type NetworkRXDiscardsTestResult struct {
+	InterfaceCount int    `json:"interface_count"`
+	FailedCount    int    `json:"failed_count,omitempty"`
+	Status         string `json:"status"`
+	TimestampUTC   string `json:"timestamp_utc"`
+}
+
 // HostResults represents test results for a host
 type HostResults struct {
-	GPUCountCheck  []GPUTestResult  `json:"gpu_count_check,omitempty"`
-	PCIeErrorCheck []PCIeTestResult `json:"pcie_error_check,omitempty"`
-	RDMANicsCount  []RDMATestResult `json:"rdma_nics_count,omitempty"`
+	GPUCountCheck     []GPUTestResult               `json:"gpu_count_check,omitempty"`
+	PCIeErrorCheck    []PCIeTestResult              `json:"pcie_error_check,omitempty"`
+	RDMANicsCount     []RDMATestResult              `json:"rdma_nics_count,omitempty"`
+	NetworkRXDiscards []NetworkRXDiscardsTestResult `json:"network_rx_discards,omitempty"`
 }
 
 // ReportOutput represents the final JSON output structure
@@ -167,6 +176,24 @@ func (r *Reporter) AddRDMAResult(status string, rdmaNicCount int, err error) {
 	r.AddResult("rdma_nic_count", status, details, err)
 }
 
+// AddNetworkRxDiscardsResult adds network discards test results
+func (r *Reporter) AddNetworkRxDiscardsResult(status string, interfaceCount int, err error) {
+	details := map[string]interface{}{
+		"interface_count": interfaceCount,
+	}
+
+	// Add failed count if status is FAIL and it's available from the error
+	if status == "FAIL" {
+		// For network tests, interfaceCount might represent failed interfaces
+		// when status is FAIL, otherwise it represents total interfaces checked
+		if status == "FAIL" {
+			details["failed_count"] = interfaceCount
+		}
+	}
+
+	r.AddResult("network_rx_discards", status, details, err)
+}
+
 // GenerateReport generates the final JSON report
 func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 	r.mutex.RLock()
@@ -215,6 +242,32 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
 		}
 		report.Localhost.RDMANicsCount = []RDMATestResult{rdmaResult}
+	}
+
+	// Process Network results
+	if result, exists := r.results["network_rx_discards"]; exists {
+		interfaceCount := 0
+		failedCount := 0
+
+		if countVal, ok := result.Details["interface_count"]; ok {
+			if count, ok := countVal.(int); ok {
+				interfaceCount = count
+			}
+		}
+
+		if failedVal, ok := result.Details["failed_count"]; ok {
+			if count, ok := failedVal.(int); ok {
+				failedCount = count
+			}
+		}
+
+		networkResult := NetworkRXDiscardsTestResult{
+			InterfaceCount: interfaceCount,
+			FailedCount:    failedCount,
+			Status:         result.Status,
+			TimestampUTC:   result.Timestamp.UTC().Format(time.RFC3339),
+		}
+		report.Localhost.NetworkRXDiscards = []NetworkRXDiscardsTestResult{networkResult}
 	}
 
 	return report, nil
@@ -336,9 +389,9 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 	var output strings.Builder
 
 	output.WriteString("┌─────────────────────────────────────────────────────────────────┐\n")
-	output.WriteString("│                    DIAGNOSTIC TEST RESULTS                     │\n")
+	output.WriteString("│                    DIAGNOSTIC TEST RESULTS                      │\n")
 	output.WriteString("├─────────────────────────────────────────────────────────────────┤\n")
-	output.WriteString("│ TEST NAME              │ STATUS │ DETAILS                     │\n")
+	output.WriteString("│ TEST NAME              │ STATUS │ DETAILS                       │\n")
 	output.WriteString("├─────────────────────────────────────────────────────────────────┤\n")
 
 	// GPU Tests
@@ -349,7 +402,7 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 			if status == "FAIL" {
 				statusSymbol = "❌"
 			}
-			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s GPU Count: %s          │\n",
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s GPU Count: %s           │\n",
 				"GPU Count Check", statusSymbol, statusSymbol, gpu.Status))
 		}
 	}
@@ -375,8 +428,25 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 			if status == "FAIL" {
 				statusSymbol = "❌"
 			}
-			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s RDMA NICs: %d            │\n",
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s RDMA NICs: %d             │\n",
 				"RDMA NIC Count", statusSymbol, statusSymbol, rdma.NumRDMANics))
+		}
+	}
+
+	// Network Tests
+	if len(report.Localhost.NetworkRXDiscards) > 0 {
+		for _, network := range report.Localhost.NetworkRXDiscards {
+			status := network.Status
+			statusSymbol := "✅"
+			if status == "FAIL" {
+				statusSymbol = "❌"
+			}
+			details := fmt.Sprintf("Interfaces: %d", network.InterfaceCount)
+			if network.FailedCount > 0 {
+				details = fmt.Sprintf("Failed: %d/%d", network.FailedCount, network.InterfaceCount)
+			}
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s            │\n",
+				"Network RX Discards", statusSymbol, statusSymbol, details))
 		}
 	}
 
@@ -441,6 +511,27 @@ func (r *Reporter) formatFriendly(report *ReportOutput) (string, error) {
 			} else {
 				failedTests++
 				output.WriteString(fmt.Sprintf("   ❌ RDMA NICs: %d detected (FAILED)\n", rdma.NumRDMANics))
+			}
+		}
+		output.WriteString("\n")
+	}
+
+	// Network Tests
+	if len(report.Localhost.NetworkRXDiscards) > 0 {
+		output.WriteString("🌐 Network RX Discards Check\n")
+		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
+		for _, network := range report.Localhost.NetworkRXDiscards {
+			totalTests++
+			if network.Status == "PASS" {
+				passedTests++
+				output.WriteString(fmt.Sprintf("   ✅ Network Interfaces: %d checked, no RX discard issues (PASSED)\n", network.InterfaceCount))
+			} else {
+				failedTests++
+				if network.FailedCount > 0 {
+					output.WriteString(fmt.Sprintf("   ❌ Network Interfaces: %d failed out of %d checked (FAILED)\n", network.FailedCount, network.InterfaceCount))
+				} else {
+					output.WriteString(fmt.Sprintf("   ❌ Network Interfaces: RX discard check failed (FAILED)\n"))
+				}
 			}
 		}
 		output.WriteString("\n")

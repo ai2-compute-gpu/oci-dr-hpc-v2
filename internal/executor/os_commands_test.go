@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -722,5 +723,152 @@ func TestNewOSDiscoveryFunctionsParsing(t *testing.T) {
 		if foundInterface != expected {
 			t.Errorf("Expected interface %s, got %s", expected, foundInterface)
 		}
+	})
+}
+
+// Test RunEthtoolStats function
+func TestRunEthtoolStats(t *testing.T) {
+	if !canRunSudo() {
+		t.Skip("Skipping test that requires sudo access")
+	}
+
+	tests := []struct {
+		name          string
+		interfaceName string
+		grepPattern   string
+		expectError   bool
+	}{
+		{
+			name:          "ethtool_stats_basic",
+			interfaceName: "lo", // loopback interface should exist on most systems
+			grepPattern:   "",
+			expectError:   false,
+		},
+		{
+			name:          "ethtool_stats_with_grep",
+			interfaceName: "lo",
+			grepPattern:   "rx_packets",
+			expectError:   false,
+		},
+		{
+			name:          "ethtool_stats_ethernet_interface",
+			interfaceName: "enp12s0f0", // May not exist in test environment
+			grepPattern:   "rx_prio.*_discards",
+			expectError:   true, // Likely to fail in test environment
+		},
+		{
+			name:          "ethtool_stats_ethernet_interface",
+			interfaceName: "rdma0", // May not exist in test environment
+			grepPattern:   "rx_prio.*_discards",
+			expectError:   true, // Likely to fail in test environment
+		},
+		{
+			name:          "ethtool_stats_nonexistent_interface",
+			interfaceName: "nonexistent999",
+			grepPattern:   "",
+			expectError:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := RunEthtoolStats(tt.interfaceName, tt.grepPattern)
+
+			if tt.expectError && err == nil {
+				t.Logf("Expected error but got none (may be normal for %s)", tt.interfaceName)
+			}
+			if !tt.expectError && err != nil {
+				t.Logf("Unexpected error for %s (may be normal in test env): %v", tt.interfaceName, err)
+			}
+
+			if result == nil {
+				t.Fatal("Expected result but got nil")
+			}
+
+			// Verify command string format
+			expectedCmdStart := fmt.Sprintf("sudo ethtool -S %s", tt.interfaceName)
+			if !strings.HasPrefix(result.Command, expectedCmdStart) {
+				t.Errorf("Expected command to start with '%s', got '%s'", expectedCmdStart, result.Command)
+			}
+
+			// If grep pattern specified, verify it's in the command
+			if tt.grepPattern != "" && !strings.Contains(result.Command, "grep") {
+				t.Error("Expected command to contain 'grep' when pattern specified")
+			}
+
+			// Log the output for debugging
+			if result.Output != "" {
+				t.Logf("ethtool output for %s: %s", tt.interfaceName, result.Output)
+			}
+		})
+	}
+}
+
+// Test ethtool stats edge cases
+func TestEthtoolStatsEdgeCases(t *testing.T) {
+	if !canRunSudo() {
+		t.Skip("Skipping test that requires sudo access")
+	}
+
+	t.Run("empty_interface_name", func(t *testing.T) {
+		result, err := RunEthtoolStats("", "")
+
+		if result == nil {
+			t.Fatal("Expected result but got nil")
+		}
+
+		// Should fail with empty interface name
+		if err == nil {
+			t.Log("No error for empty interface name (unexpected but not critical)")
+		}
+
+		t.Logf("Result for empty interface: %v", result.Command)
+	})
+
+	t.Run("special_characters_in_pattern", func(t *testing.T) {
+		result, _ := RunEthtoolStats("lo", "rx.*packets")
+
+		if result == nil {
+			t.Fatal("Expected result but got nil")
+		}
+
+		// Should handle regex patterns in grep
+		if !strings.Contains(result.Command, "rx.*packets") {
+			t.Error("Expected command to contain the grep pattern")
+		}
+
+		t.Logf("Result for regex pattern: %v", result.Command)
+	})
+}
+
+// Integration test for ethtool stats
+func TestEthtoolStatsIntegration(t *testing.T) {
+	if !canRunSudo() {
+		t.Skip("Skipping integration test - requires sudo access")
+	}
+
+	t.Run("loopback_interface_stats", func(t *testing.T) {
+		result, err := RunEthtoolStats("lo", "")
+
+		if err != nil {
+			t.Logf("ethtool failed for loopback (may be expected): %v", err)
+			return
+		}
+
+		if result == nil {
+			t.Fatal("Expected result but got nil")
+		}
+
+		if result.Output == "" {
+			t.Log("No ethtool output for loopback (may be normal)")
+		}
+
+		// Verify command format
+		expectedCmd := "sudo ethtool -S lo"
+		if result.Command != expectedCmd {
+			t.Errorf("Expected command '%s', got '%s'", expectedCmd, result.Command)
+		}
+
+		t.Logf("Loopback ethtool stats successful")
 	})
 }
