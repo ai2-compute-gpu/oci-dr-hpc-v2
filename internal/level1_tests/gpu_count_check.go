@@ -5,10 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/oracle/oci-dr-hpc-v2/internal/test_limits"
-	"os"
 	"strings"
 
-	"github.com/oracle/oci-dr-hpc-v2/internal/config"
 	"github.com/oracle/oci-dr-hpc-v2/internal/executor"
 	"github.com/oracle/oci-dr-hpc-v2/internal/logger"
 	"github.com/oracle/oci-dr-hpc-v2/internal/reporter"
@@ -31,7 +29,8 @@ type ShapeHardware struct {
 }
 
 type GpuCountCheckTestConfig struct {
-	IsEnabled bool `json:"enabled"`
+	IsEnabled        bool `json:"enabled"`
+	ExpectedGpuCount int  `json:"expected_gpu_count"`
 }
 
 // Gets test config needed to run this test
@@ -44,7 +43,8 @@ func getGpuCountCheckTestConfig(shape string) (*GpuCountCheckTestConfig, error) 
 
 	// Result
 	gpuCountCheckTestConfig := &GpuCountCheckTestConfig{
-		IsEnabled: false,
+		IsEnabled:        false,
+		ExpectedGpuCount: 0,
 	}
 
 	enabled, err := limits.IsTestEnabled(shape, "gpu_count_check")
@@ -52,6 +52,15 @@ func getGpuCountCheckTestConfig(shape string) (*GpuCountCheckTestConfig, error) 
 		return nil, err
 	}
 	gpuCountCheckTestConfig.IsEnabled = enabled
+
+	threshold, err := limits.GetThresholdForTest(shape, "gpu_count_check")
+	if err != nil {
+		return nil, err
+	}
+	if threshold, ok := threshold.(float64); ok {
+		gpuCountCheckTestConfig.ExpectedGpuCount = int(threshold)
+	}
+
 	return gpuCountCheckTestConfig, nil
 }
 
@@ -136,34 +145,6 @@ func PrintGPUCountCheck() {
 	logger.Info("GPU Count Check: PASS - Number of GPUs detected:", gpuCount)
 }
 
-// getExpectedGPUCount reads shapes.json and returns the expected GPU count for the given shape
-func getExpectedGPUCount(shapeName string) (int, error) {
-	shapesFilePath := config.GetShapesFilePath()
-
-	logger.Info("Loading shapes configuration from:", shapesFilePath)
-
-	// Read the shapes.json file
-	data, err := os.ReadFile(shapesFilePath)
-	if err != nil {
-		return 0, fmt.Errorf("failed to read shapes.json: %w", err)
-	}
-
-	// Parse the JSON
-	var shapesConfig ShapesConfig
-	if err := json.Unmarshal(data, &shapesConfig); err != nil {
-		return 0, fmt.Errorf("failed to parse shapes.json: %w", err)
-	}
-
-	// Find the shape in hpc-shapes
-	for _, shapeHW := range shapesConfig.HPCShapes {
-		if shapeHW.Shape == shapeName {
-			return shapeHW.GetGPUCount(), nil
-		}
-	}
-
-	return 0, fmt.Errorf("shape %s not found in shapes.json", shapeName)
-}
-
 // getActualGPUCount uses nvidia-smi to get the actual number of GPUs
 func getActualGPUCount() (int, error) {
 	// Use nvidia-smi to query GPU names and count them
@@ -199,7 +180,9 @@ func RunGPUCountCheck() error {
 	// Step 2: Check if the test is enabled for this shape
 	gpuCountCheckTestConfig, err := getGpuCountCheckTestConfig(shape)
 	if err != nil {
-		return err
+		logger.Error("GPU Count Check: FAIL - Could not get expected GPU count:", err)
+		rep.AddGPUResult("FAIL", 0, err)
+		return fmt.Errorf("failed to get expected GPU count: %w", err)
 	}
 
 	if !gpuCountCheckTestConfig.IsEnabled {
@@ -210,12 +193,7 @@ func RunGPUCountCheck() error {
 
 	// Step 3: Look up expected GPU count from shapes.json
 	logger.Info("Step 2: Getting expected GPU count from shapes.json...")
-	expectedCount, err := getExpectedGPUCount(shape)
-	if err != nil {
-		logger.Error("GPU Count Check: FAIL - Could not get expected GPU count:", err)
-		rep.AddGPUResult("FAIL", 0, err)
-		return fmt.Errorf("failed to get expected GPU count: %w", err)
-	}
+	expectedCount := gpuCountCheckTestConfig.ExpectedGpuCount
 	logger.Info("Expected GPU count for shape", shape+":", expectedCount)
 
 	// Step 4: Get actual GPU count from nvidia-smi

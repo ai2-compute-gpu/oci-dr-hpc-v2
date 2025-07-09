@@ -16,6 +16,7 @@
         "test_category": "LEVEL_1"
       },
       "gpu_count_check": {
+        "threshold": 8,
         "enabled": true,
         "test_category": "LEVEL_1"
       },
