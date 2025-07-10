@@ -92,6 +92,38 @@ func RunDmesg(options ...string) (*OSCommandResult, error) {
 	return result, nil
 }
 
+// https://enterprise-support.nvidia.com/s/article/understanding-show-gids-script#jive_content_id_References
+// RunShowGids executes show_gids command with specified options
+func RunShowGids(options ...string) (*OSCommandResult, error) {
+	logger.Info("Running show_gids command...")
+
+	// Build command arguments - prepend show_gids to sudo args
+	args := append([]string{"show_gids"}, options...)
+
+	cmd := exec.Command("sudo", args...)
+	output, err := cmd.CombinedOutput()
+
+	result := &OSCommandResult{
+		Command: fmt.Sprintf("sudo show_gids %s", strings.Join(options, " ")),
+		Output:  string(output),
+		Error:   err,
+	}
+
+	if err != nil {
+		if exitError, ok := err.(*exec.ExitError); ok {
+			result.ExitCode = exitError.ExitCode()
+		}
+		logger.Errorf("show_gids command failed: %v", err)
+		logger.Debugf("show_gids output: %s", result.Output)
+		return result, err
+	}
+
+	logger.Info("show_gids command completed successfully")
+	logger.Debugf("show_gids output length: %d characters", len(result.Output))
+
+	return result, nil
+}
+
 // GetHostname retrieves the system hostname using os.Hostname()
 func GetHostname() (string, error) {
 	logger.Info("Getting system hostname...")

@@ -149,6 +149,24 @@ func TestGetThresholdForTest(t *testing.T) {
 		t.Error("Expected threshold to be an object")
 	}
 
+	// Test GID index threshold (array)
+	threshold, err = limits.GetThresholdForTest("BM.GPU.H100.8", "gid_index_check")
+	if err != nil {
+		t.Errorf("Failed to get GID index threshold: %v", err)
+	}
+	if threshold == nil {
+		t.Error("Expected non-nil threshold")
+	}
+
+	// Verify it's an array
+	if thresholdArray, ok := threshold.([]interface{}); ok {
+		if len(thresholdArray) != 4 {
+			t.Errorf("Expected 4 threshold values, got %d", len(thresholdArray))
+		}
+	} else {
+		t.Error("Expected threshold to be an array")
+	}
+
 	// Test disabled test
 	_, err = limits.GetThresholdForTest("BM.GPU.B200.8", "rx_discards_check")
 	if err == nil {
@@ -206,11 +224,12 @@ func TestGetEnabledTests(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to get enabled tests: %v", err)
 	}
-	if len(enabledTests) != 5 {
-		t.Errorf("Expected 5 enabled tests for H100, got %d", len(enabledTests))
+	if len(enabledTests) != 6 {
+		t.Errorf("Expected 6 enabled tests for H100, got %d", len(enabledTests))
 	}
 
 	expectedTests := map[string]bool{
+		"gid_index_check":   false,
 		"rx_discards_check": false,
 		"sram_error_check":  false,
 		"gpu_count_check":   false,
@@ -285,6 +304,18 @@ func TestJSONStructureParsing(t *testing.T) {
 	}
 
 	// Check test configurations
+	gidConfig, exists := h100Config["gid_index_check"]
+	if !exists {
+		t.Error("Expected gid_index_check configuration")
+	} else {
+		if !gidConfig.Enabled {
+			t.Error("Expected gid_index_check to be enabled")
+		}
+		if gidConfig.TestCategory != "LEVEL_1" {
+			t.Errorf("Expected test category LEVEL_1, got %s", gidConfig.TestCategory)
+		}
+	}
+
 	rxConfig, exists := h100Config["rx_discards_check"]
 	if !exists {
 		t.Error("Expected rx_discards_check configuration")

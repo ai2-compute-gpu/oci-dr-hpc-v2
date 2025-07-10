@@ -12,13 +12,14 @@ import (
 
 // TestResult represents a single test result from the reporter
 type TestResult struct {
-	Status           string `json:"status"`
-	GPUCount         int    `json:"gpu_count,omitempty"`
-	NumRDMANics      int    `json:"num_rdma_nics,omitempty"`
-	FailedCount      int    `json:"failed_count,omitempty"`
-	FailedInterfaces string `json:"failed_interfaces,omitempty"`
-	InterfaceCount   int    `json:"interface_count,omitempty"`
-	TimestampUTC     string `json:"timestamp_utc"`
+	Status            string `json:"status"`
+	GPUCount          int    `json:"gpu_count,omitempty"`
+	NumRDMANics       int    `json:"num_rdma_nics,omitempty"`
+	FailedCount       int    `json:"failed_count,omitempty"`
+	FailedInterfaces  string `json:"failed_interfaces,omitempty"`
+	InterfaceCount    int    `json:"interface_count,omitempty"`
+	InvalidGIDIndexes []int  `json:"invalid_gid_indexes,omitempty"`
+	TimestampUTC      string `json:"timestamp_utc"`
 }
 
 // HostResults represents test results for a host
@@ -27,6 +28,7 @@ type HostResults struct {
 	PCIeErrorCheck  []TestResult `json:"pcie_error_check,omitempty"`
 	RDMANicsCount   []TestResult `json:"rdma_nics_count,omitempty"`
 	RxDiscardsCheck []TestResult `json:"rx_discards_check,omitempty"`
+	GIDIndexCheck   []TestResult `json:"gid_index_check,omitempty"`
 }
 
 // ReportOutput represents the single report format
@@ -140,6 +142,7 @@ func generateRecommendations(results HostResults) RecommendationReport {
 		{"pcie_error_check", results.PCIeErrorCheck},
 		{"rdma_nics_count", results.RDMANicsCount},
 		{"rx_discards_check", results.RxDiscardsCheck},
+		{"gid_index_check", results.GIDIndexCheck},
 	}
 
 	for _, mapping := range testMappings {
@@ -243,6 +246,21 @@ func generateFallbackRecommendations(results HostResults) RecommendationReport {
 			}
 			recommendations = append(recommendations, rec)
 			warningCount++
+		}
+	}
+
+	// Basic GID Index recommendations
+	for _, gidIndex := range results.GIDIndexCheck {
+		if gidIndex.Status == "FAIL" {
+			rec := Recommendation{
+				Type:       "critical",
+				TestName:   "gid_index_check",
+				Issue:      fmt.Sprintf("GID index check failed (invalid indexes: %v)", gidIndex.InvalidGIDIndexes),
+				Suggestion: "Verify RDMA GID configuration and check for interface issues",
+				Commands:   []string{"show_gids", "ibstat", "rdma link show"},
+			}
+			recommendations = append(recommendations, rec)
+			criticalCount++
 		}
 	}
 
