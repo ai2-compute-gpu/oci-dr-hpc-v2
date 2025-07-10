@@ -52,7 +52,7 @@ func TestGetTestConfig(t *testing.T) {
 	}
 
 	// Test valid configuration
-	config, err := limits.GetTestConfig("BM.GPU.H100.8", "gid_index_check")
+	config, err := limits.GetTestConfig("BM.GPU.H100.8", "rx_discards_check")
 	if err != nil {
 		t.Errorf("Failed to get test config: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestGetTestConfig(t *testing.T) {
 	}
 
 	// Test invalid shape
-	_, err = limits.GetTestConfig("INVALID.SHAPE", "gid_index_check")
+	_, err = limits.GetTestConfig("INVALID.SHAPE", "rx_discards_check")
 	if err == nil {
 		t.Error("Expected error for invalid shape")
 	}
@@ -89,25 +89,25 @@ func TestIsTestEnabled(t *testing.T) {
 	}
 
 	// Test enabled test
-	enabled, err := limits.IsTestEnabled("BM.GPU.H100.8", "gid_index_check")
+	enabled, err := limits.IsTestEnabled("BM.GPU.H100.8", "rx_discards_check")
 	if err != nil {
 		t.Errorf("Failed to check if test is enabled: %v", err)
 	}
 	if !enabled {
-		t.Error("Expected GID index check to be enabled for H100")
+		t.Error("Expected rx_discards_check to be enabled for H100")
 	}
 
 	// Test disabled test
-	enabled, err = limits.IsTestEnabled("BM.GPU.B200.8", "gid_index_check")
+	enabled, err = limits.IsTestEnabled("BM.GPU.B200.8", "rx_discards_check")
 	if err != nil {
 		t.Errorf("Failed to check if test is enabled: %v", err)
 	}
 	if enabled {
-		t.Error("Expected GID index check to be disabled for B200")
+		t.Error("Expected rx_discards_check to be disabled for B200")
 	}
 
 	// Test invalid shape
-	_, err = limits.IsTestEnabled("INVALID.SHAPE", "gid_index_check")
+	_, err = limits.IsTestEnabled("INVALID.SHAPE", "rx_discards_check")
 	if err == nil {
 		t.Error("Expected error for invalid shape")
 	}
@@ -119,26 +119,8 @@ func TestGetThresholdForTest(t *testing.T) {
 		t.Fatalf("Failed to load test limits: %v", err)
 	}
 
-	// Test GID index threshold (array)
-	threshold, err := limits.GetThresholdForTest("BM.GPU.H100.8", "gid_index_check")
-	if err != nil {
-		t.Errorf("Failed to get GID index threshold: %v", err)
-	}
-	if threshold == nil {
-		t.Error("Expected non-nil threshold")
-	}
-
-	// Verify it's an array
-	if thresholdArray, ok := threshold.([]interface{}); ok {
-		if len(thresholdArray) != 4 {
-			t.Errorf("Expected 4 threshold values, got %d", len(thresholdArray))
-		}
-	} else {
-		t.Error("Expected threshold to be an array")
-	}
-
 	// Test RX discards threshold (number)
-	threshold, err = limits.GetThresholdForTest("BM.GPU.H100.8", "rx_discards_check")
+	threshold, err := limits.GetThresholdForTest("BM.GPU.H100.8", "rx_discards_check")
 	if err != nil {
 		t.Errorf("Failed to get RX discards threshold: %v", err)
 	}
@@ -168,7 +150,7 @@ func TestGetThresholdForTest(t *testing.T) {
 	}
 
 	// Test disabled test
-	_, err = limits.GetThresholdForTest("BM.GPU.B200.8", "gid_index_check")
+	_, err = limits.GetThresholdForTest("BM.GPU.B200.8", "rx_discards_check")
 	if err == nil {
 		t.Error("Expected error for disabled test")
 	}
@@ -224,12 +206,11 @@ func TestGetEnabledTests(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to get enabled tests: %v", err)
 	}
-	if len(enabledTests) != 6 {
-		t.Errorf("Expected 6 enabled tests for H100, got %d", len(enabledTests))
+	if len(enabledTests) != 5 {
+		t.Errorf("Expected 5 enabled tests for H100, got %d", len(enabledTests))
 	}
 
 	expectedTests := map[string]bool{
-		"gid_index_check":   false,
 		"rx_discards_check": false,
 		"sram_error_check":  false,
 		"gpu_count_check":   false,
@@ -304,18 +285,6 @@ func TestJSONStructureParsing(t *testing.T) {
 	}
 
 	// Check test configurations
-	gidConfig, exists := h100Config["gid_index_check"]
-	if !exists {
-		t.Error("Expected gid_index_check configuration")
-	} else {
-		if !gidConfig.Enabled {
-			t.Error("Expected gid_index_check to be enabled")
-		}
-		if gidConfig.TestCategory != "LEVEL_1" {
-			t.Errorf("Expected test category LEVEL_1, got %s", gidConfig.TestCategory)
-		}
-	}
-
 	rxConfig, exists := h100Config["rx_discards_check"]
 	if !exists {
 		t.Error("Expected rx_discards_check configuration")
