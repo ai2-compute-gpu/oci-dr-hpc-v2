@@ -42,19 +42,20 @@ type RDMATestResult struct {
 }
 
 // NetworkTestResult represents network test results
-type NetworkRXDiscardsTestResult struct {
-	InterfaceCount int    `json:"interface_count"`
-	FailedCount    int    `json:"failed_count,omitempty"`
-	Status         string `json:"status"`
-	TimestampUTC   string `json:"timestamp_utc"`
+type RXDiscardsCheckTestResult struct {
+	InterfaceCount   int    `json:"interface_count"`
+	FailedCount      int    `json:"failed_count,omitempty"`
+	FailedInterfaces string `json:"failed_interfaces,omitempty"`
+	Status           string `json:"status"`
+	TimestampUTC     string `json:"timestamp_utc"`
 }
 
 // HostResults represents test results for a host
 type HostResults struct {
-	GPUCountCheck     []GPUTestResult               `json:"gpu_count_check,omitempty"`
-	PCIeErrorCheck    []PCIeTestResult              `json:"pcie_error_check,omitempty"`
-	RDMANicsCount     []RDMATestResult              `json:"rdma_nics_count,omitempty"`
-	NetworkRXDiscards []NetworkRXDiscardsTestResult `json:"network_rx_discards,omitempty"`
+	GPUCountCheck   []GPUTestResult             `json:"gpu_count_check,omitempty"`
+	PCIeErrorCheck  []PCIeTestResult            `json:"pcie_error_check,omitempty"`
+	RDMANicsCount   []RDMATestResult            `json:"rdma_nics_count,omitempty"`
+	RXDiscardsCheck []RXDiscardsCheckTestResult `json:"rx_discards_check,omitempty"`
 }
 
 // ReportOutput represents the final JSON output structure
@@ -176,8 +177,8 @@ func (r *Reporter) AddRDMAResult(status string, rdmaNicCount int, err error) {
 	r.AddResult("rdma_nic_count", status, details, err)
 }
 
-// AddNetworkRxDiscardsResult adds network discards test results
-func (r *Reporter) AddNetworkRxDiscardsResult(status string, interfaceCount int, err error) {
+// AddRXDiscardsCheckResult adds network discards test results
+func (r *Reporter) AddRXDiscardsCheckResult(status string, interfaceCount int, failedInterfaces []string, err error) {
 	details := map[string]interface{}{
 		"interface_count": interfaceCount,
 	}
@@ -186,12 +187,11 @@ func (r *Reporter) AddNetworkRxDiscardsResult(status string, interfaceCount int,
 	if status == "FAIL" {
 		// For network tests, interfaceCount might represent failed interfaces
 		// when status is FAIL, otherwise it represents total interfaces checked
-		if status == "FAIL" {
-			details["failed_count"] = interfaceCount
-		}
+		details["failed_count"] = len(failedInterfaces)
+		details["failed_interfaces"] = strings.Join(failedInterfaces, ",")
 	}
 
-	r.AddResult("network_rx_discards", status, details, err)
+	r.AddResult("rx_discards_check", status, details, err)
 }
 
 // GenerateReport generates the final JSON report
@@ -245,9 +245,10 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 	}
 
 	// Process Network results
-	if result, exists := r.results["network_rx_discards"]; exists {
+	if result, exists := r.results["rx_discards_check"]; exists {
 		interfaceCount := 0
 		failedCount := 0
+		failedInterfaces := ""
 
 		if countVal, ok := result.Details["interface_count"]; ok {
 			if count, ok := countVal.(int); ok {
@@ -261,13 +262,20 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 			}
 		}
 
-		networkResult := NetworkRXDiscardsTestResult{
-			InterfaceCount: interfaceCount,
-			FailedCount:    failedCount,
-			Status:         result.Status,
-			TimestampUTC:   result.Timestamp.UTC().Format(time.RFC3339),
+		if failedInterfacesInResult, ok := result.Details["failed_interfaces"]; ok {
+			if failedInterfacesInResultStr, ok := failedInterfacesInResult.(string); ok {
+				failedInterfaces = failedInterfacesInResultStr
+			}
 		}
-		report.Localhost.NetworkRXDiscards = []NetworkRXDiscardsTestResult{networkResult}
+
+		networkResult := RXDiscardsCheckTestResult{
+			InterfaceCount:   interfaceCount,
+			FailedCount:      failedCount,
+			Status:           result.Status,
+			FailedInterfaces: failedInterfaces,
+			TimestampUTC:     result.Timestamp.UTC().Format(time.RFC3339),
+		}
+		report.Localhost.RXDiscardsCheck = []RXDiscardsCheckTestResult{networkResult}
 	}
 
 	return report, nil
@@ -434,8 +442,8 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 	}
 
 	// Network Tests
-	if len(report.Localhost.NetworkRXDiscards) > 0 {
-		for _, network := range report.Localhost.NetworkRXDiscards {
+	if len(report.Localhost.RXDiscardsCheck) > 0 {
+		for _, network := range report.Localhost.RXDiscardsCheck {
 			status := network.Status
 			statusSymbol := "✅"
 			if status == "FAIL" {
@@ -517,10 +525,10 @@ func (r *Reporter) formatFriendly(report *ReportOutput) (string, error) {
 	}
 
 	// Network Tests
-	if len(report.Localhost.NetworkRXDiscards) > 0 {
+	if len(report.Localhost.RXDiscardsCheck) > 0 {
 		output.WriteString("🌐 Network RX Discards Check\n")
 		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
-		for _, network := range report.Localhost.NetworkRXDiscards {
+		for _, network := range report.Localhost.RXDiscardsCheck {
 			totalTests++
 			if network.Status == "PASS" {
 				passedTests++

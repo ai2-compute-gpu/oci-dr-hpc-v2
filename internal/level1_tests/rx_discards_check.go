@@ -208,7 +208,7 @@ func RunRXDiscardsCheck() error {
 	results, err := runRXDiscardsCheck()
 	if err != nil {
 		logger.Error("RX Discards Check: FAIL - Error during check:", err)
-		rep.AddNetworkRxDiscardsResult("FAIL", 0, err)
+		rep.AddRXDiscardsCheckResult("FAIL", 0, []string{}, err)
 		return fmt.Errorf("failed to run RX discards check: %w", err)
 	}
 
@@ -216,7 +216,7 @@ func RunRXDiscardsCheck() error {
 	jsonResults, err := json.MarshalIndent(results, "", "  ")
 	if err != nil {
 		logger.Error("RX Discards Check: FAIL - Failed to marshal results:", err)
-		rep.AddNetworkRxDiscardsResult("FAIL", 0, err)
+		rep.AddRXDiscardsCheckResult("FAIL", 0, []string{}, err)
 		return fmt.Errorf("failed to marshal results: %w", err)
 	}
 
@@ -224,27 +224,25 @@ func RunRXDiscardsCheck() error {
 	logger.Info(string(jsonResults))
 
 	// Check if any interface failed
-	failedCount := 0
-	passedCount := 0
+	var failedInterfaces []string
 	for _, result := range results {
 		if result.RXDiscards.Status == "FAIL" {
-			failedCount++
+			failedInterfaces = append(failedInterfaces, result.RXDiscards.Device)
 			logger.Errorf("Interface %s: FAIL", result.RXDiscards.Device)
 		} else {
-			passedCount++
 			logger.Infof("Interface %s: PASS", result.RXDiscards.Device)
 		}
 	}
 
 	// Report overall result
-	if failedCount > 0 {
-		err := fmt.Errorf("RX discards check failed for %d out of %d interfaces", failedCount, len(results))
+	if len(failedInterfaces) > 0 {
+		err := fmt.Errorf("RX discards check failed for %d out of %d interfaces", len(failedInterfaces), len(results))
 		logger.Error("RX Discards Check: FAIL -", err)
-		rep.AddNetworkRxDiscardsResult("FAIL", failedCount, err)
+		rep.AddRXDiscardsCheckResult("FAIL", len(results), failedInterfaces, err)
 		return err
 	}
 
 	logger.Info("RX Discards Check: PASS - All interfaces passed")
-	rep.AddNetworkRxDiscardsResult("PASS", len(results), nil)
+	rep.AddRXDiscardsCheckResult("PASS", len(results), failedInterfaces, nil)
 	return nil
 }
