@@ -560,7 +560,7 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 				statusSymbol = "❌"
 			}
 			details := fmt.Sprintf("Uncorr: %d, Corr: %d", sram.MaxUncorrectable, sram.MaxCorrectable)
-			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s         │\n",
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s        │\n",
 				"SRAM Error Check", statusSymbol, statusSymbol, details))
 		}
 	}
