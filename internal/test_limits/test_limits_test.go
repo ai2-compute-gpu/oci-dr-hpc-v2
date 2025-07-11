@@ -139,8 +139,8 @@ func TestGetThresholdForTest(t *testing.T) {
 	}
 	if thresholdObj, ok := threshold.(map[string]interface{}); ok {
 		if uncorrectable, exists := thresholdObj["uncorrectable"]; exists {
-			if uncorrectable.(float64) != 10 {
-				t.Errorf("Expected uncorrectable threshold 10, got %v", uncorrectable)
+			if uncorrectable.(float64) != 5 {
+				t.Errorf("Expected uncorrectable threshold 5, got %v", uncorrectable)
 			}
 		} else {
 			t.Error("Expected uncorrectable field in SRAM threshold")

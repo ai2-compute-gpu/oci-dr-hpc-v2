@@ -276,7 +276,10 @@ func generateFallbackRecommendations(results HostResults) RecommendationReport {
 				TestName:   "sram_error_check",
 				Issue:      fmt.Sprintf("SRAM uncorrectable errors detected (max: %d)", sram.MaxUncorrectable),
 				Suggestion: "Check GPU memory health and consider replacing affected hardware",
-				Commands:   []string{"nvidia-smi -q", "nvidia-smi --query-gpu=memory.total,memory.free --format=csv"},
+				Commands: []string{
+					"sudo nvidia-smi -q | grep -A 3 Aggregate | grep Correctable",
+					"sudo nvidia-smi -q | grep -A 3 Aggregate | grep Uncorrectable",
+				},
 			}
 			recommendations = append(recommendations, rec)
 			criticalCount++
@@ -286,7 +289,10 @@ func generateFallbackRecommendations(results HostResults) RecommendationReport {
 				TestName:   "sram_error_check",
 				Issue:      fmt.Sprintf("SRAM correctable errors exceed threshold (max: %d)", sram.MaxCorrectable),
 				Suggestion: "Monitor GPU memory health and consider maintenance scheduling",
-				Commands:   []string{"nvidia-smi -q", "watch -n 1 nvidia-smi"},
+				Commands: []string{
+					"sudo nvidia-smi -q | grep -A 3 Aggregate | grep Correctable",
+					"sudo nvidia-smi -q | grep -A 3 Aggregate | grep Uncorrectable",
+				},
 			}
 			recommendations = append(recommendations, rec)
 			warningCount++

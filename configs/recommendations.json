@@ -151,7 +151,8 @@
         "issue": "GPU SRAM error levels are within acceptable limits (uncorrectable: {max_uncorrectable}, correctable: {max_correctable})",
         "suggestion": "Continue monitoring GPU memory health as part of regular maintenance",
         "commands": [
-          "nvidia-smi -q | grep -A 10 'Memory Error'"
+          "sudo nvidia-smi -q | grep -A 3 Aggregate | grep Correctable",
+          "sudo nvidia-smi -q | grep -A 3 Aggregate | grep Uncorrectable"
         ]
       }
     }
