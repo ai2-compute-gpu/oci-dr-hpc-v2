@@ -50,12 +50,20 @@ type RXDiscardsCheckTestResult struct {
 	TimestampUTC     string `json:"timestamp_utc"`
 }
 
+// GIDIndexTestResult represents GID index test results
+type GIDIndexTestResult struct {
+	Status         string `json:"status"`
+	InvalidIndexes []int  `json:"invalid_indexes,omitempty"`
+	TimestampUTC   string `json:"timestamp_utc"`
+}
+
 // HostResults represents test results for a host
 type HostResults struct {
 	GPUCountCheck   []GPUTestResult             `json:"gpu_count_check,omitempty"`
 	PCIeErrorCheck  []PCIeTestResult            `json:"pcie_error_check,omitempty"`
 	RDMANicsCount   []RDMATestResult            `json:"rdma_nics_count,omitempty"`
 	RXDiscardsCheck []RXDiscardsCheckTestResult `json:"rx_discards_check,omitempty"`
+	GIDIndexCheck   []GIDIndexTestResult        `json:"gid_index_check,omitempty"`
 }
 
 // ReportOutput represents the final JSON output structure
@@ -194,6 +202,14 @@ func (r *Reporter) AddRXDiscardsCheckResult(status string, interfaceCount int, f
 	r.AddResult("rx_discards_check", status, details, err)
 }
 
+// AddGIDIndexResult adds GID index test results
+func (r *Reporter) AddGIDIndexResult(status string, invalidIndexes []int, err error) {
+	details := map[string]interface{}{
+		"invalid_indexes": invalidIndexes,
+	}
+	r.AddResult("gid_index_check", status, details, err)
+}
+
 // GenerateReport generates the final JSON report
 func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 	r.mutex.RLock()
@@ -276,6 +292,22 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 			TimestampUTC:     result.Timestamp.UTC().Format(time.RFC3339),
 		}
 		report.Localhost.RXDiscardsCheck = []RXDiscardsCheckTestResult{networkResult}
+	}
+
+	// Process GID Index results
+	if result, exists := r.results["gid_index_check"]; exists {
+		var invalidIndexes []int
+		if indexesVal, ok := result.Details["invalid_indexes"]; ok {
+			if indexes, ok := indexesVal.([]int); ok {
+				invalidIndexes = indexes
+			}
+		}
+		gidResult := GIDIndexTestResult{
+			Status:         result.Status,
+			InvalidIndexes: invalidIndexes,
+			TimestampUTC:   result.Timestamp.UTC().Format(time.RFC3339),
+		}
+		report.Localhost.GIDIndexCheck = []GIDIndexTestResult{gidResult}
 	}
 
 	return report, nil
@@ -458,6 +490,23 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 		}
 	}
 
+	// GID Index Tests
+	if len(report.Localhost.GIDIndexCheck) > 0 {
+		for _, gid := range report.Localhost.GIDIndexCheck {
+			status := gid.Status
+			statusSymbol := "✅"
+			if status == "FAIL" {
+				statusSymbol = "❌"
+			}
+			details := "All indexes valid"
+			if len(gid.InvalidIndexes) > 0 {
+				details = fmt.Sprintf("invalid Index: %v", gid.InvalidIndexes)
+			}
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s         │\n",
+				"GID Index Check", statusSymbol, statusSymbol, details))
+		}
+	}
+
 	output.WriteString("└─────────────────────────────────────────────────────────────────┘\n")
 	return output.String(), nil
 }
@@ -539,6 +588,27 @@ func (r *Reporter) formatFriendly(report *ReportOutput) (string, error) {
 					output.WriteString(fmt.Sprintf("   ❌ Network Interfaces: %d failed out of %d checked (FAILED)\n", network.FailedCount, network.InterfaceCount))
 				} else {
 					output.WriteString(fmt.Sprintf("   ❌ Network Interfaces: RX discard check failed (FAILED)\n"))
+				}
+			}
+		}
+		output.WriteString("\n")
+	}
+
+	// GID Index Tests
+	if len(report.Localhost.GIDIndexCheck) > 0 {
+		output.WriteString("🔗 GID Index Check\n")
+		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
+		for _, gid := range report.Localhost.GIDIndexCheck {
+			totalTests++
+			if gid.Status == "PASS" {
+				passedTests++
+				output.WriteString("   ✅ GID Indexes: All valid (PASSED)\n")
+			} else {
+				failedTests++
+				if len(gid.InvalidIndexes) > 0 {
+					output.WriteString(fmt.Sprintf("   ❌ GID Indexes: Invalid indexes found %v (FAILED)\n", gid.InvalidIndexes))
+				} else {
+					output.WriteString("   ❌ GID Indexes: Check failed (FAILED)\n")
 				}
 			}
 		}

@@ -105,6 +105,28 @@
             "sudo ethtool -S {interface} | grep rx_prio.*_discards"
         ]
       }
+    },
+    "gid_index_check": {
+      "fail": {
+        "type": "critical",
+        "fault_code": "HPCGPU-0005-0001",
+        "issue": "GID index on a system is not in range",
+        "suggestion": "TODO: Suggestion",
+        "commands": [
+          "TODO: commands"
+        ],
+        "references": [
+          "TODO: references"
+        ]
+      },
+      "pass": {
+        "type": "info",
+        "issue": "GID index check passed",
+        "suggestion": "GID index on a system matches expected values",
+        "commands": [
+          "sudo show_gids | tail -n +3 | head -n -1"
+        ]
+      }
     }
   },
   "summary_templates": {

@@ -1,6 +1,11 @@
 {
   "test_limits" : {
     "BM.GPU.H100.8": {
+      "gid_index_check": {
+        "enabled": true,
+        "test_category": "LEVEL_1",
+        "threshold": [ 0, 1, 2, 3]
+      },
       "rx_discards_check": {
         "enabled": true,
         "test_category": "LEVEL_1",
@@ -29,6 +34,10 @@
       }
     },
     "BM.GPU.B200.8": {
+      "gid_index_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1"
+      },
       "rx_discards_check": {
         "enabled": false,
         "test_category": "LEVEL_1"
@@ -51,6 +60,11 @@
       }
     },
     "BM.GPU.GB200.4": {
+      "gid_index_check": {
+        "enabled": true,
+        "test_category": "LEVEL_1",
+        "threshold": [ 0, 1, 2, 3]
+      },
       "rx_discards_check": {
         "enabled": true,
         "test_category": "LEVEL_1",
