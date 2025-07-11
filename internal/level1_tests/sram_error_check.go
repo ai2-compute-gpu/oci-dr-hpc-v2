@@ -319,12 +319,13 @@ func RunSRAMCheck() error {
 		rep.AddSRAMResult("PASS", summary.MaxUncorrectable, summary.MaxCorrectable, nil)
 		return nil
 	} else if status == "WARN" {
-		logger.Info("SRAM Check: WARN - Correctable errors exceed threshold")
+		logger.Info("SRAM Check: FAIL - Correctable errors exceed threshold")
 		logger.Info("GPUs with excessive correctable errors:", summary.GPUsWithCorrectable)
 		logger.Info("Max correctable errors:", summary.MaxCorrectable)
 		err = fmt.Errorf("correctable SRAM errors exceed threshold: max=%d, threshold=%d",
 			summary.MaxCorrectable, sramErrorCheckTestConfig.CorrectableThreshold)
-		rep.AddSRAMResult("WARN", summary.MaxUncorrectable, summary.MaxCorrectable, err)
+		// Sending FAIL as the threshold is exceeded
+		rep.AddSRAMResult("FAIL", summary.MaxUncorrectable, summary.MaxCorrectable, err)
 		return err
 	} else {
 		logger.Error("SRAM Check: FAIL - Uncorrectable errors exceed threshold")
