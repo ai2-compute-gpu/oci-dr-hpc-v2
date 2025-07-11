@@ -473,7 +473,7 @@ The system includes comprehensive test scripts in the `scripts/` directory, orga
 - `rx_discards_check.py/sh` - Network RX discards monitoring
 - `gid_index_check.py/sh` - GID index validation
 - `max_acc_check.py/sh` - Max accelerator checks
-- `sram_check.py/sh` - SRAM validation
+- `sram_error_check.py/sh` - SRAM validation
 
 These scripts provide detailed diagnostics and can be referenced or integrated into the recommendation system.
 

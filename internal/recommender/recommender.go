@@ -19,6 +19,8 @@ type TestResult struct {
 	FailedInterfaces  string `json:"failed_interfaces,omitempty"`
 	InterfaceCount    int    `json:"interface_count,omitempty"`
 	InvalidGIDIndexes []int  `json:"invalid_gid_indexes,omitempty"`
+	MaxUncorrectable  int    `json:"max_uncorrectable,omitempty"`
+	MaxCorrectable    int    `json:"max_correctable,omitempty"`
 	TimestampUTC      string `json:"timestamp_utc"`
 }
 
@@ -29,6 +31,7 @@ type HostResults struct {
 	RDMANicsCount   []TestResult `json:"rdma_nics_count,omitempty"`
 	RxDiscardsCheck []TestResult `json:"rx_discards_check,omitempty"`
 	GIDIndexCheck   []TestResult `json:"gid_index_check,omitempty"`
+	SRAMErrorCheck  []TestResult `json:"sram_error_check,omitempty"`
 }
 
 // ReportOutput represents the single report format
@@ -143,6 +146,7 @@ func generateRecommendations(results HostResults) RecommendationReport {
 		{"rdma_nics_count", results.RDMANicsCount},
 		{"rx_discards_check", results.RxDiscardsCheck},
 		{"gid_index_check", results.GIDIndexCheck},
+		{"sram_error_check", results.SRAMErrorCheck},
 	}
 
 	for _, mapping := range testMappings {
@@ -261,6 +265,31 @@ func generateFallbackRecommendations(results HostResults) RecommendationReport {
 			}
 			recommendations = append(recommendations, rec)
 			criticalCount++
+		}
+	}
+
+	// Basic SRAM recommendations
+	for _, sram := range results.SRAMErrorCheck {
+		if sram.Status == "FAIL" {
+			rec := Recommendation{
+				Type:       "critical",
+				TestName:   "sram_error_check",
+				Issue:      fmt.Sprintf("SRAM uncorrectable errors detected (max: %d)", sram.MaxUncorrectable),
+				Suggestion: "Check GPU memory health and consider replacing affected hardware",
+				Commands:   []string{"nvidia-smi -q", "nvidia-smi --query-gpu=memory.total,memory.free --format=csv"},
+			}
+			recommendations = append(recommendations, rec)
+			criticalCount++
+		} else if sram.Status == "WARN" {
+			rec := Recommendation{
+				Type:       "warning",
+				TestName:   "sram_error_check",
+				Issue:      fmt.Sprintf("SRAM correctable errors exceed threshold (max: %d)", sram.MaxCorrectable),
+				Suggestion: "Monitor GPU memory health and consider maintenance scheduling",
+				Commands:   []string{"nvidia-smi -q", "watch -n 1 nvidia-smi"},
+			}
+			recommendations = append(recommendations, rec)
+			warningCount++
 		}
 	}
 

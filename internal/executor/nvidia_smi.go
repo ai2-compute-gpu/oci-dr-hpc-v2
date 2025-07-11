@@ -104,6 +104,57 @@ func RunNvidiaSMIQuery(query string) *NvidiaSMIResult {
 	return result
 }
 
+// Add this function to nvidia_smi.go
+
+// RunNvidiaSMIErrorQuery executes nvidia-smi -q command and greps for error information
+func RunNvidiaSMIErrorQuery(errorType string) (*OSCommandResult, error) {
+	logger.Infof("Running nvidia-smi error query for: %s", errorType)
+
+	// Check if nvidia-smi exists
+	_, err := exec.LookPath("nvidia-smi")
+	if err != nil {
+		return nil, fmt.Errorf("nvidia-smi not found in PATH: %w", err)
+	}
+
+	// Build the command to get SRAM error information
+	// This matches the Python implementation: nvidia-smi -q | grep -A 3 Aggregate | grep [errorType]
+	var cmd *exec.Cmd
+	var cmdStr string
+
+	switch strings.ToLower(errorType) {
+	case "uncorrectable":
+		cmdStr = "sudo nvidia-smi -q | grep -A 3 Aggregate | grep Uncorrectable"
+	case "correctable":
+		cmdStr = "sudo nvidia-smi -q | grep -A 3 Aggregate | grep Correctable"
+	default:
+		return nil, fmt.Errorf("unsupported error type: %s", errorType)
+	}
+
+	// Execute using shell since we need pipe operations
+	cmd = exec.Command("bash", "-c", cmdStr)
+	output, err := cmd.CombinedOutput()
+
+	result := &OSCommandResult{
+		Command: cmdStr,
+		Output:  string(output),
+		Error:   err,
+	}
+
+	if err != nil {
+		if exitError, ok := err.(*exec.ExitError); ok {
+			result.ExitCode = exitError.ExitCode()
+		}
+		logger.Errorf("nvidia-smi error query failed: %v", err)
+		logger.Debugf("nvidia-smi error query output: %s", result.Output)
+		return result, err
+	}
+
+	logger.Info("nvidia-smi error query completed successfully")
+	logger.Debugf("nvidia-smi error query output: %s", result.Output)
+
+	return result, nil
+}
+
 // GetGPUInfo queries nvidia-smi for comprehensive GPU information
 func GetGPUInfo() ([]GPUInfo, error) {
 	logger.Info("Querying GPU information from nvidia-smi...")

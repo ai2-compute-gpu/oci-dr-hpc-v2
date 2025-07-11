@@ -1,14 +1,21 @@
+// This script checks the RX discards on network interfaces using ethtool.
+// It verifies that the number of RX discards does not exceed a specified threshold,
+// indicating potential network issues. The script is designed to run on systems with
+// multiple network interfaces, such as H100 GPU systems, and provides a health check
+// for network performance.
+
 package level1_tests
 
 import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/oracle/oci-dr-hpc-v2/internal/test_limits"
-	"github.com/oracle/oci-dr-hpc-v2/internal/utils"
 	"math"
 	"strconv"
 	"strings"
+
+	"github.com/oracle/oci-dr-hpc-v2/internal/test_limits"
+	"github.com/oracle/oci-dr-hpc-v2/internal/utils"
 
 	"github.com/oracle/oci-dr-hpc-v2/internal/executor"
 	"github.com/oracle/oci-dr-hpc-v2/internal/logger"

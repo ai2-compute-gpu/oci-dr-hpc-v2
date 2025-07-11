@@ -57,6 +57,14 @@ type GIDIndexTestResult struct {
 	TimestampUTC   string `json:"timestamp_utc"`
 }
 
+// SRAMTestResult represents SRAM test results
+type SRAMTestResult struct {
+	Status           string `json:"status"`
+	MaxUncorrectable int    `json:"max_uncorrectable,omitempty"`
+	MaxCorrectable   int    `json:"max_correctable,omitempty"`
+	TimestampUTC     string `json:"timestamp_utc"`
+}
+
 // HostResults represents test results for a host
 type HostResults struct {
 	GPUCountCheck   []GPUTestResult             `json:"gpu_count_check,omitempty"`
@@ -64,6 +72,7 @@ type HostResults struct {
 	RDMANicsCount   []RDMATestResult            `json:"rdma_nics_count,omitempty"`
 	RXDiscardsCheck []RXDiscardsCheckTestResult `json:"rx_discards_check,omitempty"`
 	GIDIndexCheck   []GIDIndexTestResult        `json:"gid_index_check,omitempty"`
+	SRAMErrorCheck  []SRAMTestResult            `json:"sram_error_check,omitempty"`
 }
 
 // ReportOutput represents the final JSON output structure
@@ -210,6 +219,15 @@ func (r *Reporter) AddGIDIndexResult(status string, invalidIndexes []int, err er
 	r.AddResult("gid_index_check", status, details, err)
 }
 
+// AddSRAMResult adds SRAM test results
+func (r *Reporter) AddSRAMResult(status string, maxUncorrectable, maxCorrectable int, err error) {
+	details := map[string]interface{}{
+		"max_uncorrectable": maxUncorrectable,
+		"max_correctable":   maxCorrectable,
+	}
+	r.AddResult("sram_error_check", status, details, err)
+}
+
 // GenerateReport generates the final JSON report
 func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 	r.mutex.RLock()
@@ -308,6 +326,32 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 			TimestampUTC:   result.Timestamp.UTC().Format(time.RFC3339),
 		}
 		report.Localhost.GIDIndexCheck = []GIDIndexTestResult{gidResult}
+	}
+
+	// Process SRAM results
+	if result, exists := r.results["sram_error_check"]; exists {
+		maxUncorrectable := 0
+		maxCorrectable := 0
+
+		if uncorrVal, ok := result.Details["max_uncorrectable"]; ok {
+			if count, ok := uncorrVal.(int); ok {
+				maxUncorrectable = count
+			}
+		}
+
+		if corrVal, ok := result.Details["max_correctable"]; ok {
+			if count, ok := corrVal.(int); ok {
+				maxCorrectable = count
+			}
+		}
+
+		sramResult := SRAMTestResult{
+			Status:           result.Status,
+			MaxUncorrectable: maxUncorrectable,
+			MaxCorrectable:   maxCorrectable,
+			TimestampUTC:     result.Timestamp.UTC().Format(time.RFC3339),
+		}
+		report.Localhost.SRAMErrorCheck = []SRAMTestResult{sramResult}
 	}
 
 	return report, nil
@@ -507,6 +551,20 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 		}
 	}
 
+	// SRAM Tests
+	if len(report.Localhost.SRAMErrorCheck) > 0 {
+		for _, sram := range report.Localhost.SRAMErrorCheck {
+			status := sram.Status
+			statusSymbol := "✅"
+			if status == "FAIL" || status == "WARN" {
+				statusSymbol = "❌"
+			}
+			details := fmt.Sprintf("Uncorr: %d, Corr: %d", sram.MaxUncorrectable, sram.MaxCorrectable)
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s         │\n",
+				"SRAM Error Check", statusSymbol, statusSymbol, details))
+		}
+	}
+
 	output.WriteString("└─────────────────────────────────────────────────────────────────┘\n")
 	return output.String(), nil
 }
@@ -609,6 +667,30 @@ func (r *Reporter) formatFriendly(report *ReportOutput) (string, error) {
 					output.WriteString(fmt.Sprintf("   ❌ GID Indexes: Invalid indexes found %v (FAILED)\n", gid.InvalidIndexes))
 				} else {
 					output.WriteString("   ❌ GID Indexes: Check failed (FAILED)\n")
+				}
+			}
+		}
+		output.WriteString("\n")
+	}
+
+	// SRAM Tests
+	if len(report.Localhost.SRAMErrorCheck) > 0 {
+		output.WriteString("💾 SRAM Error Check\n")
+		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
+		for _, sram := range report.Localhost.SRAMErrorCheck {
+			totalTests++
+			if sram.Status == "PASS" {
+				passedTests++
+				output.WriteString(fmt.Sprintf("   ✅ SRAM Errors: Uncorrectable: %d, Correctable: %d (PASSED)\n",
+					sram.MaxUncorrectable, sram.MaxCorrectable))
+			} else {
+				failedTests++
+				if sram.Status == "WARN" {
+					output.WriteString(fmt.Sprintf("   ⚠️  SRAM Errors: Uncorrectable: %d, Correctable: %d (WARNING)\n",
+						sram.MaxUncorrectable, sram.MaxCorrectable))
+				} else {
+					output.WriteString(fmt.Sprintf("   ❌ SRAM Errors: Uncorrectable: %d, Correctable: %d (FAILED)\n",
+						sram.MaxUncorrectable, sram.MaxCorrectable))
 				}
 			}
 		}
