@@ -29,6 +29,7 @@ type HostResults struct {
 	RDMANicsCount   []TestResult `json:"rdma_nics_count,omitempty"`
 	RxDiscardsCheck []TestResult `json:"rx_discards_check,omitempty"`
 	GIDIndexCheck   []TestResult `json:"gid_index_check,omitempty"`
+	LinkCheck       []TestResult `json:"link_check,omitempty"`
 }
 
 // ReportOutput represents the single report format
@@ -143,6 +144,7 @@ func generateRecommendations(results HostResults) RecommendationReport {
 		{"rdma_nics_count", results.RDMANicsCount},
 		{"rx_discards_check", results.RxDiscardsCheck},
 		{"gid_index_check", results.GIDIndexCheck},
+		{"link_check", results.LinkCheck},
 	}
 
 	for _, mapping := range testMappings {
@@ -264,6 +266,21 @@ func generateFallbackRecommendations(results HostResults) RecommendationReport {
 		}
 	}
 
+	// Basic Link Check recommendations
+	for _, linkCheck := range results.LinkCheck {
+		if linkCheck.Status == "FAIL" {
+			rec := Recommendation{
+				Type:       "critical",
+				TestName:   "link_check",
+				Issue:      "RDMA link check failed - link parameters do not meet expected values",
+				Suggestion: "Check RDMA link health, verify cable connections, and inspect link parameters",
+				Commands:   []string{"ibstat", "rdma link show", "sudo mlxlink -d mlx5_0 --show_module"},
+			}
+			recommendations = append(recommendations, rec)
+			criticalCount++
+		}
+	}
+
 	totalIssues := criticalCount + warningCount
 	summary := fmt.Sprintf("Found %d issue(s) requiring attention: %d critical, %d warning (fallback mode)",
 		totalIssues, criticalCount, warningCount)
@@ -321,7 +338,7 @@ func formatRecommendationsTable(report RecommendationReport) (string, error) {
 	var output strings.Builder
 
 	output.WriteString("┌─────────────────────────────────────────────────────────────────┐\n")
-	output.WriteString("│                    HPC DIAGNOSTIC RECOMMENDATIONS              │\n")
+	output.WriteString("│                    HPC DIAGNOSTIC RECOMMENDATIONS               │\n")
 	output.WriteString("├─────────────────────────────────────────────────────────────────┤\n")
 
 	// Summary section
@@ -343,23 +360,30 @@ func formatRecommendationsTable(report RecommendationReport) (string, error) {
 		for i, rec := range report.Recommendations {
 			// Truncate long text to fit in table
 			issue := rec.Issue
-			if len(issue) > 59 {
-				issue = issue[:56] + "..."
+			if len(issue) > 53 {
+				issue = issue[:50] + "..."
 			}
 			suggestion := rec.Suggestion
-			if len(suggestion) > 59 {
-				suggestion = suggestion[:56] + "..."
+			if len(suggestion) > 48 {
+				suggestion = suggestion[:45] + "..."
 			}
 
-			output.WriteString(fmt.Sprintf("│ %d. [%s] %-51s │\n", i+1, strings.ToUpper(rec.Type), rec.TestName))
+			// Calculate remaining space for test name after number, type, and brackets
+			typeStr := strings.ToUpper(rec.Type)
+			prefixLen := len(fmt.Sprintf(" %d. [%s] ", i+1, typeStr))
+			testNameSpace := 64 - prefixLen
+			if testNameSpace < 0 {
+				testNameSpace = 10 // minimum space
+			}
+			output.WriteString(fmt.Sprintf("│ %d. [%s] %-*s │\n", i+1, typeStr, testNameSpace, rec.TestName))
 			if rec.FaultCode != "" {
-				output.WriteString(fmt.Sprintf("│    Fault Code: %-50s │\n", rec.FaultCode))
+				output.WriteString(fmt.Sprintf("│    Fault Code: %-48s │\n", rec.FaultCode))
 			}
-			output.WriteString(fmt.Sprintf("│    Issue: %-55s │\n", issue))
-			output.WriteString(fmt.Sprintf("│    Suggestion: %-50s │\n", suggestion))
+			output.WriteString(fmt.Sprintf("│    Issue: %-53s │\n", issue))
+			output.WriteString(fmt.Sprintf("│    Suggestion: %-48s │\n", suggestion))
 
-			if len(rec.Commands) > 0 && len(rec.Commands[0]) <= 59 {
-				output.WriteString(fmt.Sprintf("│    Command: %-53s │\n", rec.Commands[0]))
+			if len(rec.Commands) > 0 && len(rec.Commands[0]) <= 51 {
+				output.WriteString(fmt.Sprintf("│    Command: %-51s │\n", rec.Commands[0]))
 			}
 
 			if i < len(report.Recommendations)-1 {

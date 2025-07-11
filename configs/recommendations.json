@@ -127,6 +127,37 @@
           "sudo show_gids | tail -n +3 | head -n -1"
         ]
       }
+    },
+    "link_check": {
+      "fail": {
+        "type": "critical",
+        "fault_code": "HPCGPU-0006-0001",
+        "issue": "RDMA link check failed - link parameters do not meet expected values",
+        "suggestion": "Check RDMA link health, verify cable connections, and inspect link parameters",
+        "commands": [
+          "ibstat",
+          "ibv_devices",
+          "rdma link show",
+          "sudo mlxlink -d mlx5_0 --show_module --show_counters",
+          "sudo ibdev2netdev",
+          "lspci | grep -i mellanox"
+        ],
+        "references": [
+          "https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/configuringrdma.htm",
+          "https://docs.mellanox.com/display/MLNXOFEDv461000/",
+          "https://community.mellanox.com/s/article/understanding-mlx-link-utility"
+        ]
+      },
+      "pass": {
+        "type": "info",
+        "issue": "RDMA link check passed",
+        "suggestion": "All RDMA links are healthy with expected parameters",
+        "commands": [
+          "ibstat",
+          "rdma link show",
+          "sudo mlxlink -d mlx5_0 --show_module"
+        ]
+      }
     }
   },
   "summary_templates": {
