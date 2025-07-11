@@ -71,6 +71,7 @@ func runAllLevel1Tests() error {
 		{"rx_discards_check", level1_tests.RunRXDiscardsCheck},
 		{"gid_index_check", level1_tests.RunGIDIndexCheck},
 		{"link_check", level1_tests.RunLinkCheck},
+		{"sram_error_check", level1_tests.RunSRAMCheck},
 	}
 
 	var failedTests []string
@@ -132,6 +133,7 @@ func runSpecificTests(testFilter string) error {
 		{"rx_discards_check", "Check Network Interface for rx discard", level1_tests.RunRXDiscardsCheck},
 		{"gid_index_check", "Check device GID Index are in range ", level1_tests.RunGIDIndexCheck},
 		{"link_check", "Check RDMA link state and parameters", level1_tests.RunLinkCheck},
+		{"sram_error_check", "Check SRAM correctable and uncorrectable errors", level1_tests.RunSRAMCheck},
 	}
 
 	// If testFilter is empty, show available tests

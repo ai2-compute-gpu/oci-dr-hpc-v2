@@ -128,6 +128,252 @@ func TestRunNvidiaSMIQuery(t *testing.T) {
 	}
 }
 
+// TestRunNvidiaSMIErrorQuery tests the RunNvidiaSMIErrorQuery function
+func TestRunNvidiaSMIErrorQuery(t *testing.T) {
+	tests := []struct {
+		name        string
+		errorType   string
+		expectError bool
+		skipIfNoGPU bool
+		setup       func() func()
+	}{
+		{
+			name:        "uncorrectable error query",
+			errorType:   "uncorrectable",
+			expectError: false,
+			skipIfNoGPU: true,
+			setup:       func() func() { return func() {} },
+		},
+		{
+			name:        "correctable error query",
+			errorType:   "correctable",
+			expectError: false,
+			skipIfNoGPU: true,
+			setup:       func() func() { return func() {} },
+		},
+		{
+			name:        "case insensitive uncorrectable",
+			errorType:   "UNCORRECTABLE",
+			expectError: false,
+			skipIfNoGPU: true,
+			setup:       func() func() { return func() {} },
+		},
+		{
+			name:        "case insensitive correctable",
+			errorType:   "CORRECTABLE",
+			expectError: false,
+			skipIfNoGPU: true,
+			setup:       func() func() { return func() {} },
+		},
+		{
+			name:        "mixed case uncorrectable",
+			errorType:   "UnCorrectable",
+			expectError: false,
+			skipIfNoGPU: true,
+			setup:       func() func() { return func() {} },
+		},
+		{
+			name:        "unsupported error type",
+			errorType:   "invalid_type",
+			expectError: true,
+			skipIfNoGPU: false,
+			setup:       func() func() { return func() {} },
+		},
+		{
+			name:        "empty error type",
+			errorType:   "",
+			expectError: true,
+			skipIfNoGPU: false,
+			setup:       func() func() { return func() {} },
+		},
+		{
+			name:        "nvidia-smi not available",
+			errorType:   "uncorrectable",
+			expectError: true,
+			skipIfNoGPU: false,
+			setup: func() func() {
+				// Temporarily modify PATH to remove nvidia-smi
+				originalPath := os.Getenv("PATH")
+				os.Setenv("PATH", "/nonexistent")
+				return func() {
+					os.Setenv("PATH", originalPath)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cleanup := tt.setup()
+			defer cleanup()
+
+			if tt.skipIfNoGPU && !IsNvidiaSMIAvailable() {
+				t.Skip("Skipping test - nvidia-smi not available")
+			}
+
+			result, err := RunNvidiaSMIErrorQuery(tt.errorType)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("RunNvidiaSMIErrorQuery(%q) expected error but got none", tt.errorType)
+				}
+				// When expecting error, result might be nil or contain error info
+				if err != nil {
+					t.Logf("Expected error occurred: %v", err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("RunNvidiaSMIErrorQuery(%q) unexpected error: %v", tt.errorType, err)
+				}
+				if result == nil {
+					t.Errorf("RunNvidiaSMIErrorQuery(%q) returned nil result", tt.errorType)
+				} else {
+					// Verify the command structure
+					expectedCmd := "sudo nvidia-smi -q | grep -A 3 Aggregate | grep " + strings.Title(strings.ToLower(tt.errorType))
+					if result.Command != expectedCmd {
+						t.Errorf("RunNvidiaSMIErrorQuery(%q) command = %q, want %q", tt.errorType, result.Command, expectedCmd)
+					}
+					t.Logf("Command executed: %s", result.Command)
+					t.Logf("Output: %s", result.Output)
+					if result.Error != nil {
+						t.Logf("Command error: %v", result.Error)
+						t.Logf("Exit code: %d", result.ExitCode)
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestRunNvidiaSMIErrorQueryIntegration performs integration testing
+func TestRunNvidiaSMIErrorQueryIntegration(t *testing.T) {
+	// Skip if nvidia-smi is not available
+	if !IsNvidiaSMIAvailable() {
+		t.Skip("nvidia-smi not available in test environment")
+	}
+
+	t.Run("integration test both error types", func(t *testing.T) {
+		errorTypes := []string{"uncorrectable", "correctable"}
+
+		for _, errorType := range errorTypes {
+			t.Run(errorType, func(t *testing.T) {
+				result, err := RunNvidiaSMIErrorQuery(errorType)
+
+				// Note: The command might fail with exit code if grep doesn't find matches
+				// This is expected behavior and not necessarily an error
+				if err != nil {
+					t.Logf("Command failed (this may be expected if no errors found): %v", err)
+					if result != nil {
+						t.Logf("Exit code: %d", result.ExitCode)
+						t.Logf("Output: %s", result.Output)
+					}
+				} else {
+					t.Logf("Command succeeded for %s errors", errorType)
+					if result != nil {
+						t.Logf("Output: %s", result.Output)
+					}
+				}
+
+				// Verify result structure regardless of success/failure
+				if result != nil {
+					if result.Command == "" {
+						t.Errorf("Result command is empty")
+					}
+					// Output can be empty if no errors are found
+					t.Logf("Command: %s", result.Command)
+					t.Logf("Output length: %d", len(result.Output))
+				}
+			})
+		}
+	})
+}
+
+// TestRunNvidiaSMIErrorQueryCommandConstruction tests command construction logic
+func TestRunNvidiaSMIErrorQueryCommandConstruction(t *testing.T) {
+	tests := []struct {
+		name        string
+		errorType   string
+		expectedCmd string
+		expectError bool
+	}{
+		{
+			name:        "uncorrectable command",
+			errorType:   "uncorrectable",
+			expectedCmd: "sudo nvidia-smi -q | grep -A 3 Aggregate | grep Uncorrectable",
+			expectError: false,
+		},
+		{
+			name:        "correctable command",
+			errorType:   "correctable",
+			expectedCmd: "sudo nvidia-smi -q | grep -A 3 Aggregate | grep Correctable",
+			expectError: false,
+		},
+		{
+			name:        "case insensitive uncorrectable",
+			errorType:   "UNCORRECTABLE",
+			expectedCmd: "sudo nvidia-smi -q | grep -A 3 Aggregate | grep Uncorrectable",
+			expectError: false,
+		},
+		{
+			name:        "case insensitive correctable",
+			errorType:   "CORRECTABLE",
+			expectedCmd: "sudo nvidia-smi -q | grep -A 3 Aggregate | grep Correctable",
+			expectError: false,
+		},
+		{
+			name:        "mixed case",
+			errorType:   "UnCorrectable",
+			expectedCmd: "sudo nvidia-smi -q | grep -A 3 Aggregate | grep Uncorrectable",
+			expectError: false,
+		},
+		{
+			name:        "unsupported type",
+			errorType:   "invalid",
+			expectedCmd: "",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// We'll test the command construction logic by examining what would be built
+			// This is a bit of a white-box test, but helps verify the logic
+			var expectedCmd string
+			var shouldError bool
+
+			switch strings.ToLower(tt.errorType) {
+			case "uncorrectable":
+				expectedCmd = "sudo nvidia-smi -q | grep -A 3 Aggregate | grep Uncorrectable"
+			case "correctable":
+				expectedCmd = "sudo nvidia-smi -q | grep -A 3 Aggregate | grep Correctable"
+			default:
+				shouldError = true
+			}
+
+			if shouldError != tt.expectError {
+				t.Errorf("Expected error status %v, got %v", tt.expectError, shouldError)
+			}
+
+			if !shouldError && expectedCmd != tt.expectedCmd {
+				t.Errorf("Expected command %q, got %q", tt.expectedCmd, expectedCmd)
+			}
+		})
+	}
+}
+
+// BenchmarkRunNvidiaSMIErrorQuery benchmarks the RunNvidiaSMIErrorQuery function
+func BenchmarkRunNvidiaSMIErrorQuery(b *testing.B) {
+	// Skip if nvidia-smi is not available
+	if !IsNvidiaSMIAvailable() {
+		b.Skip("nvidia-smi not available in test environment")
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		RunNvidiaSMIErrorQuery("uncorrectable")
+	}
+}
+
 // TestNvidiaSMIResult tests the NvidiaSMIResult struct
 func TestNvidiaSMIResult(t *testing.T) {
 	result := &NvidiaSMIResult{

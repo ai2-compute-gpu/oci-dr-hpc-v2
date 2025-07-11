@@ -167,6 +167,8 @@ func applyVariableSubstitution(template string, testResult TestResult) string {
 	result = strings.ReplaceAll(result, "{gpu_count}", fmt.Sprintf("%d", testResult.GPUCount))
 	result = strings.ReplaceAll(result, "{num_rdma_nics}", fmt.Sprintf("%d", testResult.NumRDMANics))
 	result = strings.ReplaceAll(result, "{failed_interfaces}", fmt.Sprintf("%s", testResult.FailedInterfaces))
+	result = strings.ReplaceAll(result, "{max_uncorrectable}", fmt.Sprintf("%d", testResult.MaxUncorrectable))
+	result = strings.ReplaceAll(result, "{max_correctable}", fmt.Sprintf("%d", testResult.MaxCorrectable))
 
 	return result
 }
