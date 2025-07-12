@@ -57,6 +57,13 @@ type GIDIndexTestResult struct {
 	TimestampUTC   string `json:"timestamp_utc"`
 }
 
+// LinkTestResult represents link check test results
+type LinkTestResult struct {
+	Status       string      `json:"status"`
+	Links        interface{} `json:"links,omitempty"`
+	TimestampUTC string      `json:"timestamp_utc"`
+}
+
 // HostResults represents test results for a host
 type HostResults struct {
 	GPUCountCheck   []GPUTestResult             `json:"gpu_count_check,omitempty"`
@@ -64,6 +71,7 @@ type HostResults struct {
 	RDMANicsCount   []RDMATestResult            `json:"rdma_nics_count,omitempty"`
 	RXDiscardsCheck []RXDiscardsCheckTestResult `json:"rx_discards_check,omitempty"`
 	GIDIndexCheck   []GIDIndexTestResult        `json:"gid_index_check,omitempty"`
+	LinkCheck       []LinkTestResult            `json:"link_check,omitempty"`
 }
 
 // ReportOutput represents the final JSON output structure
@@ -210,6 +218,14 @@ func (r *Reporter) AddGIDIndexResult(status string, invalidIndexes []int, err er
 	r.AddResult("gid_index_check", status, details, err)
 }
 
+// AddLinkResult adds link check test results
+func (r *Reporter) AddLinkResult(status string, links interface{}, err error) {
+	details := map[string]interface{}{
+		"links": links,
+	}
+	r.AddResult("link_check", status, details, err)
+}
+
 // GenerateReport generates the final JSON report
 func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 	r.mutex.RLock()
@@ -308,6 +324,21 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 			TimestampUTC:   result.Timestamp.UTC().Format(time.RFC3339),
 		}
 		report.Localhost.GIDIndexCheck = []GIDIndexTestResult{gidResult}
+	}
+
+	// Process Link Check results
+	if result, exists := r.results["link_check"]; exists {
+		var links interface{}
+		if linksVal, ok := result.Details["links"]; ok {
+			links = linksVal
+		}
+
+		linkResult := LinkTestResult{
+			Status:       result.Status,
+			Links:        links,
+			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
+		}
+		report.Localhost.LinkCheck = []LinkTestResult{linkResult}
 	}
 
 	return report, nil
@@ -507,6 +538,20 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 		}
 	}
 
+	// Link Check Tests
+	if len(report.Localhost.LinkCheck) > 0 {
+		for _, link := range report.Localhost.LinkCheck {
+			status := link.Status
+			statusSymbol := "✅"
+			if status == "FAIL" {
+				statusSymbol = "❌"
+			}
+			details := "RDMA Links Checked"
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s        │\n",
+				"RDMA Link Check", statusSymbol, statusSymbol, details))
+		}
+	}
+
 	output.WriteString("└─────────────────────────────────────────────────────────────────┘\n")
 	return output.String(), nil
 }
@@ -610,6 +655,23 @@ func (r *Reporter) formatFriendly(report *ReportOutput) (string, error) {
 				} else {
 					output.WriteString("   ❌ GID Indexes: Check failed (FAILED)\n")
 				}
+			}
+		}
+		output.WriteString("\n")
+	}
+
+	// Link Check Tests
+	if len(report.Localhost.LinkCheck) > 0 {
+		output.WriteString("🌐 RDMA Link Health Check\n")
+		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
+		for _, link := range report.Localhost.LinkCheck {
+			totalTests++
+			if link.Status == "PASS" {
+				passedTests++
+				output.WriteString("   ✅ RDMA Links: All links healthy (PASSED)\n")
+			} else {
+				failedTests++
+				output.WriteString("   ❌ RDMA Links: Link issues detected (FAILED)\n")
 			}
 		}
 		output.WriteString("\n")

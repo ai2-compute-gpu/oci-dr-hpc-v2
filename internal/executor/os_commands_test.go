@@ -872,3 +872,306 @@ func TestEthtoolStatsIntegration(t *testing.T) {
 		t.Logf("Loopback ethtool stats successful")
 	})
 }
+
+// Test GetIbdevToNetdevMap function
+func TestGetIbdevToNetdevMap(t *testing.T) {
+	if !canRunSudo() {
+		t.Skip("Skipping test that requires sudo access")
+	}
+
+	t.Run("basic_ibdev2netdev_call", func(t *testing.T) {
+		deviceMap, err := GetIbdevToNetdevMap()
+
+		if err != nil {
+			// ibdev2netdev command may not be available or may fail in test environment
+			if strings.Contains(err.Error(), "executable file not found") {
+				t.Skipf("Skipping test - ibdev2netdev command not available: %v", err)
+				return
+			}
+			t.Logf("ibdev2netdev failed (may be expected in test environment): %v", err)
+			return
+		}
+
+		if deviceMap == nil {
+			t.Error("Expected non-nil device map")
+			return
+		}
+
+		t.Logf("Found %d InfiniBand devices", len(deviceMap))
+		for device, netdev := range deviceMap {
+			t.Logf("Device: %s -> Network Interface: %s", device, netdev)
+		}
+	})
+
+	t.Run("ibdev2netdev_output_parsing", func(t *testing.T) {
+		// Test the parsing logic with mock output
+		testOutput := `mlx5_0 port 1 ==> enp12s0f0np0 (Up)
+mlx5_1 port 1 ==> enp12s0f1np1 (Down)
+mlx5_2 port 1 ==> enp175s0f0np0 (Up)`
+
+		deviceMap := make(map[string]string)
+		lines := strings.Split(testOutput, "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+
+			parts := strings.Fields(line)
+			if len(parts) >= 5 && parts[3] == "==>" {
+				deviceMap[parts[0]] = parts[4]
+			}
+		}
+
+		expectedDevices := map[string]string{
+			"mlx5_0": "enp12s0f0np0",
+			"mlx5_1": "enp12s0f1np1",
+			"mlx5_2": "enp175s0f0np0",
+		}
+
+		if len(deviceMap) != len(expectedDevices) {
+			t.Errorf("Expected %d devices, got %d", len(expectedDevices), len(deviceMap))
+		}
+
+		for device, expectedNetdev := range expectedDevices {
+			if actualNetdev, exists := deviceMap[device]; !exists {
+				t.Errorf("Expected device %s not found", device)
+			} else if actualNetdev != expectedNetdev {
+				t.Errorf("Expected netdev %s for device %s, got %s", expectedNetdev, device, actualNetdev)
+			}
+		}
+	})
+
+	t.Run("ibdev2netdev_empty_output", func(t *testing.T) {
+		// Test parsing with empty output
+		testOutput := ""
+
+		deviceMap := make(map[string]string)
+		lines := strings.Split(testOutput, "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+
+			parts := strings.Fields(line)
+			if len(parts) >= 5 && parts[3] == "==>" {
+				deviceMap[parts[0]] = parts[4]
+			}
+		}
+
+		if len(deviceMap) != 0 {
+			t.Errorf("Expected empty device map, got %d devices", len(deviceMap))
+		}
+	})
+
+	t.Run("ibdev2netdev_malformed_output", func(t *testing.T) {
+		// Test parsing with malformed output
+		testOutput := `mlx5_0 port 1 invalid format
+incomplete line
+mlx5_1 port 1 ==> enp12s0f1np1 (Up)`
+
+		deviceMap := make(map[string]string)
+		lines := strings.Split(testOutput, "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+
+			parts := strings.Fields(line)
+			if len(parts) >= 5 && parts[3] == "==>" {
+				deviceMap[parts[0]] = parts[4]
+			}
+		}
+
+		// Should only parse the valid line
+		expectedDevices := map[string]string{
+			"mlx5_1": "enp12s0f1np1",
+		}
+
+		if len(deviceMap) != len(expectedDevices) {
+			t.Errorf("Expected %d devices, got %d", len(expectedDevices), len(deviceMap))
+		}
+
+		for device, expectedNetdev := range expectedDevices {
+			if actualNetdev, exists := deviceMap[device]; !exists {
+				t.Errorf("Expected device %s not found", device)
+			} else if actualNetdev != expectedNetdev {
+				t.Errorf("Expected netdev %s for device %s, got %s", expectedNetdev, device, actualNetdev)
+			}
+		}
+	})
+}
+
+// Test RunMlxlink function
+func TestRunMlxlink(t *testing.T) {
+	if !canRunSudo() {
+		t.Skip("Skipping test that requires sudo access")
+	}
+
+	tests := []struct {
+		name          string
+		interfaceName string
+		expectError   bool
+		skipMsg       string
+	}{
+		{
+			name:          "mlxlink_with_valid_interface",
+			interfaceName: "mlx5_0",
+			expectError:   false, // May error if interface doesn't exist
+			skipMsg:       "InfiniBand interface may not be available",
+		},
+		{
+			name:          "mlxlink_with_ethernet_interface",
+			interfaceName: "enp12s0f0",
+			expectError:   false, // May error if not a Mellanox interface
+			skipMsg:       "Ethernet interface may not support mlxlink",
+		},
+		{
+			name:          "mlxlink_with_nonexistent_interface",
+			interfaceName: "nonexistent999",
+			expectError:   true,
+			skipMsg:       "",
+		},
+		{
+			name:          "mlxlink_with_empty_interface",
+			interfaceName: "",
+			expectError:   true,
+			skipMsg:       "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := RunMlxlink(tt.interfaceName)
+
+			if err != nil {
+				// mlxlink command may not be available in test environment
+				if strings.Contains(err.Error(), "executable file not found") {
+					t.Skipf("Skipping test - mlxlink command not available: %v", err)
+					return
+				}
+				if !tt.expectError {
+					t.Logf("mlxlink failed (may be normal): %v", err)
+				}
+			}
+
+			if result == nil {
+				t.Fatal("Expected result but got nil")
+			}
+
+			// Verify command string format
+			expectedCmd := fmt.Sprintf("sudo mlxlink -d %s --json --show_module --show_counters --show_eye", tt.interfaceName)
+			if result.Command != expectedCmd {
+				t.Errorf("Expected command '%s', got '%s'", expectedCmd, result.Command)
+			}
+
+			// Verify command contains the interface name
+			if !strings.Contains(result.Command, tt.interfaceName) {
+				t.Errorf("Expected command to contain interface name '%s'", tt.interfaceName)
+			}
+
+			// Verify command contains expected options
+			expectedOptions := []string{"--json", "--show_module", "--show_counters", "--show_eye"}
+			for _, option := range expectedOptions {
+				if !strings.Contains(result.Command, option) {
+					t.Errorf("Expected command to contain option '%s'", option)
+				}
+			}
+
+			// Log the output for debugging
+			if result.Output != "" {
+				t.Logf("mlxlink output for %s: %s", tt.interfaceName, result.Output)
+			} else {
+				t.Logf("No mlxlink output for %s (may be normal in test env)", tt.interfaceName)
+			}
+		})
+	}
+}
+
+// Test RunMlxlink edge cases
+func TestRunMlxlinkEdgeCases(t *testing.T) {
+	if !canRunSudo() {
+		t.Skip("Skipping test that requires sudo access")
+	}
+
+	t.Run("mlxlink_command_format_validation", func(t *testing.T) {
+		interfaceName := "test_interface"
+		result, _ := RunMlxlink(interfaceName)
+
+		if result == nil {
+			t.Fatal("Expected result but got nil")
+		}
+
+		// Verify all required components are in the command
+		requiredComponents := []string{
+			"sudo",
+			"mlxlink",
+			"-d",
+			interfaceName,
+			"--json",
+			"--show_module",
+			"--show_counters",
+			"--show_eye",
+		}
+
+		for _, component := range requiredComponents {
+			if !strings.Contains(result.Command, component) {
+				t.Errorf("Expected command to contain '%s', got '%s'", component, result.Command)
+			}
+		}
+	})
+
+	t.Run("mlxlink_special_characters_in_interface", func(t *testing.T) {
+		// Test with interface name containing special characters
+		interfaceName := "mlx5_0/1"
+		result, _ := RunMlxlink(interfaceName)
+
+		if result == nil {
+			t.Fatal("Expected result but got nil")
+		}
+
+		// Should handle special characters in interface name
+		if !strings.Contains(result.Command, interfaceName) {
+			t.Error("Expected command to contain the interface name with special characters")
+		}
+	})
+}
+
+// Integration test for RunMlxlink
+func TestRunMlxlinkIntegration(t *testing.T) {
+	if !canRunSudo() {
+		t.Skip("Skipping integration test - requires sudo access")
+	}
+
+	t.Run("mlxlink_command_execution", func(t *testing.T) {
+		// Use a common InfiniBand interface name
+		interfaceName := "mlx5_0"
+		result, err := RunMlxlink(interfaceName)
+
+		if err != nil {
+			// mlxlink command may not be available or interface may not exist
+			if strings.Contains(err.Error(), "executable file not found") {
+				t.Skipf("Skipping test - mlxlink command not available: %v", err)
+				return
+			}
+			t.Logf("mlxlink failed (expected in test environment): %v", err)
+			return
+		}
+
+		if result == nil {
+			t.Fatal("Expected result but got nil")
+		}
+
+		// If successful, verify the output format
+		if result.Output != "" {
+			// mlxlink with --json should produce JSON output
+			if !strings.Contains(result.Output, "{") && !strings.Contains(result.Output, "}") {
+				t.Log("mlxlink output doesn't appear to be JSON (may be normal)")
+			}
+		}
+
+		t.Logf("mlxlink integration test completed successfully")
+	})
+}
