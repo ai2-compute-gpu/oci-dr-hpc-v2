@@ -159,7 +159,7 @@
     "link_check": {
       "fail": {
         "type": "critical",
-        "fault_code": "HPCGPU-0006-0001",
+        "fault_code": "HPCGPU-0008-0001",
         "issue": "RDMA link check failed - link parameters do not meet expected values",
         "suggestion": "Check RDMA link health, verify cable connections, and inspect link parameters",
         "commands": [
@@ -237,6 +237,17 @@
           "https://developer.nvidia.com/nvidia-system-management-interface"
         ]
       },
+      "warn": {
+        "type": "warning",
+        "fault_code": "HPCGPU-0006-0002",
+        "issue": "GPU SRAM correctable errors exceed threshold (max: {max_correctable}). Monitor for potential hardware degradation.",
+        "suggestion": "Monitor GPU memory health and consider maintenance scheduling if errors continue to increase",
+        "commands": [
+          "sudo nvidia-smi -q | grep -A 3 Aggregate | grep Correctable",
+          "sudo nvidia-smi -q | grep -A 3 Aggregate | grep Uncorrectable",
+          "nvidia-smi --query-gpu=memory.total,memory.free,memory.used --format=csv"
+        ]
+      },
       "pass": {
         "type": "info",
         "issue": "GPU SRAM error levels are within acceptable limits (uncorrectable: {max_uncorrectable}, correctable: {max_correctable})",
@@ -244,6 +255,51 @@
         "commands": [
           "sudo nvidia-smi -q | grep -A 3 Aggregate | grep Correctable",
           "sudo nvidia-smi -q | grep -A 3 Aggregate | grep Uncorrectable"
+        ]
+      }
+    },
+    "gpu_driver_check": {
+      "fail": {
+        "type": "critical",
+        "fault_code": "HPCGPU-0007-0001",
+        "issue": "GPU driver version validation failed - {driver_version} is blacklisted or has issues",
+        "suggestion": "Update to a supported GPU driver version or investigate driver installation issues",
+        "commands": [
+          "nvidia-smi --query-gpu=driver_version --format=csv,noheader",
+          "sudo apt update && sudo apt install nvidia-driver-535",
+          "sudo systemctl reboot",
+          "dkms status",
+          "modinfo nvidia"
+        ],
+        "references": [
+          "https://docs.nvidia.com/datacenter/tesla/tesla-installation-notes/",
+          "https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm",
+          "https://developer.nvidia.com/cuda-downloads"
+        ]
+      },
+      "warn": {
+        "type": "warning",
+        "fault_code": "HPCGPU-0007-0002",
+        "issue": "GPU driver version {driver_version} is unsupported but not blacklisted",
+        "suggestion": "Consider updating to a known supported driver version for optimal performance and compatibility",
+        "commands": [
+          "nvidia-smi --query-gpu=driver_version --format=csv,noheader",
+          "nvidia-smi -q",
+          "sudo apt list --installed | grep nvidia"
+        ],
+        "references": [
+          "https://docs.nvidia.com/datacenter/tesla/tesla-installation-notes/",
+          "https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm"
+        ]
+      },
+      "pass": {
+        "type": "info",
+        "issue": "GPU driver version check passed - {driver_version} is supported",
+        "suggestion": "GPU driver is properly installed and supported",
+        "commands": [
+          "nvidia-smi",
+          "nvidia-smi -q",
+          "nvidia-smi topo -m"
         ]
       }
     }
