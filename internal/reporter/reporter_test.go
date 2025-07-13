@@ -48,9 +48,17 @@ func TestReporter_AddResults(t *testing.T) {
 	// Test adding RDMA result
 	reporter.AddRDMAResult("PASS", 16, nil)
 
+	// Test adding GID Index result
+	reporter.AddGIDIndexResult("PASS", []int{}, nil)
+	// Test adding Link result
+	linkResults := []map[string]interface{}{
+		{"device": "rdma0", "link_speed": "PASS", "link_state": "PASS"},
+	}
+	reporter.AddLinkResult("PASS", linkResults, nil)
+
 	// Check if all results were added
-	if len(reporter.results) != 3 {
-		t.Errorf("Expected 3 results, got %d", len(reporter.results))
+	if len(reporter.results) != 5 {
+		t.Errorf("Expected 5 results, got %d", len(reporter.results))
 	}
 
 	// Check GPU result
@@ -92,6 +100,45 @@ func TestReporter_AddResults(t *testing.T) {
 		}
 	} else {
 		t.Error("RDMA result not found")
+	}
+
+	// Check GID Index result
+	if result, exists := reporter.results["gid_index_check"]; exists {
+		if result.Status != "PASS" {
+			t.Errorf("Expected GID Index status PASS, got %s", result.Status)
+		}
+		if invalidIndexes, ok := result.Details["invalid_indexes"]; ok {
+			if indexes, ok := invalidIndexes.([]int); ok {
+				if len(indexes) != 0 {
+					t.Errorf("Expected 0 invalid indexes, got %d", len(indexes))
+				}
+			} else {
+				t.Error("Invalid indexes should be a slice of ints")
+			}
+		} else {
+			t.Error("Invalid indexes not found in details")
+		}
+	} else {
+		t.Error("GID Index result not found")
+	}
+	// Check Link result
+	if result, exists := reporter.results["link_check"]; exists {
+		if result.Status != "PASS" {
+			t.Errorf("Expected Link status PASS, got %s", result.Status)
+		}
+		if links, ok := result.Details["links"]; ok {
+			if linksSlice, ok := links.([]map[string]interface{}); ok {
+				if len(linksSlice) != 1 {
+					t.Errorf("Expected 1 link result, got %d", len(linksSlice))
+				}
+			} else {
+				t.Error("Links should be a slice of maps")
+			}
+		} else {
+			t.Error("Links not found in details")
+		}
+	} else {
+		t.Error("Link result not found")
 	}
 }
 
@@ -765,4 +812,299 @@ func TestReporter_NetworkJSONMarshalWithFailure(t *testing.T) {
 	}
 
 	t.Logf("Generated JSON with network failure:\n%s", string(jsonData))
+}
+
+func TestReporter_AddLinkResult(t *testing.T) {
+	reporter := &Reporter{
+		results: make(map[string]TestResult),
+	}
+
+	// Test adding link result with PASS status
+	linkResults := []map[string]interface{}{
+		{
+			"device":     "rdma0",
+			"link_speed": "PASS",
+			"link_state": "PASS",
+		},
+		{
+			"device":     "rdma1", 
+			"link_speed": "PASS",
+			"link_state": "PASS",
+		},
+	}
+	reporter.AddLinkResult("PASS", linkResults, nil)
+
+	// Check if result was added
+	if len(reporter.results) != 1 {
+		t.Errorf("Expected 1 result, got %d", len(reporter.results))
+	}
+
+	// Check link result
+	if result, exists := reporter.results["link_check"]; exists {
+		if result.Status != "PASS" {
+			t.Errorf("Expected link status PASS, got %s", result.Status)
+		}
+		if links, ok := result.Details["links"]; ok {
+			if linksSlice, ok := links.([]map[string]interface{}); ok {
+				if len(linksSlice) != 2 {
+					t.Errorf("Expected 2 link results, got %d", len(linksSlice))
+				}
+			} else {
+				t.Error("Links should be a slice of maps")
+			}
+		} else {
+			t.Error("Links not found in details")
+		}
+	} else {
+		t.Error("Link result not found")
+	}
+}
+
+func TestReporter_AddLinkResultWithFailure(t *testing.T) {
+	reporter := &Reporter{
+		results: make(map[string]TestResult),
+	}
+
+	// Test adding link result with FAIL status
+	linkResults := []map[string]interface{}{
+		{
+			"device":     "rdma0",
+			"link_speed": "FAIL - 100G, expected 200G",
+			"link_state": "FAIL - Down, expected Active",
+		},
+	}
+	linkErr := fmt.Errorf("link issues detected")
+	reporter.AddLinkResult("FAIL", linkResults, linkErr)
+
+	// Check link result
+	if result, exists := reporter.results["link_check"]; exists {
+		if result.Status != "FAIL" {
+			t.Errorf("Expected link status FAIL, got %s", result.Status)
+		}
+		if result.Error != linkErr.Error() {
+			t.Errorf("Expected link error %s, got %s", linkErr.Error(), result.Error)
+		}
+		if links, ok := result.Details["links"]; ok {
+			if linksSlice, ok := links.([]map[string]interface{}); ok {
+				if len(linksSlice) != 1 {
+					t.Errorf("Expected 1 link result, got %d", len(linksSlice))
+				}
+			} else {
+				t.Error("Links should be a slice of maps")
+			}
+		} else {
+			t.Error("Links not found in details")
+		}
+	} else {
+		t.Error("Link result not found")
+	}
+}
+
+func TestReporter_GenerateReportWithLink(t *testing.T) {
+	reporter := &Reporter{
+		results: make(map[string]TestResult),
+	}
+
+	// Add test results including link
+	reporter.AddGPUResult("PASS", 8, nil)
+	reporter.AddPCIeResult("PASS", nil)
+	reporter.AddRDMAResult("PASS", 16, nil)
+	linkResults := []map[string]interface{}{
+		{
+			"device":     "rdma0",
+			"link_speed": "PASS",
+			"link_state": "PASS",
+		},
+	}
+	reporter.AddLinkResult("PASS", linkResults, nil)
+
+	// Generate report
+	report, err := reporter.GenerateReport()
+	if err != nil {
+		t.Fatalf("Failed to generate report: %v", err)
+	}
+
+	// Check Link result
+	if len(report.Localhost.LinkCheck) != 1 {
+		t.Errorf("Expected 1 Link result, got %d", len(report.Localhost.LinkCheck))
+	} else {
+		if report.Localhost.LinkCheck[0].Status != "PASS" {
+			t.Errorf("Expected Link status PASS, got %s", report.Localhost.LinkCheck[0].Status)
+		}
+		if report.Localhost.LinkCheck[0].Links == nil {
+			t.Error("Expected Link Links to be present")
+		}
+	}
+}
+
+func TestReporter_WriteReportWithLink(t *testing.T) {
+	tempDir := t.TempDir()
+	outputFile := filepath.Join(tempDir, "test_report_link.json")
+
+	reporter := &Reporter{
+		results:    make(map[string]TestResult),
+		outputFile: outputFile,
+	}
+
+	// Add test results including link
+	reporter.AddGPUResult("PASS", 8, nil)
+	reporter.AddPCIeResult("PASS", nil)
+	reporter.AddRDMAResult("PASS", 16, nil)
+	linkResults := []map[string]interface{}{
+		{
+			"device":     "rdma0",
+			"link_speed": "PASS",
+			"link_state": "PASS",
+		},
+	}
+	reporter.AddLinkResult("PASS", linkResults, nil)
+
+	// Write report
+	err := reporter.WriteReport()
+	if err != nil {
+		t.Fatalf("Failed to write report: %v", err)
+	}
+
+	// Check if file was created
+	if _, err := os.Stat(outputFile); os.IsNotExist(err) {
+		t.Error("Report file was not created")
+	}
+
+	// Read and validate the JSON
+	data, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("Failed to read report file: %v", err)
+	}
+
+	var report ReportOutput
+	if err := json.Unmarshal(data, &report); err != nil {
+		t.Fatalf("Failed to unmarshal report JSON: %v", err)
+	}
+
+	// Validate the link structure in file
+	if len(report.Localhost.LinkCheck) != 1 {
+		t.Errorf("Expected 1 Link result in file, got %d", len(report.Localhost.LinkCheck))
+	}
+
+	// Verify link result content
+	linkResult := report.Localhost.LinkCheck[0]
+	if linkResult.Status != "PASS" {
+		t.Errorf("Expected Link status PASS in file, got %s", linkResult.Status)
+	}
+	if linkResult.Links == nil {
+		t.Error("Expected Link Links to be present in file")
+	}
+}
+
+func TestReporter_AllResultTypesWithLink(t *testing.T) {
+	reporter := &Reporter{
+		results: make(map[string]TestResult),
+	}
+
+	// Add all types of results including link
+	reporter.AddGPUResult("PASS", 8, nil)
+	reporter.AddPCIeResult("FAIL", fmt.Errorf("PCIe error found"))
+	reporter.AddRDMAResult("PASS", 16, nil)
+	reporter.AddRXDiscardsCheckResult("PASS", 16, []string{}, nil)
+	linkResults := []map[string]interface{}{
+		{
+			"device":     "rdma0",
+			"link_speed": "FAIL - 100G, expected 200G",
+			"link_state": "PASS",
+		},
+	}
+	reporter.AddLinkResult("FAIL", linkResults, fmt.Errorf("link issues detected"))
+
+	// Test counts
+	if len(reporter.results) != 5 {
+		t.Errorf("Expected 5 results, got %d", len(reporter.results))
+	}
+
+	// Test failed tests (should include PCIe and Link)
+	failedTests := reporter.GetFailedTests()
+	if len(failedTests) != 2 {
+		t.Errorf("Expected 2 failed tests, got %d", len(failedTests))
+	}
+
+	// Test passed tests (should include GPU, RDMA, and RX Discards)
+	passedTests := reporter.GetPassedTests()
+	if len(passedTests) != 3 {
+		t.Errorf("Expected 3 passed tests, got %d", len(passedTests))
+	}
+
+	// Check if link test is in failed tests
+	linkTestFound := false
+	for _, testName := range failedTests {
+		if testName == "link_check" {
+			linkTestFound = true
+			break
+		}
+	}
+	if !linkTestFound {
+		t.Error("Link test should be in failed tests list")
+	}
+}
+
+func TestReporter_LinkJSONMarshal(t *testing.T) {
+	reporter := &Reporter{
+		results: make(map[string]TestResult),
+	}
+
+	// Add link result
+	linkResults := []map[string]interface{}{
+		{
+			"device":                       "rdma0",
+			"link_speed":                   "PASS",
+			"link_state":                   "PASS",
+			"physical_state":               "PASS",
+			"link_width":                   "PASS",
+			"link_status":                  "PASS",
+			"effective_physical_errors":    "PASS",
+			"effective_physical_ber":       "PASS",
+			"raw_physical_errors_per_lane": "PASS",
+			"raw_physical_ber":             "PASS",
+		},
+	}
+	reporter.AddLinkResult("PASS", linkResults, nil)
+
+	// Generate report
+	report, err := reporter.GenerateReport()
+	if err != nil {
+		t.Fatalf("Failed to generate report: %v", err)
+	}
+
+	// Marshal to JSON
+	jsonData, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		t.Fatalf("Failed to marshal report to JSON: %v", err)
+	}
+
+	// Verify it's valid JSON by unmarshaling
+	var testReport ReportOutput
+	if err := json.Unmarshal(jsonData, &testReport); err != nil {
+		t.Fatalf("Generated JSON is not valid: %v", err)
+	}
+
+	// Verify link-specific fields
+	if len(testReport.Localhost.LinkCheck) != 1 {
+		t.Error("Link check field not properly marshaled")
+	}
+
+	linkResult := testReport.Localhost.LinkCheck[0]
+	if linkResult.Status != "PASS" {
+		t.Error("Link status field not properly marshaled")
+	}
+	if linkResult.Links == nil {
+		t.Error("Link links field not properly marshaled")
+	}
+	if linkResult.TimestampUTC == "" {
+		t.Error("Link timestamp_utc field not properly marshaled")
+	}
+
+	// Verify timestamp format (should be RFC3339 format)
+	if _, err := time.Parse(time.RFC3339, linkResult.TimestampUTC); err != nil {
+		t.Errorf("Link timestamp_utc is not in valid RFC3339 format: %s", linkResult.TimestampUTC)
+	}
+
+	t.Logf("Generated JSON with link results:\n%s", string(jsonData))
 }

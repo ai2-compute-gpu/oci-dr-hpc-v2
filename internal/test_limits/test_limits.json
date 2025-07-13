@@ -31,6 +31,16 @@
           "uncorrectable": 10,
           "correctable": 100
         }
+      },
+      "link_check": {
+        "enabled": true,
+        "test_category": "LEVEL_1",
+        "threshold": {
+          "speed": "200G",
+          "width": "4x",
+          "effective_physical_errors": 0,
+          "raw_physical_errors_per_lane": 10000
+        }
       }
     },
     "BM.GPU.B200.8": {
@@ -55,6 +65,10 @@
         "test_category": "LEVEL_1"
       },
       "sram_error_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1"
+      },
+      "link_check": {
         "enabled": false,
         "test_category": "LEVEL_1"
       }
@@ -89,6 +103,10 @@
           "uncorrectable": 10,
           "correctable": 100
         }
+      },
+      "link_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1"
       }
     }
   }

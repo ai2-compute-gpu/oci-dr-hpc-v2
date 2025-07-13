@@ -488,3 +488,66 @@ func RunEthtoolStats(interfaceName string, grepPattern string) (*OSCommandResult
 
 	return result, nil
 }
+
+// GetIbdevToNetdevMap retrieves a mapping of InfiniBand devices to network interfaces
+func GetIbdevToNetdevMap() (map[string]string, error) {
+	logger.Info("Running ibdev2netdev command...")
+
+	cmd := exec.Command("sudo", "ibdev2netdev")
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		logger.Errorf("ibdev2netdev command failed: %v", err)
+		logger.Debugf("ibdev2netdev output: %s", string(output))
+		return nil, err
+	}
+
+	logger.Info("ibdev2netdev command completed successfully")
+	logger.Debugf("ibdev2netdev output: %s", string(output))
+
+	// Parse the output into a map
+	// Format: "mlx5_0 port 1 ==> enp12s0f0np0 (Up)"
+	deviceMap := make(map[string]string)
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		parts := strings.Fields(line)
+		if len(parts) >= 5 && parts[3] == "==>" {
+			deviceMap[parts[0]] = parts[4] // Map device name to network interface
+		}
+	}
+
+	return deviceMap, nil
+}
+
+// RunMlxlink executes mlxlink command for a specific interface with detailed options
+func RunMlxlink(interfaceName string) (*OSCommandResult, error) {
+	logger.Infof("Running mlxlink for interface: %s", interfaceName)
+
+	cmd := exec.Command("sudo", "mlxlink", "-d", interfaceName, "--json", "--show_module", "--show_counters", "--show_eye")
+	output, err := cmd.CombinedOutput()
+
+	result := &OSCommandResult{
+		Command: fmt.Sprintf("sudo mlxlink -d %s --json --show_module --show_counters --show_eye", interfaceName),
+		Output:  string(output),
+		Error:   err,
+	}
+
+	if err != nil {
+		if exitError, ok := err.(*exec.ExitError); ok {
+			result.ExitCode = exitError.ExitCode()
+		}
+		logger.Errorf("mlxlink command failed: %v", err)
+		logger.Debugf("mlxlink output: %s", result.Output)
+		return result, err
+	}
+
+	logger.Info("mlxlink command completed successfully")
+	logger.Debugf("mlxlink output: %s", result.Output)
+
+	return result, nil
+}
