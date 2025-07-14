@@ -28,8 +28,8 @@
         "enabled": true,
         "test_category": "LEVEL_1",
         "threshold": {
-          "uncorrectable": 10,
-          "correctable": 100
+          "uncorrectable": 5,
+          "correctable": 1000
         }
       },
       "link_check": {

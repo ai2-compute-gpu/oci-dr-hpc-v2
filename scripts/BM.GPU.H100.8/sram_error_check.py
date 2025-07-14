@@ -38,10 +38,10 @@ def isint(num):
 
 
 # Check GPU SRAM (Static RAM) memory errors using nvidia-smi
-def run_sram_check():
+def run_sram_error_check():
     # Configuration thresholds for GPU memory error tolerance
     config = {
-        "sram_check": {
+        "sram_error_check": {
             "sram_uncorrectable_threshold": 5,  # Critical: Any uncorrectable errors indicate serious hardware issues
             "sram_correctable_threshold": 1000  # Warning: High correctable errors suggest memory degradation
         },
@@ -55,8 +55,8 @@ def run_sram_check():
     sram_correctable_result = run_cmd(cmd_correctable)
 
     # Get threshold
-    sram_uncorrectable_threshold = config["sram_check"]["sram_uncorrectable_threshold"]
-    sram_correctable_threshold = config["sram_check"]["sram_correctable_threshold"]
+    sram_uncorrectable_threshold = config["sram_error_check"]["sram_uncorrectable_threshold"]
+    sram_correctable_threshold = config["sram_error_check"]["sram_correctable_threshold"]
 
     sram_uncorrectable_list = []
     sram_correctable_list = []
@@ -113,7 +113,7 @@ def parse_sram_results(sram_uncorrectable_list=None,
 
 def main():
     print("Health check is in progress ...")
-    result = run_sram_check()
+    result = run_sram_error_check()
     print(json.dumps(result, indent=2))
 
 

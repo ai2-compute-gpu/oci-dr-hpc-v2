@@ -158,6 +158,34 @@
           "sudo mlxlink -d mlx5_0 --show_module"
         ]
       }
+    },
+    "sram_error_check": {
+      "fail": {
+        "type": "critical",
+        "fault_code": "HPCGPU-0006-0001",
+        "issue": "GPU SRAM uncorrectable errors detected (max: {max_uncorrectable}). This indicates serious hardware memory corruption that can cause system instability and data loss.",
+        "suggestion": "Immediately investigate GPU memory health. Consider replacing affected GPUs as uncorrectable errors indicate hardware failure. Stop critical workloads until issue is resolved.",
+        "commands": [
+          "sudo nvidia-smi -q | grep -A 3 Aggregate | grep Correctable",
+          "sudo nvidia-smi -q | grep -A 3 Aggregate | grep Uncorrectable",
+          "nvidia-smi --query-gpu=memory.total,memory.free,memory.used --format=csv",
+          "nvidia-smi --query-gpu=temperature.gpu,power.draw --format=csv",
+          "dmesg | grep -i 'gpu\\|nvidia\\|memory'"
+        ],
+        "references": [
+          "https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html",
+          "https://developer.nvidia.com/nvidia-system-management-interface"
+        ]
+      },
+      "pass": {
+        "type": "info",
+        "issue": "GPU SRAM error levels are within acceptable limits (uncorrectable: {max_uncorrectable}, correctable: {max_correctable})",
+        "suggestion": "Continue monitoring GPU memory health as part of regular maintenance",
+        "commands": [
+          "sudo nvidia-smi -q | grep -A 3 Aggregate | grep Correctable",
+          "sudo nvidia-smi -q | grep -A 3 Aggregate | grep Uncorrectable"
+        ]
+      }
     }
   },
   "summary_templates": {
