@@ -104,7 +104,7 @@ type HostResults struct {
 	GIDIndexCheck   []GIDIndexTestResult        `json:"gid_index_check,omitempty"`
 	LinkCheck       []LinkTestResult            `json:"link_check,omitempty"`
 	EthLinkCheck    []EthLinkTestResult         `json:"eth_link_check,omitempty"`
-	SRAMErrorCheck  []SRAMTestResult            `json:"sram_error_check,omitempty"`
+	SRAMErrorCheck  []SRAMErrorTestResult       `json:"sram_error_check,omitempty"`
 	GPUDriverCheck  []GPUDriverTestResult       `json:"gpu_driver_check,omitempty"`
 }
 
@@ -611,7 +611,7 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 	output.WriteString("┌─────────────────────────────────────────────────────────────────┐\n")
 	output.WriteString("│                    DIAGNOSTIC TEST RESULTS                      │\n")
 	output.WriteString("├─────────────────────────────────────────────────────────────────┤\n")
-	output.WriteString("│ TEST NAME              │ STATUS │ DETAILS                       │\n")
+	output.WriteString("│ TEST NAME              │ STATUS  │ DETAILS                      │\n")
 	output.WriteString("├─────────────────────────────────────────────────────────────────┤\n")
 
 	// GPU Tests
@@ -624,6 +624,23 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 			}
 			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s GPU Count: %s           │\n",
 				"GPU Count Check", statusSymbol, statusSymbol, gpu.Status))
+		}
+	}
+
+	// GPU Mode Tests
+	if len(report.Localhost.GPUModeCheck) > 0 {
+		for _, gpuMode := range report.Localhost.GPUModeCheck {
+			status := gpuMode.Status
+			statusSymbol := "✅"
+			if status == "FAIL" {
+				statusSymbol = "❌"
+			}
+			details := "MIG Mode Disabled"
+			if len(gpuMode.EnabledGPUIndexes) > 0 {
+				details = fmt.Sprintf("MIG Enabled: %v", gpuMode.EnabledGPUIndexes)
+			}
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s         │\n",
+				"GPU Mode Check", statusSymbol, statusSymbol, details))
 		}
 	}
 
@@ -743,7 +760,7 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 			if len(details) > 25 {
 				details = details[:22] + "..."
 			}
-			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s│\n",
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s        │\n",
 				"GPU Driver Check", statusSymbol, statusSymbol, details))
 		}
 	}
@@ -775,6 +792,27 @@ func (r *Reporter) formatFriendly(report *ReportOutput) (string, error) {
 			} else {
 				failedTests++
 				output.WriteString(fmt.Sprintf("   ❌ GPU Count: %d (FAILED)\n", gpu.GPUCount))
+			}
+		}
+		output.WriteString("\n")
+	}
+
+	// GPU Mode Tests
+	if len(report.Localhost.GPUModeCheck) > 0 {
+		output.WriteString("🖥️  GPU Mode Check\n")
+		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
+		for _, gpuMode := range report.Localhost.GPUModeCheck {
+			totalTests++
+			if gpuMode.Status == "PASS" {
+				passedTests++
+				output.WriteString("   ✅ GPU Mode: MIG disabled on all GPUs (PASSED)\n")
+			} else {
+				failedTests++
+				if len(gpuMode.EnabledGPUIndexes) > 0 {
+					output.WriteString(fmt.Sprintf("   ❌ GPU Mode: MIG enabled on GPUs %v (FAILED)\n", gpuMode.EnabledGPUIndexes))
+				} else {
+					output.WriteString("   ❌ GPU Mode: Check failed (FAILED)\n")
+				}
 			}
 		}
 		output.WriteString("\n")

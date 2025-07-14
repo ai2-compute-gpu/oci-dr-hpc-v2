@@ -192,7 +192,7 @@ func RunGPUModeCheck() error {
 	shape, err := executor.GetCurrentShape()
 	if err != nil {
 		logger.Error("GPU Mode Check: FAIL - Could not get shape from IMDS:", err)
-		rep.AddGPUModeResult("FAIL", fmt.Sprintf("Could not get shape from IMDS: %v", err), nil)
+		rep.AddGPUModeResult("FAIL", fmt.Sprintf("Could not get shape from IMDS: %v", err), []string{}, err)
 		return fmt.Errorf("failed to get shape from IMDS: %w", err)
 	}
 	logger.Info("Current shape from IMDS:", shape)
@@ -201,7 +201,7 @@ func RunGPUModeCheck() error {
 	gpuModeCheckTestConfig, err := getGpuModeCheckTestConfig(shape)
 	if err != nil {
 		logger.Error("GPU Mode Check: FAIL - Could not get test configuration:", err)
-		rep.AddGPUModeResult("FAIL", fmt.Sprintf("Could not get test configuration: %v", err), nil)
+		rep.AddGPUModeResult("FAIL", fmt.Sprintf("Could not get test configuration: %v", err), []string{}, err)
 		return fmt.Errorf("failed to get test configuration: %w", err)
 	}
 
@@ -218,14 +218,14 @@ func RunGPUModeCheck() error {
 	gpuModes, err := getGPUModeInfo()
 	if err != nil {
 		logger.Error("GPU Mode Check: FAIL - Could not get GPU mode information:", err)
-		rep.AddGPUModeResult("FAIL", fmt.Sprintf("Could not get GPU mode information: %v", err), nil)
+		rep.AddGPUModeResult("FAIL", fmt.Sprintf("Could not get GPU mode information: %v", err), []string{}, err)
 		return fmt.Errorf("failed to get GPU mode information: %w", err)
 	}
 
 	if len(gpuModes) == 0 {
 		logger.Error("GPU Mode Check: FAIL - No GPU information returned")
 		err = fmt.Errorf("no GPU information returned from nvidia-smi")
-		rep.AddGPUModeResult("FAIL", "No GPU information returned", nil)
+		rep.AddGPUModeResult("FAIL", "No GPU information returned", []string{}, err)
 		return err
 	}
 
@@ -244,11 +244,11 @@ func RunGPUModeCheck() error {
 	logger.Info("Step 4: Reporting results...")
 	if result.Status == "PASS" {
 		logger.Info("GPU Mode Check: PASS - All GPUs have acceptable modes")
-		rep.AddGPUModeResult("PASS", result.Message, nil)
+		rep.AddGPUModeResult("PASS", result.Message, []string{}, err)
 		return nil
 	} else {
 		logger.Error("GPU Mode Check:", result.Message)
-		rep.AddGPUModeResult("FAIL", result.Message, result.EnabledGPUIndexes)
+		rep.AddGPUModeResult("FAIL", result.Message, result.EnabledGPUIndexes, nil)
 		return fmt.Errorf("GPU mode check failed: %s", result.Message)
 	}
 }

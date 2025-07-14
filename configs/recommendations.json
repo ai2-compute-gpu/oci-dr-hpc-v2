@@ -237,17 +237,6 @@
           "https://developer.nvidia.com/nvidia-system-management-interface"
         ]
       },
-      "warn": {
-        "type": "warning",
-        "fault_code": "HPCGPU-0006-0002",
-        "issue": "GPU SRAM correctable errors exceed threshold (max: {max_correctable}). Monitor for potential hardware degradation.",
-        "suggestion": "Monitor GPU memory health and consider maintenance scheduling if errors continue to increase",
-        "commands": [
-          "sudo nvidia-smi -q | grep -A 3 Aggregate | grep Correctable",
-          "sudo nvidia-smi -q | grep -A 3 Aggregate | grep Uncorrectable",
-          "nvidia-smi --query-gpu=memory.total,memory.free,memory.used --format=csv"
-        ]
-      },
       "pass": {
         "type": "info",
         "issue": "GPU SRAM error levels are within acceptable limits (uncorrectable: {max_uncorrectable}, correctable: {max_correctable})",
