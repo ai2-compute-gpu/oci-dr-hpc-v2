@@ -19,7 +19,7 @@ def run_cmd(cmd):
     return output
 
 # Function to parse mlxlink output and emit JSON
-def parse_link_results(interface, raw_result, expected_speed, expected_width,
+def parse_link_results(interface, raw_result, expected_speed,
                       raw_physical_errors_per_lane_threshold=-1,
                       effective_physical_errors_threshold=-1):
     # Join lines and parse JSON
@@ -76,7 +76,6 @@ def parse_link_results(interface, raw_result, expected_speed, expected_width,
     speed = output["Operational Info"].get("Speed", "")
     state = output["Operational Info"].get("State", "")
     phys_state = output["Operational Info"].get("Physical state", "")
-    width = output["Operational Info"].get("Width", "")
     status_opcode = output["Troubleshooting Info"].get("Status Opcode", "")
     recommendation = output["Troubleshooting Info"].get("Recommendation", "")
     effective_physical_errors = output["Physical Counters and BER Info"].get("Effective Physical Errors", "")
@@ -89,7 +88,6 @@ def parse_link_results(interface, raw_result, expected_speed, expected_width,
     result["link"]["link_speed"] = f"FAIL - {speed}, expected {expected_speed}"
     result["link"]["link_state"] = f"FAIL - {state}, expected {expected_state}"
     result["link"]["physical_state"] = f"FAIL - {phys_state}, expected {expected_phys_state}"
-    result["link"]["link_width"] = f"FAIL - {width}, expected {expected_width}"
     result["link"]["link_status"] = f"FAIL - {recommendation}"
     result["link"]["effective_physical_errors"] = "PASS"
     result["link"]["effective_physical_ber"] = f"FAIL - {effective_physical_ber}"
@@ -103,8 +101,6 @@ def parse_link_results(interface, raw_result, expected_speed, expected_width,
         result["link"]["link_state"] = "PASS"
     if phys_state in expected_phys_state:
         result["link"]["physical_state"] = "PASS"
-    if width == expected_width:
-        result["link"]["link_width"] = "PASS"
     if status_opcode == "0":
         result["link"]["link_status"] = "PASS"
     if isfloat(effective_physical_ber) and float(effective_physical_ber) < 1E-12:
@@ -139,13 +135,11 @@ def run_link_check():
         "link_check": {
             "speed": "200G",
             "effective_physical_errors": 0,
-            "raw_physical_errors_per_lane": 10000,
-            "width": "4x"
+            "raw_physical_errors_per_lane": 10000
         }
     }
 
     expected_speed = config["link_check"]["speed"]
-    expected_width = config["link_check"]["width"]
     expected_effective_physical_errors = config["link_check"]["effective_physical_errors"]
     expected_raw_physical_errors_per_lane = config["link_check"]["raw_physical_errors_per_lane"]
 
@@ -180,7 +174,6 @@ def run_link_check():
                 "link_speed": f"FAIL - Device {expected_device} not found",
                 "link_state": f"FAIL - Device {expected_device} not found",
                 "physical_state": f"FAIL - Device {expected_device} not found",
-                "link_width": f"FAIL - Device {expected_device} not found",
                 "link_status": f"FAIL - Device {expected_device} not found",
                 "effective_physical_errors": f"FAIL - Device {expected_device} not found",
                 "effective_physical_ber": f"FAIL - Device {expected_device} not found",
@@ -210,7 +203,6 @@ def run_link_check():
             interface,
             raw_result,
             expected_speed,
-            expected_width,
             expected_raw_physical_errors_per_lane,
             expected_effective_physical_errors
         )

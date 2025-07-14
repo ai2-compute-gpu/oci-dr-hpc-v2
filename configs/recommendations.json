@@ -187,6 +187,38 @@
         ]
       }
     },
+    "eth_link_check": {
+      "fail": {
+        "type": "critical",
+        "fault_code": "HPCGPU-0007-0001",
+        "issue": "Ethernet link check failed - link parameters do not meet expected values",
+        "suggestion": "Check Ethernet link health, verify cable connections, and inspect link parameters for 100GbE RoCE interfaces",
+        "commands": [
+          "sudo ibdev2netdev",
+          "sudo mst status -v",
+          "ip link show",
+          "sudo mlxlink -d {device} --show_module --show_counters --show_eye",
+          "ethtool {interface}",
+          "lspci | grep -i ethernet"
+        ],
+        "references": [
+          "https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/configuringrdma.htm",
+          "https://docs.mellanox.com/display/MLNXOFEDv461000/",
+          "https://community.mellanox.com/s/article/understanding-mlx-link-utility",
+          "https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm"
+        ]
+      },
+      "pass": {
+        "type": "info",
+        "issue": "Ethernet link check passed",
+        "suggestion": "All Ethernet links are healthy with expected parameters",
+        "commands": [
+          "sudo ibdev2netdev",
+          "ip link show",
+          "ethtool {interface}"
+        ]
+      }
+    },
     "sram_error_check": {
       "fail": {
         "type": "critical",

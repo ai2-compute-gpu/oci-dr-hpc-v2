@@ -72,6 +72,13 @@ type LinkTestResult struct {
 	TimestampUTC string      `json:"timestamp_utc"`
 }
 
+// EthLinkTestResult represents Ethernet link check test results
+type EthLinkTestResult struct {
+	Status       string      `json:"status"`
+	EthLinks     interface{} `json:"eth_links,omitempty"`
+	TimestampUTC string      `json:"timestamp_utc"`
+}
+
 // SRAMTestResult represents SRAM test results
 type SRAMTestResult struct {
 	Status           string `json:"status"`
@@ -89,6 +96,7 @@ type HostResults struct {
 	RXDiscardsCheck []RXDiscardsCheckTestResult `json:"rx_discards_check,omitempty"`
 	GIDIndexCheck   []GIDIndexTestResult        `json:"gid_index_check,omitempty"`
 	LinkCheck       []LinkTestResult            `json:"link_check,omitempty"`
+	EthLinkCheck    []EthLinkTestResult         `json:"eth_link_check,omitempty"`
 	SRAMErrorCheck  []SRAMTestResult            `json:"sram_error_check,omitempty"`
 }
 
@@ -255,6 +263,14 @@ func (r *Reporter) AddLinkResult(status string, links interface{}, err error) {
 	r.AddResult("link_check", status, details, err)
 }
 
+// AddEthLinkResult adds Ethernet link check test results
+func (r *Reporter) AddEthLinkResult(status string, ethLinks interface{}, err error) {
+	details := map[string]interface{}{
+		"eth_links": ethLinks,
+	}
+	r.AddResult("eth_link_check", status, details, err)
+}
+
 // AddSRAMResult adds SRAM test results
 func (r *Reporter) AddSRAMResult(status string, maxUncorrectable, maxCorrectable int, err error) {
 	details := map[string]interface{}{
@@ -403,6 +419,21 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
 		}
 		report.Localhost.LinkCheck = []LinkTestResult{linkResult}
+	}
+
+	// Process Ethernet link check results
+	if result, exists := r.results["eth_link_check"]; exists {
+		var ethLinks interface{}
+		if ethLinksVal, ok := result.Details["eth_links"]; ok {
+			ethLinks = ethLinksVal
+		}
+
+		ethLinkResult := EthLinkTestResult{
+			Status:       result.Status,
+			EthLinks:     ethLinks,
+			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
+		}
+		report.Localhost.EthLinkCheck = []EthLinkTestResult{ethLinkResult}
 	}
 
 	// Process SRAM results
@@ -659,6 +690,20 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 		}
 	}
 
+	// Ethernet Link Check Tests
+	if len(report.Localhost.EthLinkCheck) > 0 {
+		for _, ethLink := range report.Localhost.EthLinkCheck {
+			status := ethLink.Status
+			statusSymbol := "✅"
+			if status == "FAIL" {
+				statusSymbol = "❌"
+			}
+			details := "Ethernet Links Checked"
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s    │\n",
+				"Ethernet Link Check", statusSymbol, statusSymbol, details))
+		}
+	}
+
 	// SRAM Tests
 	if len(report.Localhost.SRAMErrorCheck) > 0 {
 		for _, sram := range report.Localhost.SRAMErrorCheck {
@@ -814,6 +859,23 @@ func (r *Reporter) formatFriendly(report *ReportOutput) (string, error) {
 			} else {
 				failedTests++
 				output.WriteString("   ❌ RDMA Links: Link issues detected (FAILED)\n")
+			}
+		}
+		output.WriteString("\n")
+	}
+
+	// Ethernet Link Check Tests
+	if len(report.Localhost.EthLinkCheck) > 0 {
+		output.WriteString("🌐 Ethernet Link Health Check\n")
+		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
+		for _, ethLink := range report.Localhost.EthLinkCheck {
+			totalTests++
+			if ethLink.Status == "PASS" {
+				passedTests++
+				output.WriteString("   ✅ Ethernet Links: All links healthy (PASSED)\n")
+			} else {
+				failedTests++
+				output.WriteString("   ❌ Ethernet Links: Link issues detected (FAILED)\n")
 			}
 		}
 		output.WriteString("\n")

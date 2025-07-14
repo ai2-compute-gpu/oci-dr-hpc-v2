@@ -71,6 +71,7 @@ func runAllLevel1Tests() error {
 		{"rx_discards_check", level1_tests.RunRXDiscardsCheck},
 		{"gid_index_check", level1_tests.RunGIDIndexCheck},
 		{"link_check", level1_tests.RunLinkCheck},
+		{"eth_link_check", level1_tests.RunEthLinkCheck},
 		{"sram_error_check", level1_tests.RunSRAMCheck},
 		{"gpu_mode_check", level1_tests.RunGPUModeCheck},
 	}
@@ -134,6 +135,7 @@ func runSpecificTests(testFilter string) error {
 		{"rx_discards_check", "Check Network Interface for rx discard", level1_tests.RunRXDiscardsCheck},
 		{"gid_index_check", "Check device GID Index are in range ", level1_tests.RunGIDIndexCheck},
 		{"link_check", "Check RDMA link state and parameters", level1_tests.RunLinkCheck},
+		{"eth_link_check", "Check Ethernet link state and parameters for 100GbE RoCE interfaces", level1_tests.RunEthLinkCheck},
 		{"sram_error_check", "Check SRAM correctable and uncorrectable errors", level1_tests.RunSRAMCheck},
 		{"gpu_mode_check", "Check if GPU is in Multi-Instance GPU (MIG) mode", level1_tests.RunGPUModeCheck},
 	}

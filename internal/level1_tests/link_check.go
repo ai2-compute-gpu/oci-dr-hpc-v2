@@ -21,7 +21,6 @@ type LinkCheckResult struct {
 	LinkSpeed                   string `json:"link_speed"`
 	LinkState                   string `json:"link_state"`
 	PhysicalState               string `json:"physical_state"`
-	LinkWidth                   string `json:"link_width"`
 	LinkStatus                  string `json:"link_status"`
 	EffectivePhysicalErrors     string `json:"effective_physical_errors"`
 	EffectivePhysicalBER        string `json:"effective_physical_ber"`
@@ -33,7 +32,6 @@ type LinkCheckResult struct {
 type LinkCheckTestConfig struct {
 	IsEnabled                           bool    `json:"enabled"`
 	ExpectedSpeed                       string  `json:"speed"`
-	ExpectedWidth                       string  `json:"width"`
 	EffectivePhysicalErrorsThreshold    int     `json:"effective_physical_errors"`
 	RawPhysicalErrorsPerLaneThreshold   int     `json:"raw_physical_errors_per_lane"`
 }
@@ -50,7 +48,6 @@ func getLinkCheckTestConfig(shape string) (*LinkCheckTestConfig, error) {
 	linkCheckTestConfig := &LinkCheckTestConfig{
 		IsEnabled:                           false,
 		ExpectedSpeed:                       "",
-		ExpectedWidth:                       "",
 		EffectivePhysicalErrorsThreshold:    -1,
 		RawPhysicalErrorsPerLaneThreshold:   -1,
 	}
@@ -85,12 +82,6 @@ func getLinkCheckTestConfig(shape string) (*LinkCheckTestConfig, error) {
 			logger.Info("Using configured speed:", speed, "for shape", shape)
 		}
 		
-		// Update width if specified
-		if width, ok := v["width"].(string); ok {
-			linkCheckTestConfig.ExpectedWidth = width
-			logger.Info("Using configured width:", width, "for shape", shape)
-		}
-		
 		// Update effective physical errors threshold if specified
 		if effErrors, ok := v["effective_physical_errors"].(float64); ok {
 			linkCheckTestConfig.EffectivePhysicalErrorsThreshold = int(effErrors)
@@ -112,7 +103,7 @@ func getLinkCheckTestConfig(shape string) (*LinkCheckTestConfig, error) {
 }
 
 // parseLinkResults parses the output from mlxlink command and validates link parameters
-func parseLinkResults(interfaceName string, mlxlinkOutput string, expectedSpeed string, expectedWidth string,
+func parseLinkResults(interfaceName string, mlxlinkOutput string, expectedSpeed string,
 	rawPhysicalErrorsPerLaneThreshold int, effectivePhysicalErrorsThreshold int) (*LinkCheckResult, error) {
 
 	result := &LinkCheckResult{
@@ -163,7 +154,6 @@ func parseLinkResults(interfaceName string, mlxlinkOutput string, expectedSpeed 
 			result.LinkSpeed = fmt.Sprintf("FAIL - Invalid interface: %s", interfaceName)
 			result.LinkState = fmt.Sprintf("FAIL - Invalid interface: %s", interfaceName)
 			result.PhysicalState = fmt.Sprintf("FAIL - Invalid interface: %s", interfaceName)
-			result.LinkWidth = fmt.Sprintf("FAIL - Invalid interface: %s", interfaceName)
 			result.LinkStatus = fmt.Sprintf("FAIL - Invalid interface: %s", interfaceName)
 			result.EffectivePhysicalErrors = "PASS"
 			result.EffectivePhysicalBER = "FAIL - Unable to get data"
@@ -177,7 +167,6 @@ func parseLinkResults(interfaceName string, mlxlinkOutput string, expectedSpeed 
 		result.LinkSpeed = fmt.Sprintf("FAIL - Invalid interface: %s", interfaceName)
 		result.LinkState = fmt.Sprintf("FAIL - Invalid interface: %s", interfaceName)
 		result.PhysicalState = fmt.Sprintf("FAIL - Invalid interface: %s", interfaceName)
-		result.LinkWidth = fmt.Sprintf("FAIL - Invalid interface: %s", interfaceName)
 		result.LinkStatus = fmt.Sprintf("FAIL - Invalid interface: %s", interfaceName)
 		result.EffectivePhysicalErrors = "PASS"
 		result.EffectivePhysicalBER = "FAIL - Unable to get data"
@@ -192,7 +181,6 @@ func parseLinkResults(interfaceName string, mlxlinkOutput string, expectedSpeed 
 		result.LinkSpeed = "FAIL - Unable to parse mlxlink output"
 		result.LinkState = "FAIL - Unable to parse mlxlink output"
 		result.PhysicalState = "FAIL - Unable to parse mlxlink output"
-		result.LinkWidth = "FAIL - Unable to parse mlxlink output"
 		result.LinkStatus = "FAIL - Unable to parse mlxlink output"
 		result.EffectivePhysicalErrors = "PASS"
 		result.EffectivePhysicalBER = "FAIL - Unable to parse mlxlink output"
@@ -217,7 +205,7 @@ func parseLinkResults(interfaceName string, mlxlinkOutput string, expectedSpeed 
 	expectedPhysStates := []string{"LinkUp", "ETH_AN_FSM_ENABLE"}
 
 	// Extract fields
-	var speed, state, physState, width, statusOpcode, recommendation string
+	var speed, state, physState, statusOpcode, recommendation string
 	var effectivePhysicalErrors, effectivePhysicalBER, rawPhysicalBER string
 	var rawPhysicalErrorsPerLane []int
 
@@ -230,9 +218,6 @@ func parseLinkResults(interfaceName string, mlxlinkOutput string, expectedSpeed 
 		}
 		if s, ok := opInfo["Physical state"].(string); ok {
 			physState = s
-		}
-		if s, ok := opInfo["Width"].(string); ok {
-			width = s
 		}
 	}
 
@@ -262,7 +247,6 @@ func parseLinkResults(interfaceName string, mlxlinkOutput string, expectedSpeed 
 	result.LinkSpeed = fmt.Sprintf("FAIL - %s, expected %s", speed, expectedSpeed)
 	result.LinkState = fmt.Sprintf("FAIL - %s, expected %s", state, expectedState)
 	result.PhysicalState = fmt.Sprintf("FAIL - %s, expected %v", physState, expectedPhysStates)
-	result.LinkWidth = fmt.Sprintf("FAIL - %s, expected %s", width, expectedWidth)
 	result.LinkStatus = fmt.Sprintf("FAIL - %s", recommendation)
 	result.EffectivePhysicalErrors = "PASS"
 	result.EffectivePhysicalBER = fmt.Sprintf("FAIL - %s", effectivePhysicalBER)
@@ -281,9 +265,6 @@ func parseLinkResults(interfaceName string, mlxlinkOutput string, expectedSpeed 
 			result.PhysicalState = "PASS"
 			break
 		}
-	}
-	if width == expectedWidth {
-		result.LinkWidth = "PASS"
 	}
 	if statusOpcode == "0" {
 		result.LinkStatus = "PASS"
@@ -414,7 +395,6 @@ func RunLinkCheck() error {
 				LinkSpeed:                   fmt.Sprintf("FAIL - Device %s not found", expectedDevice),
 				LinkState:                   fmt.Sprintf("FAIL - Device %s not found", expectedDevice),
 				PhysicalState:               fmt.Sprintf("FAIL - Device %s not found", expectedDevice),
-				LinkWidth:                   fmt.Sprintf("FAIL - Device %s not found", expectedDevice),
 				LinkStatus:                  fmt.Sprintf("FAIL - Device %s not found", expectedDevice),
 				EffectivePhysicalErrors:     fmt.Sprintf("FAIL - Device %s not found", expectedDevice),
 				EffectivePhysicalBER:        fmt.Sprintf("FAIL - Device %s not found", expectedDevice),
@@ -468,7 +448,6 @@ func RunLinkCheck() error {
 			interfaceName,
 			mlxlinkOutput,
 			linkCheckTestConfig.ExpectedSpeed,
-			linkCheckTestConfig.ExpectedWidth,
 			linkCheckTestConfig.RawPhysicalErrorsPerLaneThreshold,
 			linkCheckTestConfig.EffectivePhysicalErrorsThreshold,
 		)
@@ -495,7 +474,6 @@ func RunLinkCheck() error {
 		if !strings.HasPrefix(result.LinkSpeed, "PASS") ||
 			!strings.HasPrefix(result.LinkState, "PASS") ||
 			!strings.HasPrefix(result.PhysicalState, "PASS") ||
-			!strings.HasPrefix(result.LinkWidth, "PASS") ||
 			!strings.HasPrefix(result.LinkStatus, "PASS") ||
 			!strings.HasPrefix(result.EffectivePhysicalBER, "PASS") ||
 			!strings.HasPrefix(result.RawPhysicalBER, "PASS") ||

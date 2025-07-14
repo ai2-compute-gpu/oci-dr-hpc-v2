@@ -861,7 +861,6 @@ func TestReporter_LinkJSONMarshal(t *testing.T) {
 			"link_speed":                   "PASS",
 			"link_state":                   "PASS",
 			"physical_state":               "PASS",
-			"link_width":                   "PASS",
 			"link_status":                  "PASS",
 			"effective_physical_errors":    "PASS",
 			"effective_physical_ber":       "PASS",
@@ -911,4 +910,349 @@ func TestReporter_LinkJSONMarshal(t *testing.T) {
 	}
 
 	t.Logf("Generated JSON with link results:\n%s", string(jsonData))
+}
+
+func TestReporter_AddEthLinkResult(t *testing.T) {
+	reporter := &Reporter{
+		results: make(map[string]TestResult),
+	}
+
+	// Test adding Ethernet link result with PASS status
+	ethLinkResults := []map[string]interface{}{
+		{
+			"device":                       "eth0",
+			"eth_link_speed":               "PASS",
+			"eth_link_state":               "PASS",
+			"physical_state":               "PASS",
+			"eth_link_width":               "PASS",
+			"eth_link_status":              "PASS",
+			"effective_physical_errors":    "PASS",
+			"effective_physical_ber":       "PASS",
+			"raw_physical_errors_per_lane": "PASS",
+			"raw_physical_ber":             "PASS",
+		},
+		{
+			"device":                       "eth1",
+			"eth_link_speed":               "PASS",
+			"eth_link_state":               "PASS",
+			"physical_state":               "PASS",
+			"eth_link_width":               "PASS",
+			"eth_link_status":              "PASS",
+			"effective_physical_errors":    "PASS",
+			"effective_physical_ber":       "PASS",
+			"raw_physical_errors_per_lane": "PASS",
+			"raw_physical_ber":             "PASS",
+		},
+	}
+	reporter.AddEthLinkResult("PASS", ethLinkResults, nil)
+
+	// Check if result was added
+	if len(reporter.results) != 1 {
+		t.Errorf("Expected 1 result, got %d", len(reporter.results))
+	}
+
+	// Check Ethernet link result
+	if result, exists := reporter.results["eth_link_check"]; exists {
+		if result.Status != "PASS" {
+			t.Errorf("Expected Ethernet link status PASS, got %s", result.Status)
+		}
+		if ethLinks, ok := result.Details["eth_links"]; ok {
+			if ethLinksSlice, ok := ethLinks.([]map[string]interface{}); ok {
+				if len(ethLinksSlice) != 2 {
+					t.Errorf("Expected 2 Ethernet link results, got %d", len(ethLinksSlice))
+				}
+			} else {
+				t.Error("Ethernet links should be a slice of maps")
+			}
+		} else {
+			t.Error("Ethernet links not found in details")
+		}
+	} else {
+		t.Error("Ethernet link result not found")
+	}
+}
+
+func TestReporter_AddEthLinkResultWithFailure(t *testing.T) {
+	reporter := &Reporter{
+		results: make(map[string]TestResult),
+	}
+
+	// Test adding Ethernet link result with FAIL status
+	ethLinkResults := []map[string]interface{}{
+		{
+			"device":                       "eth0",
+			"eth_link_speed":               "FAIL - 100G, expected 200G",
+			"eth_link_state":               "FAIL - Down, expected Active",
+			"physical_state":               "FAIL - LinkDown, expected LinkUp",
+			"eth_link_width":               "FAIL - 2x, expected 4x",
+			"eth_link_status":              "FAIL - Cable unplugged",
+			"effective_physical_errors":    "FAIL - 5",
+			"effective_physical_ber":       "FAIL - 1e-10",
+			"raw_physical_errors_per_lane": "WARN - 15000 20000 18000 16000",
+			"raw_physical_ber":             "FAIL - 1e-4",
+		},
+	}
+	ethLinkErr := fmt.Errorf("Ethernet link issues detected")
+	reporter.AddEthLinkResult("FAIL", ethLinkResults, ethLinkErr)
+
+	// Check Ethernet link result
+	if result, exists := reporter.results["eth_link_check"]; exists {
+		if result.Status != "FAIL" {
+			t.Errorf("Expected Ethernet link status FAIL, got %s", result.Status)
+		}
+		if result.Error != ethLinkErr.Error() {
+			t.Errorf("Expected Ethernet link error %s, got %s", ethLinkErr.Error(), result.Error)
+		}
+		if ethLinks, ok := result.Details["eth_links"]; ok {
+			if ethLinksSlice, ok := ethLinks.([]map[string]interface{}); ok {
+				if len(ethLinksSlice) != 1 {
+					t.Errorf("Expected 1 Ethernet link result, got %d", len(ethLinksSlice))
+				}
+			} else {
+				t.Error("Ethernet links should be a slice of maps")
+			}
+		} else {
+			t.Error("Ethernet links not found in details")
+		}
+	} else {
+		t.Error("Ethernet link result not found")
+	}
+}
+
+func TestReporter_GenerateReportWithEthLink(t *testing.T) {
+	reporter := &Reporter{
+		results: make(map[string]TestResult),
+	}
+
+	// Add test results including Ethernet link
+	reporter.AddGPUResult("PASS", 8, nil)
+	reporter.AddPCIeResult("PASS", nil)
+	reporter.AddRDMAResult("PASS", 16, nil)
+	ethLinkResults := []map[string]interface{}{
+		{
+			"device":                       "eth0",
+			"eth_link_speed":               "PASS",
+			"eth_link_state":               "PASS",
+			"physical_state":               "PASS",
+			"eth_link_width":               "PASS",
+			"eth_link_status":              "PASS",
+			"effective_physical_errors":    "PASS",
+			"effective_physical_ber":       "PASS",
+			"raw_physical_errors_per_lane": "PASS",
+			"raw_physical_ber":             "PASS",
+		},
+	}
+	reporter.AddEthLinkResult("PASS", ethLinkResults, nil)
+
+	// Generate report
+	report, err := reporter.GenerateReport()
+	if err != nil {
+		t.Fatalf("Failed to generate report: %v", err)
+	}
+
+	// Check Ethernet Link result
+	if len(report.Localhost.EthLinkCheck) != 1 {
+		t.Errorf("Expected 1 Ethernet Link result, got %d", len(report.Localhost.EthLinkCheck))
+	} else {
+		if report.Localhost.EthLinkCheck[0].Status != "PASS" {
+			t.Errorf("Expected Ethernet Link status PASS, got %s", report.Localhost.EthLinkCheck[0].Status)
+		}
+		if report.Localhost.EthLinkCheck[0].EthLinks == nil {
+			t.Error("Expected Ethernet Link EthLinks to be present")
+		}
+	}
+}
+
+func TestReporter_WriteReportWithEthLink(t *testing.T) {
+	tempDir := t.TempDir()
+	outputFile := filepath.Join(tempDir, "test_report_eth_link.json")
+
+	reporter := &Reporter{
+		results:    make(map[string]TestResult),
+		outputFile: outputFile,
+	}
+
+	// Add test results including Ethernet link
+	reporter.AddGPUResult("PASS", 8, nil)
+	reporter.AddPCIeResult("PASS", nil)
+	reporter.AddRDMAResult("PASS", 16, nil)
+	ethLinkResults := []map[string]interface{}{
+		{
+			"device":                       "eth0",
+			"eth_link_speed":               "PASS",
+			"eth_link_state":               "PASS",
+			"physical_state":               "PASS",
+			"eth_link_width":               "PASS",
+			"eth_link_status":              "PASS",
+			"effective_physical_errors":    "PASS",
+			"effective_physical_ber":       "PASS",
+			"raw_physical_errors_per_lane": "PASS",
+			"raw_physical_ber":             "PASS",
+		},
+	}
+	reporter.AddEthLinkResult("PASS", ethLinkResults, nil)
+
+	// Write report
+	err := reporter.WriteReport()
+	if err != nil {
+		t.Fatalf("Failed to write report: %v", err)
+	}
+
+	// Check if file was created
+	if _, err := os.Stat(outputFile); os.IsNotExist(err) {
+		t.Error("Report file was not created")
+	}
+
+	// Read and validate the JSON
+	data, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("Failed to read report file: %v", err)
+	}
+
+	var report ReportOutput
+	if err := json.Unmarshal(data, &report); err != nil {
+		t.Fatalf("Failed to unmarshal report JSON: %v", err)
+	}
+
+	// Validate the Ethernet link structure in file
+	if len(report.Localhost.EthLinkCheck) != 1 {
+		t.Errorf("Expected 1 Ethernet Link result in file, got %d", len(report.Localhost.EthLinkCheck))
+	}
+
+	// Verify Ethernet link result content
+	ethLinkResult := report.Localhost.EthLinkCheck[0]
+	if ethLinkResult.Status != "PASS" {
+		t.Errorf("Expected Ethernet Link status PASS in file, got %s", ethLinkResult.Status)
+	}
+	if ethLinkResult.EthLinks == nil {
+		t.Error("Expected Ethernet Link EthLinks to be present in file")
+	}
+}
+
+func TestReporter_AllResultTypesWithEthLink(t *testing.T) {
+	reporter := &Reporter{
+		results: make(map[string]TestResult),
+	}
+
+	// Add all types of results including Ethernet link
+	reporter.AddGPUResult("PASS", 8, nil)
+	reporter.AddPCIeResult("FAIL", fmt.Errorf("PCIe error found"))
+	reporter.AddRDMAResult("PASS", 16, nil)
+	reporter.AddRXDiscardsCheckResult("PASS", 16, []string{}, nil)
+	linkResults := []map[string]interface{}{
+		{
+			"device":     "rdma0",
+			"link_speed": "PASS",
+			"link_state": "PASS",
+		},
+	}
+	reporter.AddLinkResult("PASS", linkResults, nil)
+	ethLinkResults := []map[string]interface{}{
+		{
+			"device":                       "eth0",
+			"eth_link_speed":               "FAIL - 100G, expected 200G",
+			"eth_link_state":               "PASS",
+			"physical_state":               "PASS",
+			"eth_link_width":               "PASS",
+			"eth_link_status":              "PASS",
+			"effective_physical_errors":    "PASS",
+			"effective_physical_ber":       "PASS",
+			"raw_physical_errors_per_lane": "PASS",
+			"raw_physical_ber":             "PASS",
+		},
+	}
+	reporter.AddEthLinkResult("FAIL", ethLinkResults, fmt.Errorf("Ethernet link issues detected"))
+
+	// Test counts
+	if len(reporter.results) != 6 {
+		t.Errorf("Expected 6 results, got %d", len(reporter.results))
+	}
+
+	// Test failed tests (should include PCIe and Ethernet Link)
+	failedTests := reporter.GetFailedTests()
+	if len(failedTests) != 2 {
+		t.Errorf("Expected 2 failed tests, got %d", len(failedTests))
+	}
+
+	// Test passed tests (should include GPU, RDMA, RX Discards, and Link)
+	passedTests := reporter.GetPassedTests()
+	if len(passedTests) != 4 {
+		t.Errorf("Expected 4 passed tests, got %d", len(passedTests))
+	}
+
+	// Check if Ethernet link test is in failed tests
+	ethLinkTestFound := false
+	for _, testName := range failedTests {
+		if testName == "eth_link_check" {
+			ethLinkTestFound = true
+			break
+		}
+	}
+	if !ethLinkTestFound {
+		t.Error("Ethernet link test should be in failed tests list")
+	}
+}
+
+func TestReporter_EthLinkJSONMarshal(t *testing.T) {
+	reporter := &Reporter{
+		results: make(map[string]TestResult),
+	}
+
+	// Add Ethernet link result
+	ethLinkResults := []map[string]interface{}{
+		{
+			"device":                       "eth0",
+			"eth_link_speed":               "PASS",
+			"eth_link_state":               "PASS",
+			"physical_state":               "PASS",
+			"eth_link_width":               "PASS",
+			"eth_link_status":              "PASS",
+			"effective_physical_errors":    "PASS",
+			"effective_physical_ber":       "PASS",
+			"raw_physical_errors_per_lane": "PASS",
+			"raw_physical_ber":             "PASS",
+		},
+	}
+	reporter.AddEthLinkResult("PASS", ethLinkResults, nil)
+
+	// Generate report
+	report, err := reporter.GenerateReport()
+	if err != nil {
+		t.Fatalf("Failed to generate report: %v", err)
+	}
+
+	// Marshal to JSON
+	jsonData, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		t.Fatalf("Failed to marshal report to JSON: %v", err)
+	}
+
+	// Verify it's valid JSON by unmarshaling
+	var testReport ReportOutput
+	if err := json.Unmarshal(jsonData, &testReport); err != nil {
+		t.Fatalf("Generated JSON is not valid: %v", err)
+	}
+
+	// Verify Ethernet link-specific fields
+	if len(testReport.Localhost.EthLinkCheck) != 1 {
+		t.Error("Ethernet link check field not properly marshaled")
+	}
+
+	ethLinkResult := testReport.Localhost.EthLinkCheck[0]
+	if ethLinkResult.Status != "PASS" {
+		t.Error("Ethernet link status field not properly marshaled")
+	}
+	if ethLinkResult.EthLinks == nil {
+		t.Error("Ethernet link eth_links field not properly marshaled")
+	}
+	if ethLinkResult.TimestampUTC == "" {
+		t.Error("Ethernet link timestamp_utc field not properly marshaled")
+	}
+
+	// Verify timestamp format (should be RFC3339 format)
+	if _, err := time.Parse(time.RFC3339, ethLinkResult.TimestampUTC); err != nil {
+		t.Errorf("Ethernet link timestamp_utc is not in valid RFC3339 format: %s", ethLinkResult.TimestampUTC)
+	}
+
+	t.Logf("Generated JSON with Ethernet link results:\n%s", string(jsonData))
 }
