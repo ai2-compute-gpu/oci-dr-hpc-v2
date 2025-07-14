@@ -158,13 +158,49 @@ func TestGetThresholdForTest(t *testing.T) {
 		t.Error("Expected non-nil threshold")
 	}
 
-	// Verify it's an array
-	if thresholdArray, ok := threshold.([]interface{}); ok {
-		if len(thresholdArray) != 4 {
-			t.Errorf("Expected 4 threshold values, got %d", len(thresholdArray))
+	// Test GPU mode threshold (object with allowed_modes array)
+	threshold, err = limits.GetThresholdForTest("BM.GPU.H100.8", "gpu_mode_check")
+	if err != nil {
+		t.Errorf("Failed to get GPU mode threshold: %v", err)
+	}
+	if threshold == nil {
+		t.Error("Expected non-nil threshold")
+	}
+
+	// Verify it's an object with allowed_modes
+	if thresholdObj, ok := threshold.(map[string]interface{}); ok {
+		if allowedModes, exists := thresholdObj["allowed_modes"]; exists {
+			if allowedModesArray, ok := allowedModes.([]interface{}); ok {
+				if len(allowedModesArray) != 3 {
+					t.Errorf("Expected 3 allowed modes, got %d", len(allowedModesArray))
+				}
+				// Verify the expected modes are present
+				expectedModes := map[string]bool{"N/A": false, "DISABLED": false, "ENABLED": false}
+				for _, mode := range allowedModesArray {
+					if modeStr, ok := mode.(string); ok {
+						if _, exists := expectedModes[modeStr]; exists {
+							expectedModes[modeStr] = true
+						} else {
+							t.Errorf("Unexpected allowed mode: %s", modeStr)
+						}
+					} else {
+						t.Error("Expected mode to be a string")
+					}
+				}
+				// Check all expected modes were found
+				for mode, found := range expectedModes {
+					if !found {
+						t.Errorf("Expected mode %s not found in allowed_modes", mode)
+					}
+				}
+			} else {
+				t.Error("Expected allowed_modes to be an array")
+			}
+		} else {
+			t.Error("Expected allowed_modes field in GPU mode threshold")
 		}
 	} else {
-		t.Error("Expected threshold to be an array")
+		t.Error("Expected threshold to be an object")
 	}
 
 	// Test disabled test
@@ -224,12 +260,13 @@ func TestGetEnabledTests(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to get enabled tests: %v", err)
 	}
-	if len(enabledTests) != 7 {
-		t.Errorf("Expected 7 enabled tests for H100, got %d", len(enabledTests))
+	if len(enabledTests) != 8 {
+		t.Errorf("Expected 8 enabled tests for H100, got %d", len(enabledTests))
 	}
 
 	expectedTests := map[string]bool{
 		"gid_index_check":   false,
+		"gpu_mode_check":    false,
 		"rx_discards_check": false,
 		"sram_error_check":  false,
 		"gpu_count_check":   false,
@@ -332,6 +369,23 @@ func TestJSONStructureParsing(t *testing.T) {
 	} else {
 		if !sramConfig.Enabled {
 			t.Error("Expected sram_error_check to be enabled")
+		}
+	}
+
+	// Check GPU mode configuration
+	gpuModeConfig, exists := h100Config["gpu_mode_check"]
+	if !exists {
+		t.Error("Expected gpu_mode_check configuration")
+	} else {
+		if !gpuModeConfig.Enabled {
+			t.Error("Expected gpu_mode_check to be enabled")
+		}
+		if gpuModeConfig.TestCategory != "LEVEL_1" {
+			t.Errorf("Expected test category LEVEL_1, got %s", gpuModeConfig.TestCategory)
+		}
+		// Verify threshold structure
+		if gpuModeConfig.Threshold == nil {
+			t.Error("Expected gpu_mode_check to have threshold configuration")
 		}
 	}
 }

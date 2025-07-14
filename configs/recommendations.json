@@ -27,6 +27,34 @@
         ]
       }
     },
+    "gpu_mode_check": {
+      "fail": {
+        "type": "critical",
+        "fault_code": "HPCGPU-0001-0002",
+        "issue": "GPU MIG mode configuration violation detected on GPUs: {enabled_gpu_indexes}",
+        "suggestion": "Disable MIG mode on affected GPUs or verify that MIG configuration meets workload requirements",
+        "commands": [
+          "nvidia-smi --query-gpu=index,mig.mode.current --format=csv,noheader",
+          "sudo nvidia-smi -mig 0",
+          "sudo nvidia-smi -i {enabled_gpu_indexes} -mig 0",
+          "nvidia-smi mig -lgip",
+          "nvidia-smi -q -i {enabled_gpu_indexes}"
+        ],
+        "references": [
+          "https://docs.nvidia.com/datacenter/tesla/mig-user-guide/",
+          "https://developer.nvidia.com/blog/getting-the-most-out-of-the-a100-gpu-with-multi-instance-gpu/",
+          "https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm"
+        ]
+      },
+      "pass": {
+        "type": "info",
+        "issue": "GPU MIG mode check passed - all GPUs have acceptable mode configuration",
+        "suggestion": "GPU MIG mode configuration is compliant",
+        "commands": [
+          "nvidia-smi --query-gpu=index,mig.mode.current --format=csv,noheader"
+        ]
+      }
+    },
     "pcie_error_check": {
       "fail": {
         "type": "critical",

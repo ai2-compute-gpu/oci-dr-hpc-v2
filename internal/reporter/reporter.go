@@ -28,6 +28,14 @@ type GPUTestResult struct {
 	TimestampUTC string `json:"timestamp_utc"`
 }
 
+// GPUModeTestResult represents GPU mode test results
+type GPUModeTestResult struct {
+	Status            string   `json:"status"`
+	Message           string   `json:"message,omitempty"`
+	EnabledGPUIndexes []string `json:"enabled_gpu_indexes,omitempty"`
+	TimestampUTC      string   `json:"timestamp_utc"`
+}
+
 // PCIeTestResult represents PCIe test results
 type PCIeTestResult struct {
 	Status       string `json:"status"`
@@ -75,6 +83,7 @@ type SRAMTestResult struct {
 // HostResults represents test results for a host
 type HostResults struct {
 	GPUCountCheck   []GPUTestResult             `json:"gpu_count_check,omitempty"`
+	GPUModeCheck    []GPUModeTestResult         `json:"gpu_mode_check,omitempty"`
 	PCIeErrorCheck  []PCIeTestResult            `json:"pcie_error_check,omitempty"`
 	RDMANicsCount   []RDMATestResult            `json:"rdma_nics_count,omitempty"`
 	RXDiscardsCheck []RXDiscardsCheckTestResult `json:"rx_discards_check,omitempty"`
@@ -188,6 +197,17 @@ func (r *Reporter) AddGPUResult(status string, gpuCount int, err error) {
 	r.AddResult("gpu_count_check", status, details, err)
 }
 
+// AddGPUModeResult adds GPU mode test results
+func (r *Reporter) AddGPUModeResult(status string, message string, enabledGPUIndexes []string) {
+	details := map[string]interface{}{
+		"message": message,
+	}
+	if enabledGPUIndexes != nil {
+		details["enabled_gpu_indexes"] = enabledGPUIndexes
+	}
+	r.AddResult("gpu_mode_check", status, details, nil)
+}
+
 // AddPCIeResult adds PCIe test results
 func (r *Reporter) AddPCIeResult(status string, err error) {
 	details := map[string]interface{}{}
@@ -267,6 +287,32 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
 		}
 		report.Localhost.GPUCountCheck = []GPUTestResult{gpuResult}
+	}
+
+	// Process GPU Mode results
+	if result, exists := r.results["gpu_mode_check"]; exists {
+		message := ""
+		var enabledGPUIndexes []string
+
+		if msgVal, ok := result.Details["message"]; ok {
+			if msg, ok := msgVal.(string); ok {
+				message = msg
+			}
+		}
+
+		if indexesVal, ok := result.Details["enabled_gpu_indexes"]; ok {
+			if indexes, ok := indexesVal.([]string); ok {
+				enabledGPUIndexes = indexes
+			}
+		}
+
+		gpuModeResult := GPUModeTestResult{
+			Status:            result.Status,
+			Message:           message,
+			EnabledGPUIndexes: enabledGPUIndexes,
+			TimestampUTC:      result.Timestamp.UTC().Format(time.RFC3339),
+		}
+		report.Localhost.GPUModeCheck = []GPUModeTestResult{gpuModeResult}
 	}
 
 	// Process PCIe results
@@ -522,6 +568,23 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 		}
 	}
 
+	// GPU Mode Tests
+	if len(report.Localhost.GPUModeCheck) > 0 {
+		for _, gpuMode := range report.Localhost.GPUModeCheck {
+			status := gpuMode.Status
+			statusSymbol := "✅"
+			if status == "FAIL" {
+				statusSymbol = "❌"
+			}
+			details := "MIG Mode Disabled"
+			if len(gpuMode.EnabledGPUIndexes) > 0 {
+				details = fmt.Sprintf("MIG Enabled: %v", gpuMode.EnabledGPUIndexes)
+			}
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s         │\n",
+				"GPU Mode Check", statusSymbol, statusSymbol, details))
+		}
+	}
+
 	// PCIe Tests
 	if len(report.Localhost.PCIeErrorCheck) > 0 {
 		for _, pcie := range report.Localhost.PCIeErrorCheck {
@@ -637,6 +700,27 @@ func (r *Reporter) formatFriendly(report *ReportOutput) (string, error) {
 			} else {
 				failedTests++
 				output.WriteString(fmt.Sprintf("   ❌ GPU Count: %d (FAILED)\n", gpu.GPUCount))
+			}
+		}
+		output.WriteString("\n")
+	}
+
+	// GPU Mode Tests
+	if len(report.Localhost.GPUModeCheck) > 0 {
+		output.WriteString("🖥️  GPU Mode Check\n")
+		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
+		for _, gpuMode := range report.Localhost.GPUModeCheck {
+			totalTests++
+			if gpuMode.Status == "PASS" {
+				passedTests++
+				output.WriteString("   ✅ GPU Mode: MIG disabled on all GPUs (PASSED)\n")
+			} else {
+				failedTests++
+				if len(gpuMode.EnabledGPUIndexes) > 0 {
+					output.WriteString(fmt.Sprintf("   ❌ GPU Mode: MIG enabled on GPUs %v (FAILED)\n", gpuMode.EnabledGPUIndexes))
+				} else {
+					output.WriteString("   ❌ GPU Mode: Check failed (FAILED)\n")
+				}
 			}
 		}
 		output.WriteString("\n")
