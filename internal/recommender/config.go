@@ -132,7 +132,7 @@ func (config *RecommendationConfig) GetRecommendation(testName, status string, t
 		FaultCode:  template.FaultCode,
 		Issue:      applyVariableSubstitution(template.Issue, testResult),
 		Suggestion: applyVariableSubstitution(template.Suggestion, testResult),
-		Commands:   template.Commands,
+		Commands:   applyCommandSubstitutions(template.Commands, testResult),
 		References: template.References,
 	}
 
@@ -169,6 +169,25 @@ func applyVariableSubstitution(template string, testResult TestResult) string {
 	result = strings.ReplaceAll(result, "{failed_interfaces}", fmt.Sprintf("%s", testResult.FailedInterfaces))
 	result = strings.ReplaceAll(result, "{max_uncorrectable}", fmt.Sprintf("%d", testResult.MaxUncorrectable))
 	result = strings.ReplaceAll(result, "{max_correctable}", fmt.Sprintf("%d", testResult.MaxCorrectable))
+
+	// Replace GPU mode check specific variables
+	if len(testResult.EnabledGPUIndexes) > 0 {
+		result = strings.ReplaceAll(result, "{enabled_gpu_indexes}", strings.Join(testResult.EnabledGPUIndexes, ","))
+	} else {
+		result = strings.ReplaceAll(result, "{enabled_gpu_indexes}", "")
+	}
+
+	return result
+}
+
+// applyCommandSubstitutions applies variable substitutions to command templates
+func applyCommandSubstitutions(commands []string, testResult TestResult) []string {
+	var result []string
+
+	for _, cmd := range commands {
+		substitutedCmd := applyVariableSubstitution(cmd, testResult)
+		result = append(result, substitutedCmd)
+	}
 
 	return result
 }

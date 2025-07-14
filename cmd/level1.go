@@ -72,6 +72,7 @@ func runAllLevel1Tests() error {
 		{"gid_index_check", level1_tests.RunGIDIndexCheck},
 		{"link_check", level1_tests.RunLinkCheck},
 		{"sram_error_check", level1_tests.RunSRAMCheck},
+		{"gpu_mode_check", level1_tests.RunGPUModeCheck},
 	}
 
 	var failedTests []string
@@ -134,6 +135,7 @@ func runSpecificTests(testFilter string) error {
 		{"gid_index_check", "Check device GID Index are in range ", level1_tests.RunGIDIndexCheck},
 		{"link_check", "Check RDMA link state and parameters", level1_tests.RunLinkCheck},
 		{"sram_error_check", "Check SRAM correctable and uncorrectable errors", level1_tests.RunSRAMCheck},
+		{"gpu_mode_check", "Check if GPU is in Multi-Instance GPU (MIG) mode", level1_tests.RunGPUModeCheck},
 	}
 
 	// If testFilter is empty, show available tests

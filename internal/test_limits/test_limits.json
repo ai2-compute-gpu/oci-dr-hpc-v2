@@ -41,6 +41,13 @@
           "effective_physical_errors": 0,
           "raw_physical_errors_per_lane": 10000
         }
+      },
+      "gpu_mode_check": {
+        "enabled": true,
+        "test_category": "LEVEL_1",
+        "threshold": {
+          "allowed_modes": ["N/A", "DISABLED", "ENABLED"]
+        }
       }
     },
     "BM.GPU.B200.8": {
@@ -69,6 +76,10 @@
         "test_category": "LEVEL_1"
       },
       "link_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1"
+      },
+      "gpu_mode_check": {
         "enabled": false,
         "test_category": "LEVEL_1"
       }
@@ -105,6 +116,10 @@
         }
       },
       "link_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1"
+      },
+      "gpu_mode_check": {
         "enabled": false,
         "test_category": "LEVEL_1"
       }

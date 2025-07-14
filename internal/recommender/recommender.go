@@ -12,21 +12,24 @@ import (
 
 // TestResult represents a single test result from the reporter
 type TestResult struct {
-	Status            string `json:"status"`
-	GPUCount          int    `json:"gpu_count,omitempty"`
-	NumRDMANics       int    `json:"num_rdma_nics,omitempty"`
-	FailedCount       int    `json:"failed_count,omitempty"`
-	FailedInterfaces  string `json:"failed_interfaces,omitempty"`
-	InterfaceCount    int    `json:"interface_count,omitempty"`
-	InvalidGIDIndexes []int  `json:"invalid_gid_indexes,omitempty"`
-	MaxUncorrectable  int    `json:"max_uncorrectable,omitempty"`
-	MaxCorrectable    int    `json:"max_correctable,omitempty"`
-	TimestampUTC      string `json:"timestamp_utc"`
+	Status            string   `json:"status"`
+	GPUCount          int      `json:"gpu_count,omitempty"`
+	Message           string   `json:"message,omitempty"`
+	EnabledGPUIndexes []string `json:"enabled_gpu_indexes,omitempty"`
+	NumRDMANics       int      `json:"num_rdma_nics,omitempty"`
+	FailedCount       int      `json:"failed_count,omitempty"`
+	FailedInterfaces  string   `json:"failed_interfaces,omitempty"`
+	InterfaceCount    int      `json:"interface_count,omitempty"`
+	InvalidGIDIndexes []int    `json:"invalid_gid_indexes,omitempty"`
+	MaxUncorrectable  int      `json:"max_uncorrectable,omitempty"`
+	MaxCorrectable    int      `json:"max_correctable,omitempty"`
+	TimestampUTC      string   `json:"timestamp_utc"`
 }
 
 // HostResults represents test results for a host
 type HostResults struct {
 	GPUCountCheck   []TestResult `json:"gpu_count_check,omitempty"`
+	GPUModeCheck    []TestResult `json:"gpu_mode_check,omitempty"`
 	PCIeErrorCheck  []TestResult `json:"pcie_error_check,omitempty"`
 	RDMANicsCount   []TestResult `json:"rdma_nics_count,omitempty"`
 	RxDiscardsCheck []TestResult `json:"rx_discards_check,omitempty"`
@@ -143,6 +146,7 @@ func generateRecommendations(results HostResults) RecommendationReport {
 		results  []TestResult
 	}{
 		{"gpu_count_check", results.GPUCountCheck},
+		{"gpu_mode_check", results.GPUModeCheck},
 		{"pcie_error_check", results.PCIeErrorCheck},
 		{"rdma_nics_count", results.RDMANicsCount},
 		{"rx_discards_check", results.RxDiscardsCheck},
@@ -200,6 +204,21 @@ func generateFallbackRecommendations(results HostResults) RecommendationReport {
 				Issue:      fmt.Sprintf("GPU count mismatch detected (found: %d)", gpu.GPUCount),
 				Suggestion: "Verify GPU hardware installation and driver status",
 				Commands:   []string{"nvidia-smi", "lspci | grep -i nvidia"},
+			}
+			recommendations = append(recommendations, rec)
+			criticalCount++
+		}
+	}
+
+	// Basic GPU Mode recommendations
+	for _, gpuMode := range results.GPUModeCheck {
+		if gpuMode.Status == "FAIL" {
+			rec := Recommendation{
+				Type:       "critical",
+				TestName:   "gpu_mode_check",
+				Issue:      fmt.Sprintf("GPU MIG mode configuration violation detected on GPUs: %v", gpuMode.EnabledGPUIndexes),
+				Suggestion: "Disable MIG mode on affected GPUs or verify that MIG configuration meets workload requirements",
+				Commands:   []string{"nvidia-smi --query-gpu=index,mig.mode.current --format=csv,noheader", "sudo nvidia-smi -mig 0"},
 			}
 			recommendations = append(recommendations, rec)
 			criticalCount++
