@@ -132,8 +132,13 @@ func parseResults(data []byte) (HostResults, error) {
 
 // generateRecommendations analyzes test results and generates recommendations using config
 func generateRecommendations(results HostResults) RecommendationReport {
+	configPath, err := GetConfigPath()
+	if err != nil {
+		logger.Errorf("Failed to load get config path: %v", err)
+		return generateFallbackRecommendations(results)
+	}
 	// Load recommendation configuration
-	config, err := LoadRecommendationConfig()
+	config, err := LoadRecommendationConfig(configPath)
 	if err != nil {
 		logger.Errorf("Failed to load recommendation config: %v", err)
 		return generateFallbackRecommendations(results)

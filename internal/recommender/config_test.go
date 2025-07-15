@@ -78,7 +78,7 @@ func TestLoadRecommendationConfig(t *testing.T) {
 	defer os.Remove(currentDirConfig)
 
 	// Test loading config
-	config, err := LoadRecommendationConfig()
+	config, err := LoadRecommendationConfig([]string{currentDirConfig})
 	if err != nil {
 		t.Fatalf("LoadRecommendationConfig failed: %v", err)
 	}
