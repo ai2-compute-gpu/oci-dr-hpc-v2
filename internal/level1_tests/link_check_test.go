@@ -13,7 +13,6 @@ func TestParseLinkResults(t *testing.T) {
 		interfaceName  string
 		mlxlinkOutput  string
 		expectedSpeed  string
-		expectedWidth  string
 		expectError    bool
 		expectedStatus string
 	}{
@@ -22,7 +21,6 @@ func TestParseLinkResults(t *testing.T) {
 			interfaceName:  "rdma0",
 			mlxlinkOutput:  "",
 			expectedSpeed:  "200G",
-			expectedWidth:  "4x",
 			expectError:    false,
 			expectedStatus: "FAIL",
 		},
@@ -31,7 +29,6 @@ func TestParseLinkResults(t *testing.T) {
 			interfaceName:  "rdma0",
 			mlxlinkOutput:  "Error: Invalid interface rdma0",
 			expectedSpeed:  "200G",
-			expectedWidth:  "4x",
 			expectError:    false,
 			expectedStatus: "FAIL",
 		},
@@ -61,7 +58,6 @@ func TestParseLinkResults(t *testing.T) {
 				}
 			}`,
 			expectedSpeed:  "200G",
-			expectedWidth:  "4x",
 			expectError:    false,
 			expectedStatus: "PASS",
 		},
@@ -70,7 +66,6 @@ func TestParseLinkResults(t *testing.T) {
 			interfaceName: "rdma0",
 			mlxlinkOutput: `{invalid json`,
 			expectedSpeed:  "200G",
-			expectedWidth:  "4x",
 			expectError:    false,
 			expectedStatus: "FAIL",
 		},
@@ -82,8 +77,7 @@ func TestParseLinkResults(t *testing.T) {
 				tt.interfaceName,
 				tt.mlxlinkOutput,
 				tt.expectedSpeed,
-				tt.expectedWidth,
-				10000, // rawPhysicalErrorsPerLaneThreshold
+					10000, // rawPhysicalErrorsPerLaneThreshold
 				0,     // effectivePhysicalErrorsThreshold
 			)
 
@@ -129,7 +123,6 @@ func TestLinkCheckResult(t *testing.T) {
 		LinkSpeed:                   "PASS",
 		LinkState:                   "PASS",
 		PhysicalState:               "PASS",
-		LinkWidth:                   "PASS",
 		LinkStatus:                  "PASS",
 		EffectivePhysicalErrors:     "PASS",
 		EffectivePhysicalBER:        "PASS",
@@ -148,9 +141,6 @@ func TestLinkCheckResult(t *testing.T) {
 	}
 	if result.PhysicalState != "PASS" {
 		t.Error("PhysicalState field mismatch")
-	}
-	if result.LinkWidth != "PASS" {
-		t.Error("LinkWidth field mismatch")
 	}
 	if result.LinkStatus != "PASS" {
 		t.Error("LinkStatus field mismatch")
@@ -325,7 +315,6 @@ func TestLinkCheckTestConfig(t *testing.T) {
 	config := LinkCheckTestConfig{
 		IsEnabled:                           true,
 		ExpectedSpeed:                       "200G",
-		ExpectedWidth:                       "4x",
 		EffectivePhysicalErrorsThreshold:    0,
 		RawPhysicalErrorsPerLaneThreshold:   10000,
 	}
@@ -335,9 +324,6 @@ func TestLinkCheckTestConfig(t *testing.T) {
 	}
 	if config.ExpectedSpeed != "200G" {
 		t.Error("Expected speed to be 200G")
-	}
-	if config.ExpectedWidth != "4x" {
-		t.Error("Expected width to be 4x")
 	}
 	if config.EffectivePhysicalErrorsThreshold != 0 {
 		t.Error("Expected effective physical errors threshold to be 0")
@@ -353,22 +339,18 @@ func TestThresholdConfigurationHandling(t *testing.T) {
 		name              string
 		threshold         interface{}
 		expectedSpeed     string
-		expectedWidth     string
 	}{
 		{
 			name: "Map configuration",
 			threshold: map[string]interface{}{
 				"speed": "100G",
-				"width": "8x",
 			},
 			expectedSpeed: "100G",
-			expectedWidth: "8x",
 		},
 		{
 			name:          "Invalid configuration",
 			threshold:     "invalid",
 			expectedSpeed: "200G", // Default
-			expectedWidth: "4x",   // Default
 		},
 	}
 
@@ -378,7 +360,6 @@ func TestThresholdConfigurationHandling(t *testing.T) {
 			config := &LinkCheckTestConfig{
 				IsEnabled:                           true,
 				ExpectedSpeed:                       "200G", // Default
-				ExpectedWidth:                       "4x",   // Default
 				EffectivePhysicalErrorsThreshold:    0,
 				RawPhysicalErrorsPerLaneThreshold:   10000,
 			}
@@ -388,16 +369,10 @@ func TestThresholdConfigurationHandling(t *testing.T) {
 				if speed, ok := v["speed"].(string); ok {
 					config.ExpectedSpeed = speed
 				}
-				if width, ok := v["width"].(string); ok {
-					config.ExpectedWidth = width
-				}
 			}
 
 			if config.ExpectedSpeed != tt.expectedSpeed {
 				t.Errorf("Expected speed %s, got %s", tt.expectedSpeed, config.ExpectedSpeed)
-			}
-			if config.ExpectedWidth != tt.expectedWidth {
-				t.Errorf("Expected width %s, got %s", tt.expectedWidth, config.ExpectedWidth)
 			}
 		})
 	}

@@ -35,6 +35,7 @@ type HostResults struct {
 	RxDiscardsCheck []TestResult `json:"rx_discards_check,omitempty"`
 	GIDIndexCheck   []TestResult `json:"gid_index_check,omitempty"`
 	LinkCheck       []TestResult `json:"link_check,omitempty"`
+	EthLinkCheck    []TestResult `json:"eth_link_check,omitempty"`
 	SRAMErrorCheck  []TestResult `json:"sram_error_check,omitempty"`
 }
 
@@ -152,6 +153,7 @@ func generateRecommendations(results HostResults) RecommendationReport {
 		{"rx_discards_check", results.RxDiscardsCheck},
 		{"gid_index_check", results.GIDIndexCheck},
 		{"link_check", results.LinkCheck},
+		{"eth_link_check", results.EthLinkCheck},
 		{"sram_error_check", results.SRAMErrorCheck},
 	}
 
@@ -298,6 +300,21 @@ func generateFallbackRecommendations(results HostResults) RecommendationReport {
 				Issue:      "RDMA link check failed - link parameters do not meet expected values",
 				Suggestion: "Check RDMA link health, verify cable connections, and inspect link parameters",
 				Commands:   []string{"ibstat", "rdma link show", "sudo mlxlink -d mlx5_0 --show_module"},
+			}
+			recommendations = append(recommendations, rec)
+			criticalCount++
+		}
+	}
+
+	// Basic Ethernet Link Check recommendations
+	for _, ethLinkCheck := range results.EthLinkCheck {
+		if ethLinkCheck.Status == "FAIL" {
+			rec := Recommendation{
+				Type:       "critical",
+				TestName:   "eth_link_check",
+				Issue:      "Ethernet link check failed - link parameters do not meet expected values",
+				Suggestion: "Check Ethernet link health, verify cable connections, and inspect link parameters for 100GbE RoCE interfaces",
+				Commands:   []string{"sudo ibdev2netdev", "ip link show", "sudo mst status -v"},
 			}
 			recommendations = append(recommendations, rec)
 			criticalCount++

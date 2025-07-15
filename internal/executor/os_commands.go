@@ -551,3 +551,31 @@ func RunMlxlink(interfaceName string) (*OSCommandResult, error) {
 
 	return result, nil
 }
+
+// RunMstStatus executes mst status command to get Mellanox device status and PCI mapping
+func RunMstStatus() (*OSCommandResult, error) {
+	logger.Info("Running mst status command...")
+
+	cmd := exec.Command("sudo", "mst", "status", "-v")
+	output, err := cmd.CombinedOutput()
+
+	result := &OSCommandResult{
+		Command: "sudo mst status -v",
+		Output:  string(output),
+		Error:   err,
+	}
+
+	if err != nil {
+		if exitError, ok := err.(*exec.ExitError); ok {
+			result.ExitCode = exitError.ExitCode()
+		}
+		logger.Errorf("mst status command failed: %v", err)
+		logger.Debugf("mst status output: %s", result.Output)
+		return result, err
+	}
+
+	logger.Info("mst status command completed successfully")
+	logger.Debugf("mst status output: %s", result.Output)
+
+	return result, nil
+}
