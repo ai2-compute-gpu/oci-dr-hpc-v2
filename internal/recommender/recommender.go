@@ -23,21 +23,23 @@ type TestResult struct {
 	InvalidGIDIndexes []int    `json:"invalid_gid_indexes,omitempty"`
 	MaxUncorrectable  int      `json:"max_uncorrectable,omitempty"`
 	MaxCorrectable    int      `json:"max_correctable,omitempty"`
+	ModuleLoaded      bool     `json:"module_loaded,omitempty"`
 	TimestampUTC      string   `json:"timestamp_utc"`
 }
 
 // HostResults represents test results for a host
 type HostResults struct {
-	GPUCountCheck   []TestResult `json:"gpu_count_check,omitempty"`
-	GPUModeCheck    []TestResult `json:"gpu_mode_check,omitempty"`
-	PCIeErrorCheck  []TestResult `json:"pcie_error_check,omitempty"`
-	RDMANicsCount   []TestResult `json:"rdma_nics_count,omitempty"`
-	RxDiscardsCheck []TestResult `json:"rx_discards_check,omitempty"`
-	GIDIndexCheck   []TestResult `json:"gid_index_check,omitempty"`
-	LinkCheck       []TestResult `json:"link_check,omitempty"`
-	EthLinkCheck    []TestResult `json:"eth_link_check,omitempty"`
-	SRAMErrorCheck  []TestResult `json:"sram_error_check,omitempty"`
-	GPUDriverCheck  []TestResult `json:"gpu_driver_check,omitempty"`
+	GPUCountCheck      []TestResult `json:"gpu_count_check,omitempty"`
+	GPUModeCheck       []TestResult `json:"gpu_mode_check,omitempty"`
+	PCIeErrorCheck     []TestResult `json:"pcie_error_check,omitempty"`
+	RDMANicsCount      []TestResult `json:"rdma_nics_count,omitempty"`
+	RxDiscardsCheck    []TestResult `json:"rx_discards_check,omitempty"`
+	GIDIndexCheck      []TestResult `json:"gid_index_check,omitempty"`
+	LinkCheck          []TestResult `json:"link_check,omitempty"`
+	EthLinkCheck       []TestResult `json:"eth_link_check,omitempty"`
+	SRAMErrorCheck     []TestResult `json:"sram_error_check,omitempty"`
+	GPUDriverCheck     []TestResult `json:"gpu_driver_check,omitempty"`
+	PeerMemModuleCheck []TestResult `json:"peermem_module_check,omitempty"`
 }
 
 // ReportOutput represents the single report format
@@ -132,13 +134,8 @@ func parseResults(data []byte) (HostResults, error) {
 
 // generateRecommendations analyzes test results and generates recommendations using config
 func generateRecommendations(results HostResults) RecommendationReport {
-	configPath, err := GetConfigPath()
-	if err != nil {
-		logger.Errorf("Failed to load get config path: %v", err)
-		return generateFallbackRecommendations(results)
-	}
 	// Load recommendation configuration
-	config, err := LoadRecommendationConfig(configPath)
+	config, err := LoadRecommendationConfig()
 	if err != nil {
 		logger.Errorf("Failed to load recommendation config: %v", err)
 		return generateFallbackRecommendations(results)
@@ -162,6 +159,7 @@ func generateRecommendations(results HostResults) RecommendationReport {
 		{"eth_link_check", results.EthLinkCheck},
 		{"sram_error_check", results.SRAMErrorCheck},
 		{"gpu_driver_check", results.GPUDriverCheck},
+		{"peermem_module_check", results.PeerMemModuleCheck},
 	}
 
 	for _, mapping := range testMappings {
@@ -381,6 +379,21 @@ func generateFallbackRecommendations(results HostResults) RecommendationReport {
 			}
 			recommendations = append(recommendations, rec)
 			warningCount++
+		}
+	}
+
+	// Basic PeerMem Module recommendations
+	for _, peerMem := range results.PeerMemModuleCheck {
+		if peerMem.Status == "FAIL" {
+			rec := Recommendation{
+				Type:       "critical",
+				TestName:   "peermem_module_check",
+				Issue:      "NVIDIA Peer Memory module (nvidia_peermem) is not loaded",
+				Suggestion: "Load the nvidia_peermem kernel module to enable GPU peer memory access",
+				Commands:   []string{"sudo modprobe nvidia_peermem", "lsmod | grep nvidia_peermem"},
+			}
+			recommendations = append(recommendations, rec)
+			criticalCount++
 		}
 	}
 

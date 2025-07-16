@@ -32,7 +32,8 @@ type RecommendationConfig struct {
 	SummaryTemplates map[string]string              `json:"summary_templates"`
 }
 
-func GetConfigPath() ([]string, error) {
+// LoadRecommendationConfig loads recommendation configuration from JSON file
+func LoadRecommendationConfig() (*RecommendationConfig, error) {
 	logger.Debugf("Starting recommendation config search...")
 
 	// Look for config file in multiple locations (order matters - local override > user > system > development)
@@ -47,7 +48,6 @@ func GetConfigPath() ([]string, error) {
 		logger.Debugf("Added user config path: %s", userConfigPath)
 	} else {
 		logger.Debugf("Could not determine user home directory: %v", err)
-		return []string{}, err
 	}
 
 	// Add system locations
@@ -59,11 +59,7 @@ func GetConfigPath() ([]string, error) {
 	}...)
 
 	logger.Debugf("Searching for recommendation config in %d locations: %v", len(configPaths), configPaths)
-	return configPaths, nil
-}
 
-// LoadRecommendationConfig loads recommendation configuration from JSON file
-func LoadRecommendationConfig(configPaths []string) (*RecommendationConfig, error) {
 	var configData []byte
 	var configFile string
 

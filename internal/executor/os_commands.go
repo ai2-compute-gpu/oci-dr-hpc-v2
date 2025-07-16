@@ -579,3 +579,34 @@ func RunMstStatus() (*OSCommandResult, error) {
 
 	return result, nil
 }
+
+// RunLsmod executes lsmod command to list loaded kernel modules
+func RunLsmod(options ...string) (*OSCommandResult, error) {
+	logger.Info("Running lsmod command...")
+
+	// Build command arguments - prepend lsmod to sudo args
+	args := append([]string{"lsmod"}, options...)
+
+	cmd := exec.Command("sudo", args...)
+	output, err := cmd.CombinedOutput()
+
+	result := &OSCommandResult{
+		Command: fmt.Sprintf("sudo lsmod %s", strings.Join(options, " ")),
+		Output:  string(output),
+		Error:   err,
+	}
+
+	if err != nil {
+		if exitError, ok := err.(*exec.ExitError); ok {
+			result.ExitCode = exitError.ExitCode()
+		}
+		logger.Errorf("lsmod command failed: %v", err)
+		logger.Debugf("lsmod output: %s", result.Output)
+		return result, err
+	}
+
+	logger.Info("lsmod command completed successfully")
+	logger.Debugf("lsmod output length: %d characters", len(result.Output))
+
+	return result, nil
+}

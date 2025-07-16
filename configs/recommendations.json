@@ -130,7 +130,7 @@
         "issue": "RX discards check passed",
         "suggestion": "RX discards does not exceed a specified threshold",
         "commands": [
-            "sudo ethtool -S {interface} | grep rx_prio.*_discards"
+           "sudo ethtool -S {interface} | grep rx_prio.*_discards"
         ]
       }
     },
@@ -289,6 +289,37 @@
           "nvidia-smi",
           "nvidia-smi -q",
           "nvidia-smi topo -m"
+        ]
+      }
+    },
+    "peermem_module_check": {
+      "fail": {
+        "type": "critical",
+        "fault_code": "HPCGPU-0008-0001",
+        "issue": "NVIDIA Peer Memory module (nvidia_peermem) is not loaded. This module is required for optimal GPU-to-GPU communication and peer memory access.",
+        "suggestion": "Load the nvidia_peermem kernel module to enable GPU peer memory access, which is crucial for multi-GPU workloads and direct GPU-to-GPU data transfers",
+        "commands": [
+          "sudo lsmod | grep nvidia_peermem",
+          "sudo modprobe nvidia_peermem",
+          "sudo systemctl restart nvidia-peermem",
+          "lsmod | grep nvidia",
+          "dmesg | grep -i peermem",
+          "nvidia-smi topo -p2p r"
+        ],
+        "references": [
+          "https://docs.nvidia.com/cuda/gpudirect-rdma/index.html",
+          "https://developer.nvidia.com/gpudirect",
+          "https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm",
+          "https://docs.nvidia.com/datacenter/tesla/tesla-installation-notes/"
+        ]
+      },
+      "pass": {
+        "type": "info",
+        "issue": "NVIDIA Peer Memory module check passed - nvidia_peermem module is loaded",
+        "suggestion": "GPU peer memory access is properly configured for optimal multi-GPU performance",
+        "commands": [
+          "sudo lsmod | grep nvidia_peermem",
+          "nvidia-smi topo -p2p r"
         ]
       }
     }

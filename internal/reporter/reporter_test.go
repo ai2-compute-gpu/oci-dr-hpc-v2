@@ -9,218 +9,332 @@ import (
 	"time"
 )
 
-func TestReporter_Initialize(t *testing.T) {
-	// Create a temporary directory for testing
-	tempDir := t.TempDir()
-	outputFile := filepath.Join(tempDir, "test_report.json")
+// Test helper functions
 
-	// Create a new reporter instance
-	reporter := &Reporter{
+func createTestReporter() *Reporter {
+	return &Reporter{
 		results: make(map[string]TestResult),
 	}
+}
 
-	// Test initialization
+func createTempFile(t *testing.T, filename string) string {
+	tempDir := t.TempDir()
+	return filepath.Join(tempDir, filename)
+}
+
+func assertResultCount(t *testing.T, reporter *Reporter, expected int) {
+	if count := reporter.GetResultsCount(); count != expected {
+		t.Errorf("Expected %d results, got %d", expected, count)
+	}
+}
+
+func assertResultExists(t *testing.T, reporter *Reporter, testName string, expectedStatus string) {
+	result, exists := reporter.results[testName]
+	if !exists {
+		t.Errorf("Result '%s' not found", testName)
+		return
+	}
+	if result.Status != expectedStatus {
+		t.Errorf("Expected status '%s' for %s, got '%s'", expectedStatus, testName, result.Status)
+	}
+}
+
+func assertJSONValid(t *testing.T, data []byte) ReportOutput {
+	var report ReportOutput
+	if err := json.Unmarshal(data, &report); err != nil {
+		t.Fatalf("Invalid JSON: %v", err)
+	}
+	return report
+}
+
+// Core functionality tests
+
+func TestReporter_Initialize(t *testing.T) {
+	reporter := createTestReporter()
+	outputFile := createTempFile(t, "test_report.json")
+
 	err := reporter.Initialize(outputFile)
 	if err != nil {
-		t.Fatalf("Failed to initialize reporter: %v", err)
+		t.Fatalf("Failed to initialize: %v", err)
 	}
 
 	if reporter.outputFile != outputFile {
 		t.Errorf("Expected output file %s, got %s", outputFile, reporter.outputFile)
 	}
-
 	if !reporter.initialized {
-		t.Error("Reporter should be marked as initialized")
+		t.Error("Reporter should be initialized")
 	}
 }
 
-func TestReporter_AddResults(t *testing.T) {
-	reporter := &Reporter{
-		results: make(map[string]TestResult),
+func TestReporter_SingletonPattern(t *testing.T) {
+	reporter1 := GetReporter()
+	reporter2 := GetReporter()
+
+	if reporter1 != reporter2 {
+		t.Error("GetReporter should return the same instance")
 	}
+	if reporter1.hostname != "localhost" {
+		t.Errorf("Expected default hostname 'localhost', got %s", reporter1.hostname)
+	}
+}
 
-	// Test adding GPU result
+func TestReporter_BasicOperations(t *testing.T) {
+	reporter := createTestReporter()
+
+	// Test adding results
 	reporter.AddGPUResult("PASS", 8, nil)
-
-	// Test adding PCIe result
 	reporter.AddPCIeResult("PASS", nil)
+	assertResultCount(t, reporter, 2)
 
-	// Test adding RDMA result
+	// Test getting results
+	assertResultExists(t, reporter, "gpu_count_check", "PASS")
+	assertResultExists(t, reporter, "pcie_error_check", "PASS")
+
+	// Test clear
+	reporter.Clear()
+	assertResultCount(t, reporter, 0)
+}
+
+func TestReporter_ResultCounting(t *testing.T) {
+	reporter := createTestReporter()
+
+	reporter.AddGPUResult("PASS", 8, nil)
+	reporter.AddPCIeResult("FAIL", fmt.Errorf("error"))
 	reporter.AddRDMAResult("PASS", 16, nil)
 
-	// Test adding GID Index result
-	reporter.AddGIDIndexResult("PASS", []int{}, nil)
+	passedTests := reporter.GetPassedTests()
+	failedTests := reporter.GetFailedTests()
 
-	// Test adding Link result
-	linkResults := []map[string]interface{}{
-		{"device": "rdma0", "link_speed": "PASS", "link_state": "PASS"},
+	if len(passedTests) != 2 {
+		t.Errorf("Expected 2 passed tests, got %d", len(passedTests))
 	}
-	reporter.AddLinkResult("PASS", linkResults, nil)
-
-	// Test adding SRAM result
-	reporter.AddSRAMErrorResult("PASS", 0, 50, nil)
-
-	// Check if all results were added
-	if len(reporter.results) != 6 {
-		t.Errorf("Expected 6 results, got %d", len(reporter.results))
-	}
-
-	// Check SRAM result
-	if result, exists := reporter.results["sram_error_check"]; exists {
-		if result.Status != "PASS" {
-			t.Errorf("Expected SRAM status PASS, got %s", result.Status)
-		}
-		if maxUncorr, ok := result.Details["max_uncorrectable"]; ok {
-			if maxUncorr != 0 {
-				t.Errorf("Expected max_uncorrectable 0, got %v", maxUncorr)
-			}
-		} else {
-			t.Error("max_uncorrectable not found in details")
-		}
-		if maxCorr, ok := result.Details["max_correctable"]; ok {
-			if maxCorr != 50 {
-				t.Errorf("Expected max_correctable 50, got %v", maxCorr)
-			}
-		} else {
-			t.Error("max_correctable not found in details")
-		}
-	} else {
-		t.Error("SRAM result not found")
+	if len(failedTests) != 1 {
+		t.Errorf("Expected 1 failed test, got %d", len(failedTests))
 	}
 }
 
-func TestReporter_AddSRAMErrorResult(t *testing.T) {
-	reporter := &Reporter{
-		results: make(map[string]TestResult),
-	}
+// Test result types - using table-driven tests for extensibility
 
+func TestReporter_AllResultTypes(t *testing.T) {
 	tests := []struct {
-		name             string
-		status           string
-		maxUncorrectable int
-		maxCorrectable   int
-		expectError      bool
+		name       string
+		addFunc    func(*Reporter)
+		resultKey  string
+		wantStatus string
 	}{
 		{
-			name:             "PASS with low errors",
-			status:           "PASS",
-			maxUncorrectable: 0,
-			maxCorrectable:   25,
-			expectError:      false,
+			name: "GPU Result",
+			addFunc: func(r *Reporter) {
+				r.AddGPUResult("PASS", 8, nil)
+			},
+			resultKey:  "gpu_count_check",
+			wantStatus: "PASS",
 		},
 		{
-			name:             "WARN with correctable errors",
-			status:           "WARN",
-			maxUncorrectable: 2,
-			maxCorrectable:   1500,
-			expectError:      true,
+			name: "GPU Mode Result",
+			addFunc: func(r *Reporter) {
+				r.AddGPUModeResult("PASS", "MIG disabled", []string{}, nil)
+			},
+			resultKey:  "gpu_mode_check",
+			wantStatus: "PASS",
 		},
 		{
-			name:             "FAIL with uncorrectable errors",
-			status:           "FAIL",
-			maxUncorrectable: 10,
-			maxCorrectable:   200,
-			expectError:      true,
+			name: "PCIe Result",
+			addFunc: func(r *Reporter) {
+				r.AddPCIeResult("PASS", nil)
+			},
+			resultKey:  "pcie_error_check",
+			wantStatus: "PASS",
+		},
+		{
+			name: "RDMA Result",
+			addFunc: func(r *Reporter) {
+				r.AddRDMAResult("PASS", 16, nil)
+			},
+			resultKey:  "rdma_nic_count",
+			wantStatus: "PASS",
+		},
+		{
+			name: "Network Result",
+			addFunc: func(r *Reporter) {
+				r.AddRXDiscardsCheckResult("PASS", 16, []string{}, nil)
+			},
+			resultKey:  "rx_discards_check",
+			wantStatus: "PASS",
+		},
+		{
+			name: "GID Index Result",
+			addFunc: func(r *Reporter) {
+				r.AddGIDIndexResult("PASS", []int{}, nil)
+			},
+			resultKey:  "gid_index_check",
+			wantStatus: "PASS",
+		},
+		{
+			name: "Link Result",
+			addFunc: func(r *Reporter) {
+				r.AddLinkResult("PASS", []map[string]interface{}{{"device": "rdma0"}}, nil)
+			},
+			resultKey:  "link_check",
+			wantStatus: "PASS",
+		},
+		{
+			name: "Ethernet Link Result",
+			addFunc: func(r *Reporter) {
+				r.AddEthLinkResult("PASS", []map[string]interface{}{{"device": "eth0"}}, nil)
+			},
+			resultKey:  "eth_link_check",
+			wantStatus: "PASS",
+		},
+		{
+			name: "SRAM Error Result",
+			addFunc: func(r *Reporter) {
+				r.AddSRAMErrorResult("PASS", 0, 25, nil)
+			},
+			resultKey:  "sram_error_check",
+			wantStatus: "PASS",
+		},
+		{
+			name: "GPU Driver Result",
+			addFunc: func(r *Reporter) {
+				r.AddGPUDriverResult("PASS", "550.54.15", nil)
+			},
+			resultKey:  "gpu_driver_check",
+			wantStatus: "PASS",
+		},
+		{
+			name: "PeerMem Result",
+			addFunc: func(r *Reporter) {
+				r.AddPeerMemResult("PASS", true, nil)
+			},
+			resultKey:  "peermem_module_check",
+			wantStatus: "PASS",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Clear previous results
-			reporter.Clear()
-
-			var err error
-			if tt.expectError {
-				err = fmt.Errorf("SRAM errors detected")
-			}
-
-			reporter.AddSRAMErrorResult(tt.status, tt.maxUncorrectable, tt.maxCorrectable, err)
-
-			// Verify result was added
-			if len(reporter.results) != 1 {
-				t.Errorf("Expected 1 result, got %d", len(reporter.results))
-			}
-
-			result, exists := reporter.results["sram_error_check"]
-			if !exists {
-				t.Fatal("SRAM result not found")
-			}
-
-			if result.Status != tt.status {
-				t.Errorf("Expected status %s, got %s", tt.status, result.Status)
-			}
-
-			if maxUncorr, ok := result.Details["max_uncorrectable"]; ok {
-				if maxUncorr != tt.maxUncorrectable {
-					t.Errorf("Expected max_uncorrectable %d, got %v", tt.maxUncorrectable, maxUncorr)
-				}
-			}
-
-			if maxCorr, ok := result.Details["max_correctable"]; ok {
-				if maxCorr != tt.maxCorrectable {
-					t.Errorf("Expected max_correctable %d, got %v", tt.maxCorrectable, maxCorr)
-				}
-			}
-
-			if tt.expectError && result.Error == "" {
-				t.Error("Expected error but got none")
-			}
-			if !tt.expectError && result.Error != "" {
-				t.Errorf("Unexpected error: %s", result.Error)
-			}
+			reporter := createTestReporter()
+			tt.addFunc(reporter)
+			assertResultExists(t, reporter, tt.resultKey, tt.wantStatus)
 		})
 	}
 }
 
-func TestReporter_GenerateReportWithSRAM(t *testing.T) {
-	reporter := &Reporter{
-		results: make(map[string]TestResult),
+// Test specific result details
+
+func TestReporter_ResultDetails(t *testing.T) {
+	tests := []struct {
+		name      string
+		setupFunc func(*Reporter)
+		checkFunc func(*testing.T, TestResult)
+		resultKey string
+	}{
+		{
+			name: "SRAM Error Details",
+			setupFunc: func(r *Reporter) {
+				r.AddSRAMErrorResult("PASS", 5, 100, nil)
+			},
+			resultKey: "sram_error_check",
+			checkFunc: func(t *testing.T, result TestResult) {
+				if maxUncorr, ok := result.Details["max_uncorrectable"]; !ok || maxUncorr != 5 {
+					t.Errorf("Expected max_uncorrectable 5, got %v", maxUncorr)
+				}
+				if maxCorr, ok := result.Details["max_correctable"]; !ok || maxCorr != 100 {
+					t.Errorf("Expected max_correctable 100, got %v", maxCorr)
+				}
+			},
+		},
+		{
+			name: "Network Details with Failures",
+			setupFunc: func(r *Reporter) {
+				r.AddRXDiscardsCheckResult("FAIL", 16, []string{"rdma2", "rdma3"}, fmt.Errorf("failed"))
+			},
+			resultKey: "rx_discards_check",
+			checkFunc: func(t *testing.T, result TestResult) {
+				if count, ok := result.Details["interface_count"]; !ok || count != 16 {
+					t.Errorf("Expected interface_count 16, got %v", count)
+				}
+				if failed, ok := result.Details["failed_count"]; !ok || failed != 2 {
+					t.Errorf("Expected failed_count 2, got %v", failed)
+				}
+			},
+		},
+		{
+			name: "GPU Mode Details",
+			setupFunc: func(r *Reporter) {
+				r.AddGPUModeResult("FAIL", "MIG enabled", []string{"0", "1"}, fmt.Errorf("mig enabled"))
+			},
+			resultKey: "gpu_mode_check",
+			checkFunc: func(t *testing.T, result TestResult) {
+				if msg, ok := result.Details["message"]; !ok || msg != "MIG enabled" {
+					t.Errorf("Expected message 'MIG enabled', got %v", msg)
+				}
+				if indexes, ok := result.Details["enabled_gpu_indexes"]; !ok {
+					t.Error("Expected enabled_gpu_indexes to be present")
+				} else if idxSlice, ok := indexes.([]string); !ok || len(idxSlice) != 2 {
+					t.Errorf("Expected 2 GPU indexes, got %v", indexes)
+				}
+			},
+		},
 	}
 
-	// Add test results including SRAM
-	reporter.AddGPUResult("PASS", 8, nil)
-	reporter.AddPCIeResult("PASS", nil)
-	reporter.AddRDMAResult("PASS", 16, nil)
-	reporter.AddSRAMErrorResult("PASS", 1, 75, nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reporter := createTestReporter()
+			tt.setupFunc(reporter)
 
-	// Generate report
+			result, exists := reporter.results[tt.resultKey]
+			if !exists {
+				t.Fatalf("Result '%s' not found", tt.resultKey)
+			}
+
+			tt.checkFunc(t, result)
+		})
+	}
+}
+
+// Report generation tests
+
+func TestReporter_GenerateReport(t *testing.T) {
+	reporter := createTestReporter()
+
+	// Add sample results
+	reporter.AddGPUResult("PASS", 8, nil)
+	reporter.AddSRAMErrorResult("PASS", 1, 75, nil)
+	reporter.AddRXDiscardsCheckResult("FAIL", 16, []string{"rdma2"}, fmt.Errorf("error"))
+
 	report, err := reporter.GenerateReport()
 	if err != nil {
 		t.Fatalf("Failed to generate report: %v", err)
 	}
 
-	// Check SRAM result
+	// Validate structure
+	if len(report.Localhost.GPUCountCheck) != 1 {
+		t.Error("Expected 1 GPU result")
+	}
 	if len(report.Localhost.SRAMErrorCheck) != 1 {
-		t.Errorf("Expected 1 SRAM result, got %d", len(report.Localhost.SRAMErrorCheck))
-	} else {
-		sramResult := report.Localhost.SRAMErrorCheck[0]
-		if sramResult.Status != "PASS" {
-			t.Errorf("Expected SRAM status PASS, got %s", sramResult.Status)
-		}
-		if sramResult.MaxUncorrectable != 1 {
-			t.Errorf("Expected MaxUncorrectable 1, got %d", sramResult.MaxUncorrectable)
-		}
-		if sramResult.MaxCorrectable != 75 {
-			t.Errorf("Expected MaxCorrectable 75, got %d", sramResult.MaxCorrectable)
-		}
-		if sramResult.TimestampUTC == "" {
-			t.Error("Expected SRAM TimestampUTC to be set")
-		}
+		t.Error("Expected 1 SRAM result")
+	}
+	if len(report.Localhost.RXDiscardsCheck) != 1 {
+		t.Error("Expected 1 network result")
+	}
+
+	// Validate timestamps
+	gpuResult := report.Localhost.GPUCountCheck[0]
+	if _, err := time.Parse(time.RFC3339, gpuResult.TimestampUTC); err != nil {
+		t.Errorf("Invalid timestamp format: %s", gpuResult.TimestampUTC)
 	}
 }
 
-func TestReporter_WriteReportWithSRAM(t *testing.T) {
-	tempDir := t.TempDir()
-	outputFile := filepath.Join(tempDir, "test_report_sram.json")
+func TestReporter_WriteReport(t *testing.T) {
+	reporter := createTestReporter()
+	outputFile := createTempFile(t, "test_report.json")
+	reporter.outputFile = outputFile
 
-	reporter := &Reporter{
-		results:    make(map[string]TestResult),
-		outputFile: outputFile,
-	}
-
-	// Add test results including SRAM
+	// Add test data
 	reporter.AddGPUResult("PASS", 8, nil)
-	reporter.AddSRAMErrorResult("FAIL", 15, 200, fmt.Errorf("uncorrectable errors exceed threshold"))
+	reporter.AddSRAMErrorResult("FAIL", 15, 200, fmt.Errorf("threshold exceeded"))
 
 	// Write report
 	err := reporter.WriteReport()
@@ -228,211 +342,82 @@ func TestReporter_WriteReportWithSRAM(t *testing.T) {
 		t.Fatalf("Failed to write report: %v", err)
 	}
 
-	// Read and validate the JSON
+	// Validate file
 	data, err := os.ReadFile(outputFile)
 	if err != nil {
 		t.Fatalf("Failed to read report file: %v", err)
 	}
 
-	var report ReportOutput
-	if err := json.Unmarshal(data, &report); err != nil {
-		t.Fatalf("Failed to unmarshal report JSON: %v", err)
-	}
+	report := assertJSONValid(t, data)
 
-	// Validate the SRAM structure in file
+	// Validate content
+	if len(report.Localhost.GPUCountCheck) != 1 {
+		t.Error("Expected 1 GPU result in file")
+	}
 	if len(report.Localhost.SRAMErrorCheck) != 1 {
-		t.Errorf("Expected 1 SRAM result in file, got %d", len(report.Localhost.SRAMErrorCheck))
+		t.Error("Expected 1 SRAM result in file")
 	}
 
 	sramResult := report.Localhost.SRAMErrorCheck[0]
 	if sramResult.Status != "FAIL" {
 		t.Errorf("Expected SRAM status FAIL, got %s", sramResult.Status)
 	}
-	if sramResult.MaxUncorrectable != 15 {
-		t.Errorf("Expected MaxUncorrectable 15, got %d", sramResult.MaxUncorrectable)
-	}
-	if sramResult.MaxCorrectable != 200 {
-		t.Errorf("Expected MaxCorrectable 200, got %d", sramResult.MaxCorrectable)
-	}
 }
 
-func TestReporter_FailedResultsWithSRAM(t *testing.T) {
-	reporter := &Reporter{
-		results: make(map[string]TestResult),
-	}
+// JSON serialization tests
 
-	// Add mixed results including SRAM
+func TestReporter_JSONSerialization(t *testing.T) {
+	reporter := createTestReporter()
+
+	// Add comprehensive test data
 	reporter.AddGPUResult("PASS", 8, nil)
-	reporter.AddPCIeResult("FAIL", fmt.Errorf("PCIe error found"))
-	reporter.AddRDMAResult("PASS", 16, nil)
-	reporter.AddSRAMErrorResult("FAIL", 10, 500, fmt.Errorf("SRAM errors exceed threshold"))
-
-	// Test failed tests (should include PCIe and SRAM)
-	failedTests := reporter.GetFailedTests()
-	if len(failedTests) != 2 {
-		t.Errorf("Expected 2 failed tests, got %d", len(failedTests))
-	}
-
-	// Test passed tests (should include GPU and RDMA)
-	passedTests := reporter.GetPassedTests()
-	if len(passedTests) != 2 {
-		t.Errorf("Expected 2 passed tests, got %d", len(passedTests))
-	}
-
-	// Check if SRAM test is in failed tests
-	sramTestFound := false
-	for _, testName := range failedTests {
-		if testName == "sram_error_check" {
-			sramTestFound = true
-			break
-		}
-	}
-	if !sramTestFound {
-		t.Error("SRAM test should be in failed tests list")
-	}
-}
-
-func TestReporter_SRAMJSONMarshal(t *testing.T) {
-	reporter := &Reporter{
-		results: make(map[string]TestResult),
-	}
-
-	// Add SRAM result
 	reporter.AddSRAMErrorResult("PASS", 2, 150, nil)
+	reporter.AddLinkResult("PASS", []map[string]interface{}{
+		{"device": "rdma0", "link_speed": "PASS"},
+	}, nil)
 
-	// Generate report
 	report, err := reporter.GenerateReport()
 	if err != nil {
 		t.Fatalf("Failed to generate report: %v", err)
 	}
 
-	// Marshal to JSON
+	// Test JSON marshaling
 	jsonData, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
-		t.Fatalf("Failed to marshal report to JSON: %v", err)
+		t.Fatalf("Failed to marshal to JSON: %v", err)
 	}
 
-	// Verify it's valid JSON by unmarshaling
+	// Test JSON unmarshaling
 	var testReport ReportOutput
 	if err := json.Unmarshal(jsonData, &testReport); err != nil {
-		t.Fatalf("Generated JSON is not valid: %v", err)
+		t.Fatalf("Failed to unmarshal JSON: %v", err)
 	}
 
-	// Verify SRAM-specific fields
+	// Validate structure preservation
+	if len(testReport.Localhost.GPUCountCheck) != 1 {
+		t.Error("GPU results not preserved in JSON")
+	}
 	if len(testReport.Localhost.SRAMErrorCheck) != 1 {
-		t.Fatal("SRAM error check field not properly marshaled")
+		t.Error("SRAM results not preserved in JSON")
 	}
-
-	sramResult := testReport.Localhost.SRAMErrorCheck[0]
-	if sramResult.Status != "PASS" {
-		t.Error("SRAM status field not properly marshaled")
-	}
-	if sramResult.MaxUncorrectable != 2 {
-		t.Error("SRAM max_uncorrectable field not properly marshaled")
-	}
-	if sramResult.MaxCorrectable != 150 {
-		t.Error("SRAM max_correctable field not properly marshaled")
-	}
-	if sramResult.TimestampUTC == "" {
-		t.Error("SRAM timestamp_utc field not properly marshaled")
-	}
-
-	// Verify timestamp format
-	if _, err := time.Parse(time.RFC3339, sramResult.TimestampUTC); err != nil {
-		t.Errorf("SRAM timestamp_utc is not in valid RFC3339 format: %s", sramResult.TimestampUTC)
-	}
-
-	t.Logf("Generated JSON with SRAM results:\n%s", string(jsonData))
-}
-
-func TestReporter_Clear(t *testing.T) {
-	reporter := &Reporter{
-		results: make(map[string]TestResult),
-	}
-
-	// Add some results including SRAM
-	reporter.AddGPUResult("PASS", 8, nil)
-	reporter.AddSRAMErrorResult("PASS", 0, 25, nil)
-
-	// Verify results were added
-	if len(reporter.results) != 2 {
-		t.Errorf("Expected 2 results before clear, got %d", len(reporter.results))
-	}
-
-	// Clear results
-	reporter.Clear()
-
-	// Verify results were cleared
-	if len(reporter.results) != 0 {
-		t.Errorf("Expected 0 results after clear, got %d", len(reporter.results))
+	if len(testReport.Localhost.LinkCheck) != 1 {
+		t.Error("Link results not preserved in JSON")
 	}
 }
 
-func TestReporter_GetReporter(t *testing.T) {
-	// Test singleton pattern
-	reporter1 := GetReporter()
-	reporter2 := GetReporter()
+// Error handling tests
 
-	if reporter1 != reporter2 {
-		t.Error("GetReporter should return the same instance")
-	}
+func TestReporter_ErrorHandling(t *testing.T) {
+	reporter := createTestReporter()
 
-	// Test that it's properly initialized
-	if reporter1.results == nil {
-		t.Error("Reporter results map should be initialized")
-	}
-
-	if reporter1.hostname != "localhost" {
-		t.Errorf("Expected default hostname 'localhost', got %s", reporter1.hostname)
-	}
-}
-
-func TestReporter_SetHostname(t *testing.T) {
-	reporter := &Reporter{
-		results: make(map[string]TestResult),
-	}
-
-	testHostname := "test-host"
-	reporter.SetHostname(testHostname)
-
-	if reporter.hostname != testHostname {
-		t.Errorf("Expected hostname %s, got %s", testHostname, reporter.hostname)
-	}
-}
-
-func TestReporter_ResultsCount(t *testing.T) {
-	reporter := &Reporter{
-		results: make(map[string]TestResult),
-	}
-
-	// Initially should be 0
-	if count := reporter.GetResultsCount(); count != 0 {
-		t.Errorf("Expected 0 results initially, got %d", count)
-	}
-
-	// Add results including SRAM
-	reporter.AddGPUResult("PASS", 8, nil)
-	reporter.AddSRAMErrorResult("PASS", 1, 50, nil)
-
-	// Should be 2 now
-	if count := reporter.GetResultsCount(); count != 2 {
-		t.Errorf("Expected 2 results after adding, got %d", count)
-	}
-}
-
-func TestReporter_WithErrors(t *testing.T) {
-	reporter := &Reporter{
-		results: make(map[string]TestResult),
-	}
-
-	// Add results with errors including SRAM
+	// Test with errors
 	gpuErr := fmt.Errorf("GPU count mismatch")
-	reporter.AddGPUResult("FAIL", 6, gpuErr)
+	sramErr := fmt.Errorf("SRAM errors exceed threshold")
 
-	sramErr := fmt.Errorf("SRAM uncorrectable errors exceed threshold")
+	reporter.AddGPUResult("FAIL", 6, gpuErr)
 	reporter.AddSRAMErrorResult("FAIL", 20, 300, sramErr)
 
-	// Check that errors are stored
+	// Verify errors are stored
 	if result, exists := reporter.results["gpu_count_check"]; exists {
 		if result.Error != gpuErr.Error() {
 			t.Errorf("Expected GPU error %s, got %s", gpuErr.Error(), result.Error)
@@ -446,813 +431,85 @@ func TestReporter_WithErrors(t *testing.T) {
 	}
 }
 
-func TestReporter_Timestamp(t *testing.T) {
-	reporter := &Reporter{
-		results: make(map[string]TestResult),
-	}
+// Edge cases and validation
 
-	before := time.Now()
-	reporter.AddSRAMErrorResult("PASS", 0, 25, nil)
-	after := time.Now()
-
-	if result, exists := reporter.results["sram_error_check"]; exists {
-		if result.Timestamp.Before(before) || result.Timestamp.After(after) {
-			t.Error("Timestamp should be set to current time when result is added")
-		}
-	} else {
-		t.Error("SRAM result not found")
-	}
-}
-
-func TestReporter_SRAMEdgeCases(t *testing.T) {
-	reporter := &Reporter{
-		results: make(map[string]TestResult),
-	}
-
-	// Test with zero error counts
-	reporter.AddSRAMErrorResult("PASS", 0, 0, nil)
-
-	if result, exists := reporter.results["sram_error_check"]; exists {
-		if maxUncorr, ok := result.Details["max_uncorrectable"]; ok {
-			if maxUncorr != 0 {
-				t.Errorf("Expected max_uncorrectable 0, got %v", maxUncorr)
-			}
-		}
-		if maxCorr, ok := result.Details["max_correctable"]; ok {
-			if maxCorr != 0 {
-				t.Errorf("Expected max_correctable 0, got %v", maxCorr)
-			}
-		}
-	}
-
-	// Clear and test with large error counts
-	reporter.Clear()
-	reporter.AddSRAMErrorResult("FAIL", 999, 10000, fmt.Errorf("excessive errors"))
-
-	if result, exists := reporter.results["sram_error_check"]; exists {
-		if maxUncorr, ok := result.Details["max_uncorrectable"]; ok {
-			if maxUncorr != 999 {
-				t.Errorf("Expected max_uncorrectable 999, got %v", maxUncorr)
-			}
-		}
-		if maxCorr, ok := result.Details["max_correctable"]; ok {
-			if maxCorr != 10000 {
-				t.Errorf("Expected max_correctable 10000, got %v", maxCorr)
-			}
-		}
-	}
-}
-
-func TestReporter_NetworkResultEdgeCases(t *testing.T) {
-	reporter := &Reporter{
-		results: make(map[string]TestResult),
-	}
-
-	// Test with zero interface count
-	reporter.AddRXDiscardsCheckResult("FAIL", 0, []string{}, fmt.Errorf("no interfaces found"))
-
-	if result, exists := reporter.results["rx_discards_check"]; exists {
-		if interfaceCount, ok := result.Details["interface_count"]; ok {
-			if interfaceCount != 0 {
-				t.Errorf("Expected interface count 0, got %v", interfaceCount)
-			}
-		}
-	}
-
-	// Clear and test with large interface count
-	reporter.Clear()
-	reporter.AddRXDiscardsCheckResult("PASS", 32, []string{}, nil)
-
-	if result, exists := reporter.results["rx_discards_check"]; exists {
-		if interfaceCount, ok := result.Details["interface_count"]; ok {
-			if interfaceCount != 32 {
-				t.Errorf("Expected interface count 32, got %v", interfaceCount)
-			}
-		}
-	}
-}
-
-func TestReporter_NetworkJSONMarshal(t *testing.T) {
-	reporter := &Reporter{
-		results: make(map[string]TestResult),
-	}
-
-	// Add network result
-	reporter.AddRXDiscardsCheckResult("PASS", 16, []string{}, nil)
-
-	// Generate report
-	report, err := reporter.GenerateReport()
-	if err != nil {
-		t.Fatalf("Failed to generate report: %v", err)
-	}
-
-	// Marshal to JSON
-	jsonData, err := json.MarshalIndent(report, "", "  ")
-	if err != nil {
-		t.Fatalf("Failed to marshal report to JSON: %v", err)
-	}
-
-	// Verify it's valid JSON by unmarshaling
-	var testReport ReportOutput
-	if err := json.Unmarshal(jsonData, &testReport); err != nil {
-		t.Fatalf("Generated JSON is not valid: %v", err)
-	}
-
-	// Verify network-specific fields
-	if len(testReport.Localhost.RXDiscardsCheck) != 1 {
-		t.Error("Network RX discards field not properly marshaled")
-	}
-
-	networkResult := testReport.Localhost.RXDiscardsCheck[0]
-	if networkResult.Status != "PASS" {
-		t.Error("Network status field not properly marshaled")
-	}
-	if networkResult.InterfaceCount != 16 {
-		t.Error("Network interface_count field not properly marshaled")
-	}
-	if networkResult.FailedCount != 0 {
-		t.Error("Network failed_count field should be 0 for PASS status")
-	}
-
-	t.Logf("Generated JSON with network results:\n%s", string(jsonData))
-}
-
-func TestReporter_NetworkJSONMarshalWithFailure(t *testing.T) {
-	reporter := &Reporter{
-		results: make(map[string]TestResult),
-	}
-
-	// Add network result with failure
-	reporter.AddRXDiscardsCheckResult("FAIL", 16, []string{"rdma2", "rdma3", "rdma6"}, fmt.Errorf("interfaces failed"))
-
-	// Generate report
-	report, err := reporter.GenerateReport()
-	if err != nil {
-		t.Fatalf("Failed to generate report: %v", err)
-	}
-
-	// Marshal to JSON
-	jsonData, err := json.MarshalIndent(report, "", "  ")
-	if err != nil {
-		t.Fatalf("Failed to marshal report to JSON: %v", err)
-	}
-
-	// Verify it's valid JSON by unmarshaling
-	var testReport ReportOutput
-	if err := json.Unmarshal(jsonData, &testReport); err != nil {
-		t.Fatalf("Generated JSON is not valid: %v", err)
-	}
-
-	// Verify network failure fields
-	networkResult := testReport.Localhost.RXDiscardsCheck[0]
-	if networkResult.Status != "FAIL" {
-		t.Error("Network status field should be FAIL")
-	}
-	if networkResult.InterfaceCount != 16 {
-		t.Error("Network interface_count field not properly marshaled for failure case")
-	}
-	if networkResult.FailedCount != 3 {
-		t.Error("Network failed_count field not properly marshaled for failure case")
-	}
-
-	t.Logf("Generated JSON with network failure:\n%s", string(jsonData))
-}
-
-func TestReporter_AddLinkResult(t *testing.T) {
-	reporter := &Reporter{
-		results: make(map[string]TestResult),
-	}
-
-	// Test adding link result with PASS status
-	linkResults := []map[string]interface{}{
+func TestReporter_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name string
+		test func(*testing.T)
+	}{
 		{
-			"device":     "rdma0",
-			"link_speed": "PASS",
-			"link_state": "PASS",
+			name: "Zero Values",
+			test: func(t *testing.T) {
+				reporter := createTestReporter()
+				reporter.AddSRAMErrorResult("PASS", 0, 0, nil)
+				reporter.AddRXDiscardsCheckResult("PASS", 0, []string{}, nil)
+				assertResultCount(t, reporter, 2)
+			},
 		},
 		{
-			"device":     "rdma1",
-			"link_speed": "PASS",
-			"link_state": "PASS",
+			name: "Large Values",
+			test: func(t *testing.T) {
+				reporter := createTestReporter()
+				reporter.AddSRAMErrorResult("FAIL", 999, 10000, fmt.Errorf("excessive"))
+				reporter.AddRXDiscardsCheckResult("PASS", 128, []string{}, nil)
+				assertResultCount(t, reporter, 2)
+			},
 		},
-	}
-	reporter.AddLinkResult("PASS", linkResults, nil)
+		{
+			name: "Empty Collections",
+			test: func(t *testing.T) {
+				reporter := createTestReporter()
+				reporter.AddGIDIndexResult("PASS", []int{}, nil)
+				reporter.AddLinkResult("PASS", []map[string]interface{}{}, nil)
+				assertResultCount(t, reporter, 2)
+			},
+		},
+		{
+			name: "Configuration Methods",
+			test: func(t *testing.T) {
+				reporter := createTestReporter()
+				reporter.SetHostname("test-host")
+				reporter.SetAppendMode(false)
 
-	// Check if result was added
-	if len(reporter.results) != 1 {
-		t.Errorf("Expected 1 result, got %d", len(reporter.results))
-	}
-
-	// Check link result
-	if result, exists := reporter.results["link_check"]; exists {
-		if result.Status != "PASS" {
-			t.Errorf("Expected link status PASS, got %s", result.Status)
-		}
-		if links, ok := result.Details["links"]; ok {
-			if linksSlice, ok := links.([]map[string]interface{}); ok {
-				if len(linksSlice) != 2 {
-					t.Errorf("Expected 2 link results, got %d", len(linksSlice))
+				if reporter.hostname != "test-host" {
+					t.Error("Hostname not set correctly")
 				}
-			} else {
-				t.Error("Links should be a slice of maps")
-			}
-		} else {
-			t.Error("Links not found in details")
-		}
-	} else {
-		t.Error("Link result not found")
-	}
-}
-
-func TestReporter_AddLinkResultWithFailure(t *testing.T) {
-	reporter := &Reporter{
-		results: make(map[string]TestResult),
-	}
-
-	// Test adding link result with FAIL status
-	linkResults := []map[string]interface{}{
-		{
-			"device":     "rdma0",
-			"link_speed": "FAIL - 100G, expected 200G",
-			"link_state": "FAIL - Down, expected Active",
-		},
-	}
-	linkErr := fmt.Errorf("link issues detected")
-	reporter.AddLinkResult("FAIL", linkResults, linkErr)
-
-	// Check link result
-	if result, exists := reporter.results["link_check"]; exists {
-		if result.Status != "FAIL" {
-			t.Errorf("Expected link status FAIL, got %s", result.Status)
-		}
-		if result.Error != linkErr.Error() {
-			t.Errorf("Expected link error %s, got %s", linkErr.Error(), result.Error)
-		}
-		if links, ok := result.Details["links"]; ok {
-			if linksSlice, ok := links.([]map[string]interface{}); ok {
-				if len(linksSlice) != 1 {
-					t.Errorf("Expected 1 link result, got %d", len(linksSlice))
+				if reporter.GetAppendMode() != false {
+					t.Error("Append mode not set correctly")
 				}
-			} else {
-				t.Error("Links should be a slice of maps")
-			}
-		} else {
-			t.Error("Links not found in details")
-		}
-	} else {
-		t.Error("Link result not found")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, tt.test)
 	}
 }
 
-func TestReporter_GenerateReportWithLink(t *testing.T) {
-	reporter := &Reporter{
-		results: make(map[string]TestResult),
-	}
+// Benchmark test for performance validation
 
-	// Add test results including link
+func BenchmarkReporter_AddResults(b *testing.B) {
+	reporter := createTestReporter()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		reporter.AddGPUResult("PASS", 8, nil)
+		reporter.Clear()
+	}
+}
+
+func BenchmarkReporter_GenerateReport(b *testing.B) {
+	reporter := createTestReporter()
 	reporter.AddGPUResult("PASS", 8, nil)
-	reporter.AddPCIeResult("PASS", nil)
+	reporter.AddSRAMErrorResult("PASS", 1, 50, nil)
 	reporter.AddRDMAResult("PASS", 16, nil)
-	linkResults := []map[string]interface{}{
-		{
-			"device":     "rdma0",
-			"link_speed": "PASS",
-			"link_state": "PASS",
-		},
-	}
-	reporter.AddLinkResult("PASS", linkResults, nil)
 
-	// Generate report
-	report, err := reporter.GenerateReport()
-	if err != nil {
-		t.Fatalf("Failed to generate report: %v", err)
-	}
-
-	// Check Link result
-	if len(report.Localhost.LinkCheck) != 1 {
-		t.Errorf("Expected 1 Link result, got %d", len(report.Localhost.LinkCheck))
-	} else {
-		if report.Localhost.LinkCheck[0].Status != "PASS" {
-			t.Errorf("Expected Link status PASS, got %s", report.Localhost.LinkCheck[0].Status)
-		}
-		if report.Localhost.LinkCheck[0].Links == nil {
-			t.Error("Expected Link Links to be present")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := reporter.GenerateReport()
+		if err != nil {
+			b.Fatal(err)
 		}
 	}
-}
-
-func TestReporter_WriteReportWithLink(t *testing.T) {
-	tempDir := t.TempDir()
-	outputFile := filepath.Join(tempDir, "test_report_link.json")
-
-	reporter := &Reporter{
-		results:    make(map[string]TestResult),
-		outputFile: outputFile,
-	}
-
-	// Add test results including link
-	reporter.AddGPUResult("PASS", 8, nil)
-	reporter.AddPCIeResult("PASS", nil)
-	reporter.AddRDMAResult("PASS", 16, nil)
-	linkResults := []map[string]interface{}{
-		{
-			"device":     "rdma0",
-			"link_speed": "PASS",
-			"link_state": "PASS",
-		},
-	}
-	reporter.AddLinkResult("PASS", linkResults, nil)
-
-	// Write report
-	err := reporter.WriteReport()
-	if err != nil {
-		t.Fatalf("Failed to write report: %v", err)
-	}
-
-	// Check if file was created
-	if _, err := os.Stat(outputFile); os.IsNotExist(err) {
-		t.Error("Report file was not created")
-	}
-
-	// Read and validate the JSON
-	data, err := os.ReadFile(outputFile)
-	if err != nil {
-		t.Fatalf("Failed to read report file: %v", err)
-	}
-
-	var report ReportOutput
-	if err := json.Unmarshal(data, &report); err != nil {
-		t.Fatalf("Failed to unmarshal report JSON: %v", err)
-	}
-
-	// Validate the link structure in file
-	if len(report.Localhost.LinkCheck) != 1 {
-		t.Errorf("Expected 1 Link result in file, got %d", len(report.Localhost.LinkCheck))
-	}
-
-	// Verify link result content
-	linkResult := report.Localhost.LinkCheck[0]
-	if linkResult.Status != "PASS" {
-		t.Errorf("Expected Link status PASS in file, got %s", linkResult.Status)
-	}
-	if linkResult.Links == nil {
-		t.Error("Expected Link Links to be present in file")
-	}
-}
-
-func TestReporter_AllResultTypesWithLink(t *testing.T) {
-	reporter := &Reporter{
-		results: make(map[string]TestResult),
-	}
-
-	// Add all types of results including link
-	reporter.AddGPUResult("PASS", 8, nil)
-	reporter.AddPCIeResult("FAIL", fmt.Errorf("PCIe error found"))
-	reporter.AddRDMAResult("PASS", 16, nil)
-	reporter.AddRXDiscardsCheckResult("PASS", 16, []string{}, nil)
-	linkResults := []map[string]interface{}{
-		{
-			"device":     "rdma0",
-			"link_speed": "FAIL - 100G, expected 200G",
-			"link_state": "PASS",
-		},
-	}
-	reporter.AddLinkResult("FAIL", linkResults, fmt.Errorf("link issues detected"))
-
-	// Test counts
-	if len(reporter.results) != 5 {
-		t.Errorf("Expected 5 results, got %d", len(reporter.results))
-	}
-
-	// Test failed tests (should include PCIe and Link)
-	failedTests := reporter.GetFailedTests()
-	if len(failedTests) != 2 {
-		t.Errorf("Expected 2 failed tests, got %d", len(failedTests))
-	}
-
-	// Test passed tests (should include GPU, RDMA, and RX Discards)
-	passedTests := reporter.GetPassedTests()
-	if len(passedTests) != 3 {
-		t.Errorf("Expected 3 passed tests, got %d", len(passedTests))
-	}
-
-	// Check if link test is in failed tests
-	linkTestFound := false
-	for _, testName := range failedTests {
-		if testName == "link_check" {
-			linkTestFound = true
-			break
-		}
-	}
-	if !linkTestFound {
-		t.Error("Link test should be in failed tests list")
-	}
-}
-
-func TestReporter_LinkJSONMarshal(t *testing.T) {
-	reporter := &Reporter{
-		results: make(map[string]TestResult),
-	}
-
-	// Add link result
-	linkResults := []map[string]interface{}{
-		{
-			"device":                       "rdma0",
-			"link_speed":                   "PASS",
-			"link_state":                   "PASS",
-			"physical_state":               "PASS",
-			"link_status":                  "PASS",
-			"effective_physical_errors":    "PASS",
-			"effective_physical_ber":       "PASS",
-			"raw_physical_errors_per_lane": "PASS",
-			"raw_physical_ber":             "PASS",
-		},
-	}
-	reporter.AddLinkResult("PASS", linkResults, nil)
-
-	// Generate report
-	report, err := reporter.GenerateReport()
-	if err != nil {
-		t.Fatalf("Failed to generate report: %v", err)
-	}
-
-	// Marshal to JSON
-	jsonData, err := json.MarshalIndent(report, "", "  ")
-	if err != nil {
-		t.Fatalf("Failed to marshal report to JSON: %v", err)
-	}
-
-	// Verify it's valid JSON by unmarshaling
-	var testReport ReportOutput
-	if err := json.Unmarshal(jsonData, &testReport); err != nil {
-		t.Fatalf("Generated JSON is not valid: %v", err)
-	}
-
-	// Verify link-specific fields
-	if len(testReport.Localhost.LinkCheck) != 1 {
-		t.Error("Link check field not properly marshaled")
-	}
-
-	linkResult := testReport.Localhost.LinkCheck[0]
-	if linkResult.Status != "PASS" {
-		t.Error("Link status field not properly marshaled")
-	}
-	if linkResult.Links == nil {
-		t.Error("Link links field not properly marshaled")
-	}
-	if linkResult.TimestampUTC == "" {
-		t.Error("Link timestamp_utc field not properly marshaled")
-	}
-
-	// Verify timestamp format (should be RFC3339 format)
-	if _, err := time.Parse(time.RFC3339, linkResult.TimestampUTC); err != nil {
-		t.Errorf("Link timestamp_utc is not in valid RFC3339 format: %s", linkResult.TimestampUTC)
-	}
-
-	t.Logf("Generated JSON with link results:\n%s", string(jsonData))
-}
-
-func TestReporter_AddEthLinkResult(t *testing.T) {
-	reporter := &Reporter{
-		results: make(map[string]TestResult),
-	}
-
-	// Test adding Ethernet link result with PASS status
-	ethLinkResults := []map[string]interface{}{
-		{
-			"device":                       "eth0",
-			"eth_link_speed":               "PASS",
-			"eth_link_state":               "PASS",
-			"physical_state":               "PASS",
-			"eth_link_width":               "PASS",
-			"eth_link_status":              "PASS",
-			"effective_physical_errors":    "PASS",
-			"effective_physical_ber":       "PASS",
-			"raw_physical_errors_per_lane": "PASS",
-			"raw_physical_ber":             "PASS",
-		},
-		{
-			"device":                       "eth1",
-			"eth_link_speed":               "PASS",
-			"eth_link_state":               "PASS",
-			"physical_state":               "PASS",
-			"eth_link_width":               "PASS",
-			"eth_link_status":              "PASS",
-			"effective_physical_errors":    "PASS",
-			"effective_physical_ber":       "PASS",
-			"raw_physical_errors_per_lane": "PASS",
-			"raw_physical_ber":             "PASS",
-		},
-	}
-	reporter.AddEthLinkResult("PASS", ethLinkResults, nil)
-
-	// Check if result was added
-	if len(reporter.results) != 1 {
-		t.Errorf("Expected 1 result, got %d", len(reporter.results))
-	}
-
-	// Check Ethernet link result
-	if result, exists := reporter.results["eth_link_check"]; exists {
-		if result.Status != "PASS" {
-			t.Errorf("Expected Ethernet link status PASS, got %s", result.Status)
-		}
-		if ethLinks, ok := result.Details["eth_links"]; ok {
-			if ethLinksSlice, ok := ethLinks.([]map[string]interface{}); ok {
-				if len(ethLinksSlice) != 2 {
-					t.Errorf("Expected 2 Ethernet link results, got %d", len(ethLinksSlice))
-				}
-			} else {
-				t.Error("Ethernet links should be a slice of maps")
-			}
-		} else {
-			t.Error("Ethernet links not found in details")
-		}
-	} else {
-		t.Error("Ethernet link result not found")
-	}
-}
-
-func TestReporter_AddEthLinkResultWithFailure(t *testing.T) {
-	reporter := &Reporter{
-		results: make(map[string]TestResult),
-	}
-
-	// Test adding Ethernet link result with FAIL status
-	ethLinkResults := []map[string]interface{}{
-		{
-			"device":                       "eth0",
-			"eth_link_speed":               "FAIL - 100G, expected 200G",
-			"eth_link_state":               "FAIL - Down, expected Active",
-			"physical_state":               "FAIL - LinkDown, expected LinkUp",
-			"eth_link_width":               "FAIL - 2x, expected 4x",
-			"eth_link_status":              "FAIL - Cable unplugged",
-			"effective_physical_errors":    "FAIL - 5",
-			"effective_physical_ber":       "FAIL - 1e-10",
-			"raw_physical_errors_per_lane": "WARN - 15000 20000 18000 16000",
-			"raw_physical_ber":             "FAIL - 1e-4",
-		},
-	}
-	ethLinkErr := fmt.Errorf("Ethernet link issues detected")
-	reporter.AddEthLinkResult("FAIL", ethLinkResults, ethLinkErr)
-
-	// Check Ethernet link result
-	if result, exists := reporter.results["eth_link_check"]; exists {
-		if result.Status != "FAIL" {
-			t.Errorf("Expected Ethernet link status FAIL, got %s", result.Status)
-		}
-		if result.Error != ethLinkErr.Error() {
-			t.Errorf("Expected Ethernet link error %s, got %s", ethLinkErr.Error(), result.Error)
-		}
-		if ethLinks, ok := result.Details["eth_links"]; ok {
-			if ethLinksSlice, ok := ethLinks.([]map[string]interface{}); ok {
-				if len(ethLinksSlice) != 1 {
-					t.Errorf("Expected 1 Ethernet link result, got %d", len(ethLinksSlice))
-				}
-			} else {
-				t.Error("Ethernet links should be a slice of maps")
-			}
-		} else {
-			t.Error("Ethernet links not found in details")
-		}
-	} else {
-		t.Error("Ethernet link result not found")
-	}
-}
-
-func TestReporter_GenerateReportWithEthLink(t *testing.T) {
-	reporter := &Reporter{
-		results: make(map[string]TestResult),
-	}
-
-	// Add test results including Ethernet link
-	reporter.AddGPUResult("PASS", 8, nil)
-	reporter.AddPCIeResult("PASS", nil)
-	reporter.AddRDMAResult("PASS", 16, nil)
-	ethLinkResults := []map[string]interface{}{
-		{
-			"device":                       "eth0",
-			"eth_link_speed":               "PASS",
-			"eth_link_state":               "PASS",
-			"physical_state":               "PASS",
-			"eth_link_width":               "PASS",
-			"eth_link_status":              "PASS",
-			"effective_physical_errors":    "PASS",
-			"effective_physical_ber":       "PASS",
-			"raw_physical_errors_per_lane": "PASS",
-			"raw_physical_ber":             "PASS",
-		},
-	}
-	reporter.AddEthLinkResult("PASS", ethLinkResults, nil)
-
-	// Generate report
-	report, err := reporter.GenerateReport()
-	if err != nil {
-		t.Fatalf("Failed to generate report: %v", err)
-	}
-
-	// Check Ethernet Link result
-	if len(report.Localhost.EthLinkCheck) != 1 {
-		t.Errorf("Expected 1 Ethernet Link result, got %d", len(report.Localhost.EthLinkCheck))
-	} else {
-		if report.Localhost.EthLinkCheck[0].Status != "PASS" {
-			t.Errorf("Expected Ethernet Link status PASS, got %s", report.Localhost.EthLinkCheck[0].Status)
-		}
-		if report.Localhost.EthLinkCheck[0].EthLinks == nil {
-			t.Error("Expected Ethernet Link EthLinks to be present")
-		}
-	}
-}
-
-func TestReporter_WriteReportWithEthLink(t *testing.T) {
-	tempDir := t.TempDir()
-	outputFile := filepath.Join(tempDir, "test_report_eth_link.json")
-
-	reporter := &Reporter{
-		results:    make(map[string]TestResult),
-		outputFile: outputFile,
-	}
-
-	// Add test results including Ethernet link
-	reporter.AddGPUResult("PASS", 8, nil)
-	reporter.AddPCIeResult("PASS", nil)
-	reporter.AddRDMAResult("PASS", 16, nil)
-	ethLinkResults := []map[string]interface{}{
-		{
-			"device":                       "eth0",
-			"eth_link_speed":               "PASS",
-			"eth_link_state":               "PASS",
-			"physical_state":               "PASS",
-			"eth_link_width":               "PASS",
-			"eth_link_status":              "PASS",
-			"effective_physical_errors":    "PASS",
-			"effective_physical_ber":       "PASS",
-			"raw_physical_errors_per_lane": "PASS",
-			"raw_physical_ber":             "PASS",
-		},
-	}
-	reporter.AddEthLinkResult("PASS", ethLinkResults, nil)
-
-	// Write report
-	err := reporter.WriteReport()
-	if err != nil {
-		t.Fatalf("Failed to write report: %v", err)
-	}
-
-	// Check if file was created
-	if _, err := os.Stat(outputFile); os.IsNotExist(err) {
-		t.Error("Report file was not created")
-	}
-
-	// Read and validate the JSON
-	data, err := os.ReadFile(outputFile)
-	if err != nil {
-		t.Fatalf("Failed to read report file: %v", err)
-	}
-
-	var report ReportOutput
-	if err := json.Unmarshal(data, &report); err != nil {
-		t.Fatalf("Failed to unmarshal report JSON: %v", err)
-	}
-
-	// Validate the Ethernet link structure in file
-	if len(report.Localhost.EthLinkCheck) != 1 {
-		t.Errorf("Expected 1 Ethernet Link result in file, got %d", len(report.Localhost.EthLinkCheck))
-	}
-
-	// Verify Ethernet link result content
-	ethLinkResult := report.Localhost.EthLinkCheck[0]
-	if ethLinkResult.Status != "PASS" {
-		t.Errorf("Expected Ethernet Link status PASS in file, got %s", ethLinkResult.Status)
-	}
-	if ethLinkResult.EthLinks == nil {
-		t.Error("Expected Ethernet Link EthLinks to be present in file")
-	}
-}
-
-func TestReporter_AllResultTypesWithEthLink(t *testing.T) {
-	reporter := &Reporter{
-		results: make(map[string]TestResult),
-	}
-
-	// Add all types of results including Ethernet link
-	reporter.AddGPUResult("PASS", 8, nil)
-	reporter.AddPCIeResult("FAIL", fmt.Errorf("PCIe error found"))
-	reporter.AddRDMAResult("PASS", 16, nil)
-	reporter.AddRXDiscardsCheckResult("PASS", 16, []string{}, nil)
-	linkResults := []map[string]interface{}{
-		{
-			"device":     "rdma0",
-			"link_speed": "PASS",
-			"link_state": "PASS",
-		},
-	}
-	reporter.AddLinkResult("PASS", linkResults, nil)
-	ethLinkResults := []map[string]interface{}{
-		{
-			"device":                       "eth0",
-			"eth_link_speed":               "FAIL - 100G, expected 200G",
-			"eth_link_state":               "PASS",
-			"physical_state":               "PASS",
-			"eth_link_width":               "PASS",
-			"eth_link_status":              "PASS",
-			"effective_physical_errors":    "PASS",
-			"effective_physical_ber":       "PASS",
-			"raw_physical_errors_per_lane": "PASS",
-			"raw_physical_ber":             "PASS",
-		},
-	}
-	reporter.AddEthLinkResult("FAIL", ethLinkResults, fmt.Errorf("Ethernet link issues detected"))
-
-	// Test counts
-	if len(reporter.results) != 6 {
-		t.Errorf("Expected 6 results, got %d", len(reporter.results))
-	}
-
-	// Test failed tests (should include PCIe and Ethernet Link)
-	failedTests := reporter.GetFailedTests()
-	if len(failedTests) != 2 {
-		t.Errorf("Expected 2 failed tests, got %d", len(failedTests))
-	}
-
-	// Test passed tests (should include GPU, RDMA, RX Discards, and Link)
-	passedTests := reporter.GetPassedTests()
-	if len(passedTests) != 4 {
-		t.Errorf("Expected 4 passed tests, got %d", len(passedTests))
-	}
-
-	// Check if Ethernet link test is in failed tests
-	ethLinkTestFound := false
-	for _, testName := range failedTests {
-		if testName == "eth_link_check" {
-			ethLinkTestFound = true
-			break
-		}
-	}
-	if !ethLinkTestFound {
-		t.Error("Ethernet link test should be in failed tests list")
-	}
-}
-
-func TestReporter_EthLinkJSONMarshal(t *testing.T) {
-	reporter := &Reporter{
-		results: make(map[string]TestResult),
-	}
-
-	// Add Ethernet link result
-	ethLinkResults := []map[string]interface{}{
-		{
-			"device":                       "eth0",
-			"eth_link_speed":               "PASS",
-			"eth_link_state":               "PASS",
-			"physical_state":               "PASS",
-			"eth_link_width":               "PASS",
-			"eth_link_status":              "PASS",
-			"effective_physical_errors":    "PASS",
-			"effective_physical_ber":       "PASS",
-			"raw_physical_errors_per_lane": "PASS",
-			"raw_physical_ber":             "PASS",
-		},
-	}
-	reporter.AddEthLinkResult("PASS", ethLinkResults, nil)
-
-	// Generate report
-	report, err := reporter.GenerateReport()
-	if err != nil {
-		t.Fatalf("Failed to generate report: %v", err)
-	}
-
-	// Marshal to JSON
-	jsonData, err := json.MarshalIndent(report, "", "  ")
-	if err != nil {
-		t.Fatalf("Failed to marshal report to JSON: %v", err)
-	}
-
-	// Verify it's valid JSON by unmarshaling
-	var testReport ReportOutput
-	if err := json.Unmarshal(jsonData, &testReport); err != nil {
-		t.Fatalf("Generated JSON is not valid: %v", err)
-	}
-
-	// Verify Ethernet link-specific fields
-	if len(testReport.Localhost.EthLinkCheck) != 1 {
-		t.Error("Ethernet link check field not properly marshaled")
-	}
-
-	ethLinkResult := testReport.Localhost.EthLinkCheck[0]
-	if ethLinkResult.Status != "PASS" {
-		t.Error("Ethernet link status field not properly marshaled")
-	}
-	if ethLinkResult.EthLinks == nil {
-		t.Error("Ethernet link eth_links field not properly marshaled")
-	}
-	if ethLinkResult.TimestampUTC == "" {
-		t.Error("Ethernet link timestamp_utc field not properly marshaled")
-	}
-
-	// Verify timestamp format (should be RFC3339 format)
-	if _, err := time.Parse(time.RFC3339, ethLinkResult.TimestampUTC); err != nil {
-		t.Errorf("Ethernet link timestamp_utc is not in valid RFC3339 format: %s", ethLinkResult.TimestampUTC)
-	}
-
-	t.Logf("Generated JSON with Ethernet link results:\n%s", string(jsonData))
 }

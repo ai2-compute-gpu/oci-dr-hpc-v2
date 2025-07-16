@@ -260,21 +260,22 @@ func TestGetEnabledTests(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to get enabled tests: %v", err)
 	}
-	if len(enabledTests) != 10 {
-		t.Errorf("Expected 10 enabled tests for H100, got %d", len(enabledTests))
+	if len(enabledTests) != 11 {
+		t.Errorf("Expected 11 enabled tests for H100, got %d", len(enabledTests))
 	}
 
 	expectedTests := map[string]bool{
-		"gid_index_check":   false,
-		"gpu_mode_check":    false,
-		"rx_discards_check": false,
-		"sram_error_check":  false,
-		"gpu_count_check":   false,
-		"rdma_nic_count":    false,
-		"pcie_error_check":  false,
-		"link_check":        false,
-		"eth_link_check":    false,
-		"gpu_driver_check":  false,
+		"gid_index_check":      false,
+		"gpu_mode_check":       false,
+		"rx_discards_check":    false,
+		"sram_error_check":     false,
+		"gpu_count_check":      false,
+		"rdma_nic_count":       false,
+		"pcie_error_check":     false,
+		"link_check":           false,
+		"eth_link_check":       false,
+		"gpu_driver_check":     false,
+		"peermem_module_check": false,
 	}
 
 	for _, test := range enabledTests {
