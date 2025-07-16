@@ -219,6 +219,35 @@
         ]
       }
     },
+    "auth_check": {
+      "fail": {
+        "type": "warning",
+        "fault_code": "HPCGPU-0008-0001",
+        "issue": "RDMA interface authentication check failed - some interfaces are not authenticated",
+        "suggestion": "Check wpa_supplicant configuration and ensure RDMA interfaces are properly authenticated",
+        "commands": [
+          "sudo wpa_cli -i {interface} status",
+          "sudo systemctl status wpa_supplicant",
+          "sudo wpa_cli -i {interface} reassociate",
+          "sudo ibdev2netdev",
+          "ip link show"
+        ],
+        "references": [
+          "https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/configuringrdma.htm",
+          "https://w1.fi/wpa_supplicant/",
+          "https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm"
+        ]
+      },
+      "pass": {
+        "type": "info",
+        "issue": "Authentication check passed",
+        "suggestion": "All RDMA interfaces are properly authenticated",
+        "commands": [
+          "sudo wpa_cli -i {interface} status",
+          "sudo ibdev2netdev"
+        ]
+      }
+    },
     "sram_error_check": {
       "fail": {
         "type": "critical",
