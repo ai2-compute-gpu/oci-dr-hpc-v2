@@ -59,6 +59,10 @@
           "effective_physical_ber": 1e-12,
           "raw_physical_ber": 1e-5
         }
+      },
+      "auth_check": {
+        "enabled": true,
+        "test_category": "LEVEL_1"
       }
     },
     "BM.GPU.B200.8": {
@@ -95,6 +99,10 @@
         "test_category": "LEVEL_1"
       },
       "eth_link_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1"
+      },
+      "auth_check": {
         "enabled": false,
         "test_category": "LEVEL_1"
       }
@@ -139,6 +147,10 @@
         "test_category": "LEVEL_1"
       },
       "eth_link_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1"
+      },
+      "auth_check": {
         "enabled": false,
         "test_category": "LEVEL_1"
       }

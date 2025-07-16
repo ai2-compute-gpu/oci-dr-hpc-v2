@@ -79,6 +79,13 @@ type EthLinkTestResult struct {
 	TimestampUTC string      `json:"timestamp_utc"`
 }
 
+// AuthCheckTestResult represents authentication check test results
+type AuthCheckTestResult struct {
+	Status       string      `json:"status"`
+	Interfaces   interface{} `json:"interfaces,omitempty"`
+	TimestampUTC string      `json:"timestamp_utc"`
+}
+
 // SRAMTestResult represents SRAM test results
 type SRAMTestResult struct {
 	Status           string `json:"status"`
@@ -97,6 +104,7 @@ type HostResults struct {
 	GIDIndexCheck   []GIDIndexTestResult        `json:"gid_index_check,omitempty"`
 	LinkCheck       []LinkTestResult            `json:"link_check,omitempty"`
 	EthLinkCheck    []EthLinkTestResult         `json:"eth_link_check,omitempty"`
+	AuthCheck       []AuthCheckTestResult       `json:"auth_check,omitempty"`
 	SRAMErrorCheck  []SRAMTestResult            `json:"sram_error_check,omitempty"`
 }
 
@@ -271,6 +279,14 @@ func (r *Reporter) AddEthLinkResult(status string, ethLinks interface{}, err err
 	r.AddResult("eth_link_check", status, details, err)
 }
 
+// AddAuthCheckResult adds authentication check test results
+func (r *Reporter) AddAuthCheckResult(status string, interfaces interface{}, err error) {
+	details := map[string]interface{}{
+		"interfaces": interfaces,
+	}
+	r.AddResult("auth_check", status, details, err)
+}
+
 // AddSRAMResult adds SRAM test results
 func (r *Reporter) AddSRAMResult(status string, maxUncorrectable, maxCorrectable int, err error) {
 	details := map[string]interface{}{
@@ -434,6 +450,21 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
 		}
 		report.Localhost.EthLinkCheck = []EthLinkTestResult{ethLinkResult}
+	}
+
+	// Process Auth check results
+	if result, exists := r.results["auth_check"]; exists {
+		var interfaces interface{}
+		if interfacesVal, ok := result.Details["interfaces"]; ok {
+			interfaces = interfacesVal
+		}
+
+		authResult := AuthCheckTestResult{
+			Status:       result.Status,
+			Interfaces:   interfaces,
+			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
+		}
+		report.Localhost.AuthCheck = []AuthCheckTestResult{authResult}
 	}
 
 	// Process SRAM results
@@ -704,6 +735,20 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 		}
 	}
 
+	// Auth Check Tests
+	if len(report.Localhost.AuthCheck) > 0 {
+		for _, auth := range report.Localhost.AuthCheck {
+			status := auth.Status
+			statusSymbol := "✅"
+			if status == "FAIL" {
+				statusSymbol = "❌"
+			}
+			details := "RDMA Auth Checked"
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s         │\n",
+				"Authentication Check", statusSymbol, statusSymbol, details))
+		}
+	}
+
 	// SRAM Tests
 	if len(report.Localhost.SRAMErrorCheck) > 0 {
 		for _, sram := range report.Localhost.SRAMErrorCheck {
@@ -876,6 +921,23 @@ func (r *Reporter) formatFriendly(report *ReportOutput) (string, error) {
 			} else {
 				failedTests++
 				output.WriteString("   ❌ Ethernet Links: Link issues detected (FAILED)\n")
+			}
+		}
+		output.WriteString("\n")
+	}
+
+	// Auth Check Tests
+	if len(report.Localhost.AuthCheck) > 0 {
+		output.WriteString("🔐 Authentication Check\n")
+		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
+		for _, auth := range report.Localhost.AuthCheck {
+			totalTests++
+			if auth.Status == "PASS" {
+				passedTests++
+				output.WriteString("   ✅ Authentication: All RDMA interfaces authenticated (PASSED)\n")
+			} else {
+				failedTests++
+				output.WriteString("   ❌ Authentication: RDMA interface authentication issues (FAILED)\n")
 			}
 		}
 		output.WriteString("\n")
