@@ -37,6 +37,7 @@ type HostResults struct {
 	LinkCheck       []TestResult `json:"link_check,omitempty"`
 	EthLinkCheck    []TestResult `json:"eth_link_check,omitempty"`
 	SRAMErrorCheck  []TestResult `json:"sram_error_check,omitempty"`
+	GPUDriverCheck  []TestResult `json:"gpu_driver_check,omitempty"`
 }
 
 // ReportOutput represents the single report format
@@ -155,6 +156,7 @@ func generateRecommendations(results HostResults) RecommendationReport {
 		{"link_check", results.LinkCheck},
 		{"eth_link_check", results.EthLinkCheck},
 		{"sram_error_check", results.SRAMErrorCheck},
+		{"gpu_driver_check", results.GPUDriverCheck},
 	}
 
 	for _, mapping := range testMappings {
@@ -346,6 +348,31 @@ func generateFallbackRecommendations(results HostResults) RecommendationReport {
 					"sudo nvidia-smi -q | grep -A 3 Aggregate | grep Correctable",
 					"sudo nvidia-smi -q | grep -A 3 Aggregate | grep Uncorrectable",
 				},
+			}
+			recommendations = append(recommendations, rec)
+			warningCount++
+		}
+	}
+
+	// Basic GPU Driver Check recommendations
+	for _, driverCheck := range results.GPUDriverCheck {
+		if driverCheck.Status == "FAIL" {
+			rec := Recommendation{
+				Type:       "critical",
+				TestName:   "gpu_driver_check",
+				Issue:      "GPU driver version validation failed",
+				Suggestion: "Update to a supported GPU driver version or investigate driver installation issues",
+				Commands:   []string{"nvidia-smi --query-gpu=driver_version --format=csv,noheader", "sudo apt update && sudo apt install nvidia-driver-535"},
+			}
+			recommendations = append(recommendations, rec)
+			criticalCount++
+		} else if driverCheck.Status == "WARN" {
+			rec := Recommendation{
+				Type:       "warning",
+				TestName:   "gpu_driver_check",
+				Issue:      "GPU driver version is unsupported but not blacklisted",
+				Suggestion: "Consider updating to a known supported driver version for optimal performance",
+				Commands:   []string{"nvidia-smi --query-gpu=driver_version --format=csv,noheader", "nvidia-smi -q"},
 			}
 			recommendations = append(recommendations, rec)
 			warningCount++

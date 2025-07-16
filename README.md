@@ -674,6 +674,7 @@ oci-dr-hpc-v2 recommender -r results.json --verbose
 | **`gpu_count_check`** | Verify GPU count matches shape specification | Uses nvidia-smi and shapes.json | HPCGPU-0001-0001 |
 | **`pcie_error_check`** | Scan system logs for PCIe errors | Parses dmesg output for hardware errors | HPCGPU-0002-0001 |
 | **`rdma_nics_count`** | Validate RDMA NIC count and PCI addresses | Uses hybrid discovery (shapes.json + OS) | HPCGPU-0003-0001 |
+| **`gpu_driver_check`** | Validate GPU driver version compatibility | Checks against blacklisted and supported versions | HPCGPU-0007-0001/0002 |
 
 ### Custom Script Framework Tests
 
@@ -687,6 +688,9 @@ oci-dr-hpc-v2 recommender -r results.json --verbose
 ```bash
 # Run single test with verbose output
 oci-dr-hpc-v2 level1 --test=gpu_count_check --verbose
+
+# Run GPU driver version check
+oci-dr-hpc-v2 level1 --test=gpu_driver_check --verbose
 
 # Output:
 # INFO: === GPU Count Check ===

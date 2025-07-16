@@ -58,7 +58,7 @@ func TestReporter_AddResults(t *testing.T) {
 	reporter.AddLinkResult("PASS", linkResults, nil)
 
 	// Test adding SRAM result
-	reporter.AddSRAMResult("PASS", 0, 50, nil)
+	reporter.AddSRAMErrorResult("PASS", 0, 50, nil)
 
 	// Check if all results were added
 	if len(reporter.results) != 6 {
@@ -89,7 +89,7 @@ func TestReporter_AddResults(t *testing.T) {
 	}
 }
 
-func TestReporter_AddSRAMResult(t *testing.T) {
+func TestReporter_AddSRAMErrorResult(t *testing.T) {
 	reporter := &Reporter{
 		results: make(map[string]TestResult),
 	}
@@ -134,7 +134,7 @@ func TestReporter_AddSRAMResult(t *testing.T) {
 				err = fmt.Errorf("SRAM errors detected")
 			}
 
-			reporter.AddSRAMResult(tt.status, tt.maxUncorrectable, tt.maxCorrectable, err)
+			reporter.AddSRAMErrorResult(tt.status, tt.maxUncorrectable, tt.maxCorrectable, err)
 
 			// Verify result was added
 			if len(reporter.results) != 1 {
@@ -181,7 +181,7 @@ func TestReporter_GenerateReportWithSRAM(t *testing.T) {
 	reporter.AddGPUResult("PASS", 8, nil)
 	reporter.AddPCIeResult("PASS", nil)
 	reporter.AddRDMAResult("PASS", 16, nil)
-	reporter.AddSRAMResult("PASS", 1, 75, nil)
+	reporter.AddSRAMErrorResult("PASS", 1, 75, nil)
 
 	// Generate report
 	report, err := reporter.GenerateReport()
@@ -220,7 +220,7 @@ func TestReporter_WriteReportWithSRAM(t *testing.T) {
 
 	// Add test results including SRAM
 	reporter.AddGPUResult("PASS", 8, nil)
-	reporter.AddSRAMResult("FAIL", 15, 200, fmt.Errorf("uncorrectable errors exceed threshold"))
+	reporter.AddSRAMErrorResult("FAIL", 15, 200, fmt.Errorf("uncorrectable errors exceed threshold"))
 
 	// Write report
 	err := reporter.WriteReport()
@@ -265,7 +265,7 @@ func TestReporter_FailedResultsWithSRAM(t *testing.T) {
 	reporter.AddGPUResult("PASS", 8, nil)
 	reporter.AddPCIeResult("FAIL", fmt.Errorf("PCIe error found"))
 	reporter.AddRDMAResult("PASS", 16, nil)
-	reporter.AddSRAMResult("FAIL", 10, 500, fmt.Errorf("SRAM errors exceed threshold"))
+	reporter.AddSRAMErrorResult("FAIL", 10, 500, fmt.Errorf("SRAM errors exceed threshold"))
 
 	// Test failed tests (should include PCIe and SRAM)
 	failedTests := reporter.GetFailedTests()
@@ -298,7 +298,7 @@ func TestReporter_SRAMJSONMarshal(t *testing.T) {
 	}
 
 	// Add SRAM result
-	reporter.AddSRAMResult("PASS", 2, 150, nil)
+	reporter.AddSRAMErrorResult("PASS", 2, 150, nil)
 
 	// Generate report
 	report, err := reporter.GenerateReport()
@@ -352,7 +352,7 @@ func TestReporter_Clear(t *testing.T) {
 
 	// Add some results including SRAM
 	reporter.AddGPUResult("PASS", 8, nil)
-	reporter.AddSRAMResult("PASS", 0, 25, nil)
+	reporter.AddSRAMErrorResult("PASS", 0, 25, nil)
 
 	// Verify results were added
 	if len(reporter.results) != 2 {
@@ -412,7 +412,7 @@ func TestReporter_ResultsCount(t *testing.T) {
 
 	// Add results including SRAM
 	reporter.AddGPUResult("PASS", 8, nil)
-	reporter.AddSRAMResult("PASS", 1, 50, nil)
+	reporter.AddSRAMErrorResult("PASS", 1, 50, nil)
 
 	// Should be 2 now
 	if count := reporter.GetResultsCount(); count != 2 {
@@ -430,7 +430,7 @@ func TestReporter_WithErrors(t *testing.T) {
 	reporter.AddGPUResult("FAIL", 6, gpuErr)
 
 	sramErr := fmt.Errorf("SRAM uncorrectable errors exceed threshold")
-	reporter.AddSRAMResult("FAIL", 20, 300, sramErr)
+	reporter.AddSRAMErrorResult("FAIL", 20, 300, sramErr)
 
 	// Check that errors are stored
 	if result, exists := reporter.results["gpu_count_check"]; exists {
@@ -452,7 +452,7 @@ func TestReporter_Timestamp(t *testing.T) {
 	}
 
 	before := time.Now()
-	reporter.AddSRAMResult("PASS", 0, 25, nil)
+	reporter.AddSRAMErrorResult("PASS", 0, 25, nil)
 	after := time.Now()
 
 	if result, exists := reporter.results["sram_error_check"]; exists {
@@ -470,7 +470,7 @@ func TestReporter_SRAMEdgeCases(t *testing.T) {
 	}
 
 	// Test with zero error counts
-	reporter.AddSRAMResult("PASS", 0, 0, nil)
+	reporter.AddSRAMErrorResult("PASS", 0, 0, nil)
 
 	if result, exists := reporter.results["sram_error_check"]; exists {
 		if maxUncorr, ok := result.Details["max_uncorrectable"]; ok {
@@ -487,7 +487,7 @@ func TestReporter_SRAMEdgeCases(t *testing.T) {
 
 	// Clear and test with large error counts
 	reporter.Clear()
-	reporter.AddSRAMResult("FAIL", 999, 10000, fmt.Errorf("excessive errors"))
+	reporter.AddSRAMErrorResult("FAIL", 999, 10000, fmt.Errorf("excessive errors"))
 
 	if result, exists := reporter.results["sram_error_check"]; exists {
 		if maxUncorr, ok := result.Details["max_uncorrectable"]; ok {

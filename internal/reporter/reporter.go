@@ -79,12 +79,19 @@ type EthLinkTestResult struct {
 	TimestampUTC string      `json:"timestamp_utc"`
 }
 
-// SRAMTestResult represents SRAM test results
-type SRAMTestResult struct {
+// SRAMErrorTestResult represents SRAM error test results
+type SRAMErrorTestResult struct {
 	Status           string `json:"status"`
 	MaxUncorrectable int    `json:"max_uncorrectable,omitempty"`
 	MaxCorrectable   int    `json:"max_correctable,omitempty"`
 	TimestampUTC     string `json:"timestamp_utc"`
+}
+
+// GPUDriverTestResult represents GPU driver test results
+type GPUDriverTestResult struct {
+	Status        string `json:"status"`
+	DriverVersion string `json:"driver_version,omitempty"`
+	TimestampUTC  string `json:"timestamp_utc"`
 }
 
 // HostResults represents test results for a host
@@ -97,7 +104,8 @@ type HostResults struct {
 	GIDIndexCheck   []GIDIndexTestResult        `json:"gid_index_check,omitempty"`
 	LinkCheck       []LinkTestResult            `json:"link_check,omitempty"`
 	EthLinkCheck    []EthLinkTestResult         `json:"eth_link_check,omitempty"`
-	SRAMErrorCheck  []SRAMTestResult            `json:"sram_error_check,omitempty"`
+	SRAMErrorCheck  []SRAMErrorTestResult       `json:"sram_error_check,omitempty"`
+	GPUDriverCheck  []GPUDriverTestResult       `json:"gpu_driver_check,omitempty"`
 }
 
 // ReportOutput represents the final JSON output structure
@@ -206,14 +214,12 @@ func (r *Reporter) AddGPUResult(status string, gpuCount int, err error) {
 }
 
 // AddGPUModeResult adds GPU mode test results
-func (r *Reporter) AddGPUModeResult(status string, message string, enabledGPUIndexes []string) {
+func (r *Reporter) AddGPUModeResult(status string, message string, enabledGPUIndexes []string, err error) {
 	details := map[string]interface{}{
-		"message": message,
+		"message":             message,
+		"enabled_gpu_indexes": enabledGPUIndexes,
 	}
-	if enabledGPUIndexes != nil {
-		details["enabled_gpu_indexes"] = enabledGPUIndexes
-	}
-	r.AddResult("gpu_mode_check", status, details, nil)
+	r.AddResult("gpu_mode_check", status, details, err)
 }
 
 // AddPCIeResult adds PCIe test results
@@ -271,13 +277,21 @@ func (r *Reporter) AddEthLinkResult(status string, ethLinks interface{}, err err
 	r.AddResult("eth_link_check", status, details, err)
 }
 
-// AddSRAMResult adds SRAM test results
-func (r *Reporter) AddSRAMResult(status string, maxUncorrectable, maxCorrectable int, err error) {
+// AddSRAMErrorResult adds SRAM error test results
+func (r *Reporter) AddSRAMErrorResult(status string, maxUncorrectable int, maxCorrectable int, err error) {
 	details := map[string]interface{}{
 		"max_uncorrectable": maxUncorrectable,
 		"max_correctable":   maxCorrectable,
 	}
 	r.AddResult("sram_error_check", status, details, err)
+}
+
+// AddGPUDriverResult adds GPU driver test results
+func (r *Reporter) AddGPUDriverResult(status string, driverVersion string, err error) {
+	details := map[string]interface{}{
+		"driver_version": driverVersion,
+	}
+	r.AddResult("gpu_driver_check", status, details, err)
 }
 
 // GenerateReport generates the final JSON report
@@ -305,17 +319,16 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 		report.Localhost.GPUCountCheck = []GPUTestResult{gpuResult}
 	}
 
-	// Process GPU Mode results
+	// Process GPU Mode Check results
 	if result, exists := r.results["gpu_mode_check"]; exists {
 		message := ""
-		var enabledGPUIndexes []string
-
 		if msgVal, ok := result.Details["message"]; ok {
 			if msg, ok := msgVal.(string); ok {
 				message = msg
 			}
 		}
 
+		var enabledGPUIndexes []string
 		if indexesVal, ok := result.Details["enabled_gpu_indexes"]; ok {
 			if indexes, ok := indexesVal.([]string); ok {
 				enabledGPUIndexes = indexes
@@ -436,30 +449,45 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 		report.Localhost.EthLinkCheck = []EthLinkTestResult{ethLinkResult}
 	}
 
-	// Process SRAM results
+	// Process SRAM Error Check results
 	if result, exists := r.results["sram_error_check"]; exists {
 		maxUncorrectable := 0
+		if uncorrectableVal, ok := result.Details["max_uncorrectable"]; ok {
+			if uncorrectable, ok := uncorrectableVal.(int); ok {
+				maxUncorrectable = uncorrectable
+			}
+		}
+
 		maxCorrectable := 0
-
-		if uncorrVal, ok := result.Details["max_uncorrectable"]; ok {
-			if count, ok := uncorrVal.(int); ok {
-				maxUncorrectable = count
+		if correctableVal, ok := result.Details["max_correctable"]; ok {
+			if correctable, ok := correctableVal.(int); ok {
+				maxCorrectable = correctable
 			}
 		}
 
-		if corrVal, ok := result.Details["max_correctable"]; ok {
-			if count, ok := corrVal.(int); ok {
-				maxCorrectable = count
-			}
-		}
-
-		sramResult := SRAMTestResult{
+		sramResult := SRAMErrorTestResult{
 			Status:           result.Status,
 			MaxUncorrectable: maxUncorrectable,
 			MaxCorrectable:   maxCorrectable,
 			TimestampUTC:     result.Timestamp.UTC().Format(time.RFC3339),
 		}
-		report.Localhost.SRAMErrorCheck = []SRAMTestResult{sramResult}
+		report.Localhost.SRAMErrorCheck = []SRAMErrorTestResult{sramResult}
+	}
+
+	// Process GPU Driver Check results
+	if result, exists := r.results["gpu_driver_check"]; exists {
+		driverVersion := ""
+		if versionVal, ok := result.Details["driver_version"]; ok {
+			if version, ok := versionVal.(string); ok {
+				driverVersion = version
+			}
+		}
+		gpuDriverResult := GPUDriverTestResult{
+			Status:        result.Status,
+			DriverVersion: driverVersion,
+			TimestampUTC:  result.Timestamp.UTC().Format(time.RFC3339),
+		}
+		report.Localhost.GPUDriverCheck = []GPUDriverTestResult{gpuDriverResult}
 	}
 
 	return report, nil
@@ -583,7 +611,7 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 	output.WriteString("┌─────────────────────────────────────────────────────────────────┐\n")
 	output.WriteString("│                    DIAGNOSTIC TEST RESULTS                      │\n")
 	output.WriteString("├─────────────────────────────────────────────────────────────────┤\n")
-	output.WriteString("│ TEST NAME              │ STATUS │ DETAILS                       │\n")
+	output.WriteString("│ TEST NAME              │ STATUS  │ DETAILS                      │\n")
 	output.WriteString("├─────────────────────────────────────────────────────────────────┤\n")
 
 	// GPU Tests
@@ -715,6 +743,25 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 			details := fmt.Sprintf("Uncorr: %d, Corr: %d", sram.MaxUncorrectable, sram.MaxCorrectable)
 			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s        │\n",
 				"SRAM Error Check", statusSymbol, statusSymbol, details))
+		}
+	}
+
+	// GPU Driver Check Tests
+	if len(report.Localhost.GPUDriverCheck) > 0 {
+		for _, driver := range report.Localhost.GPUDriverCheck {
+			status := driver.Status
+			statusSymbol := "✅"
+			if status == "FAIL" {
+				statusSymbol = "❌"
+			} else if status == "WARN" {
+				statusSymbol = "⚠️"
+			}
+			details := fmt.Sprintf("Version: %s", driver.DriverVersion)
+			if len(details) > 25 {
+				details = details[:22] + "..."
+			}
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s        │\n",
+				"GPU Driver Check", statusSymbol, statusSymbol, details))
 		}
 	}
 
@@ -900,6 +947,27 @@ func (r *Reporter) formatFriendly(report *ReportOutput) (string, error) {
 					output.WriteString(fmt.Sprintf("   ❌ SRAM Errors: Uncorrectable: %d, Correctable: %d (FAILED)\n",
 						sram.MaxUncorrectable, sram.MaxCorrectable))
 				}
+			}
+		}
+		output.WriteString("\n")
+	}
+
+	// GPU Driver Check Tests
+	if len(report.Localhost.GPUDriverCheck) > 0 {
+		output.WriteString("🎮 GPU Driver Health Check\n")
+		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
+		for _, driver := range report.Localhost.GPUDriverCheck {
+			totalTests++
+			if driver.Status == "PASS" {
+				passedTests++
+				output.WriteString(fmt.Sprintf("   ✅ GPU Driver: Version %s (PASSED)\n", driver.DriverVersion))
+			} else if driver.Status == "WARN" {
+				// Count warnings as passed but note them
+				passedTests++
+				output.WriteString(fmt.Sprintf("   ⚠️ GPU Driver: Version %s (WARNING - unsupported)\n", driver.DriverVersion))
+			} else {
+				failedTests++
+				output.WriteString(fmt.Sprintf("   ❌ GPU Driver: Version %s (FAILED)\n", driver.DriverVersion))
 			}
 		}
 		output.WriteString("\n")

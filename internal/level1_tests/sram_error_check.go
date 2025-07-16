@@ -258,7 +258,7 @@ func RunSRAMCheck() error {
 	shape, err := executor.GetCurrentShape()
 	if err != nil {
 		logger.Error("SRAM Check: FAIL - Could not get shape from IMDS:", err)
-		rep.AddSRAMResult("FAIL", 0, 0, err)
+		rep.AddSRAMErrorResult("FAIL", 0, 0, err)
 		return fmt.Errorf("failed to get shape from IMDS: %w", err)
 	}
 	logger.Info("Current shape from IMDS:", shape)
@@ -267,7 +267,7 @@ func RunSRAMCheck() error {
 	sramErrorCheckTestConfig, err := getSRAMCheckTestConfig(shape)
 	if err != nil {
 		logger.Error("SRAM Check: FAIL - Could not get test configuration:", err)
-		rep.AddSRAMResult("FAIL", 0, 0, err)
+		rep.AddSRAMErrorResult("FAIL", 0, 0, err)
 		return fmt.Errorf("failed to get test configuration: %w", err)
 	}
 
@@ -286,14 +286,14 @@ func RunSRAMCheck() error {
 	uncorrectableOutput, err := executor.RunNvidiaSMIErrorQuery("uncorrectable")
 	if err != nil {
 		logger.Error("SRAM Check: FAIL - Could not get uncorrectable SRAM errors:", err)
-		rep.AddSRAMResult("FAIL", 0, 0, err)
+		rep.AddSRAMErrorResult("FAIL", 0, 0, err)
 		return fmt.Errorf("failed to get uncorrectable SRAM errors: %w", err)
 	}
 
 	correctableOutput, err := executor.RunNvidiaSMIErrorQuery("correctable")
 	if err != nil {
 		logger.Error("SRAM Check: FAIL - Could not get correctable SRAM errors:", err)
-		rep.AddSRAMResult("FAIL", 0, 0, err)
+		rep.AddSRAMErrorResult("FAIL", 0, 0, err)
 		return fmt.Errorf("failed to get correctable SRAM errors: %w", err)
 	}
 
@@ -302,7 +302,7 @@ func RunSRAMCheck() error {
 	sramResults, err := parseSRAMResults(uncorrectableOutput.Output, correctableOutput.Output)
 	if err != nil {
 		logger.Error("SRAM Check: FAIL - Could not parse SRAM error results:", err)
-		rep.AddSRAMResult("FAIL", 0, 0, err)
+		rep.AddSRAMErrorResult("FAIL", 0, 0, err)
 		return fmt.Errorf("failed to parse SRAM error results: %w", err)
 	}
 	logger.Info("Found SRAM data for", len(sramResults), "GPUs")
@@ -316,7 +316,7 @@ func RunSRAMCheck() error {
 		logger.Info("SRAM Check: PASS - All SRAM error counts within acceptable limits")
 		logger.Info("Max uncorrectable errors:", summary.MaxUncorrectable)
 		logger.Info("Max correctable errors:", summary.MaxCorrectable)
-		rep.AddSRAMResult("PASS", summary.MaxUncorrectable, summary.MaxCorrectable, nil)
+		rep.AddSRAMErrorResult("PASS", summary.MaxUncorrectable, summary.MaxCorrectable, nil)
 		return nil
 	} else if status == "WARN" {
 		logger.Info("SRAM Check: FAIL - Correctable errors exceed threshold")
@@ -325,7 +325,7 @@ func RunSRAMCheck() error {
 		err = fmt.Errorf("correctable SRAM errors exceed threshold: max=%d, threshold=%d",
 			summary.MaxCorrectable, sramErrorCheckTestConfig.CorrectableThreshold)
 		// Sending FAIL as the threshold is exceeded
-		rep.AddSRAMResult("FAIL", summary.MaxUncorrectable, summary.MaxCorrectable, err)
+		rep.AddSRAMErrorResult("FAIL", summary.MaxUncorrectable, summary.MaxCorrectable, err)
 		return err
 	} else {
 		logger.Error("SRAM Check: FAIL - Uncorrectable errors exceed threshold")
@@ -333,7 +333,7 @@ func RunSRAMCheck() error {
 		logger.Error("Max uncorrectable errors:", summary.MaxUncorrectable)
 		err = fmt.Errorf("uncorrectable SRAM errors exceed threshold: max=%d, threshold=%d",
 			summary.MaxUncorrectable, sramErrorCheckTestConfig.UncorrectableThreshold)
-		rep.AddSRAMResult("FAIL", summary.MaxUncorrectable, summary.MaxCorrectable, err)
+		rep.AddSRAMErrorResult("FAIL", summary.MaxUncorrectable, summary.MaxCorrectable, err)
 		return err
 	}
 }
