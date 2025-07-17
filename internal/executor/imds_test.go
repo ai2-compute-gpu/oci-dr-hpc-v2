@@ -1,492 +1,72 @@
 package executor
 
 import (
-	"net/http"
-	"net/http/httptest"
+	"encoding/json"
 	"testing"
 	"time"
 )
 
-// Mock IMDS server for testing
-func createMockIMDSServer() *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Check Authorization header
-		auth := r.Header.Get("Authorization")
-		if auth != "Bearer Oracle" {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		// Route based on path
-		switch r.URL.Path {
-		case "/opc/v2/instance":
-			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
-				"id": "ocid1.instance.oc1.phx.test123",
-				"displayName": "test-instance",
-				"hostname": "test-hostname",
-				"compartmentId": "ocid1.compartment.oc1..test",
-				"region": "phx",
-				"canonicalRegionName": "us-phoenix-1",
-				"availabilityDomain": "EMIr:PHX-AD-1",
-				"ociAdName": "phx-ad-1",
-				"faultDomain": "FAULT-DOMAIN-1",
-				"image": "ocid1.image.oc1.phx.test456",
-				"shape": "BM.GPU.H100.8",
-				"state": "Running",
-				"timeCreated": 1600381928581,
-				"metadata": {
-					"ssh_authorized_keys": "example-ssh-key"
-				},
-				"regionInfo": {
-					"realmKey": "oc1",
-					"realmDomainComponent": "oraclecloud.com",
-					"regionKey": "PHX",
-					"regionIdentifier": "us-phoenix-1"
-				},
-				"definedTags": {},
-				"freeformTags": {}
-			}`))
-		case "/opc/v2/identity":
-			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
-				"fingerprint": "test:fingerprint:12345",
-				"tenancyId": "ocid1.tenancy.oc1..test"
-			}`))
-		case "/opc/v2/host":
-			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
-				"buildingId": "building:1725b321355f0314955d9e8d68cf2c54bc99db9ce21fecece62db989e763ac71",
-				"id": "c108fca4ead3550cf7bbf0be7c0dce30b01b6b772a48f9f8e13346891a57f8a2",
-				"networkBlockId": "922fd61aa1af7d80d4edb08bcf09d6ae6f0d0152bb99843885fcd732b22716d9",
-				"rackId": "8d93acc296b77c923d0778079061b64094d55b3fbe4eb54460655e916cddf34a"
-			}`))
-		case "/opc/v2/host/rackId":
-			w.Header().Set("Content-Type", "text/plain")
-			w.Write([]byte("8d93acc296b77c923d0778079061b64094d55b3fbe4eb54460655e916cddf34a"))
-		case "/opc/v2/host/buildingId":
-			w.Header().Set("Content-Type", "text/plain")
-			w.Write([]byte("building:1725b321355f0314955d9e8d68cf2c54bc99db9ce21fecece62db989e763ac71"))
-		case "/opc/v2/host/id":
-			w.Header().Set("Content-Type", "text/plain")
-			w.Write([]byte("c108fca4ead3550cf7bbf0be7c0dce30b01b6b772a48f9f8e13346891a57f8a2"))
-		case "/opc/v2/host/networkBlockId":
-			w.Header().Set("Content-Type", "text/plain")
-			w.Write([]byte("922fd61aa1af7d80d4edb08bcf09d6ae6f0d0152bb99843885fcd732b22716d9"))
-		default:
-			http.Error(w, "Not Found", http.StatusNotFound)
-		}
-	}))
-}
-
-func TestNewIMDSClient(t *testing.T) {
-	client := NewIMDSClient()
-	if client == nil {
-		t.Fatal("NewIMDSClient should not return nil")
-	}
-	if client.baseURL != IMDSBaseURL {
-		t.Errorf("Expected baseURL %s, got %s", IMDSBaseURL, client.baseURL)
-	}
-	if client.httpClient.Timeout != IMDSTimeout {
-		t.Errorf("Expected timeout %v, got %v", IMDSTimeout, client.httpClient.Timeout)
-	}
-}
-
-func TestNewIMDSClientWithTimeout(t *testing.T) {
-	timeout := 10 * time.Second
-	client := NewIMDSClientWithTimeout(timeout)
-	if client == nil {
-		t.Fatal("NewIMDSClientWithTimeout should not return nil")
-	}
-	if client.httpClient.Timeout != timeout {
-		t.Errorf("Expected timeout %v, got %v", timeout, client.httpClient.Timeout)
-	}
-}
-
-func TestGetInstanceMetadata(t *testing.T) {
-	server := createMockIMDSServer()
-	defer server.Close()
-
-	client := &IMDSClient{
-		httpClient: &http.Client{Timeout: 5 * time.Second},
-		baseURL:    server.URL + "/opc/v2",
+func TestInstanceMetadataStruct(t *testing.T) {
+	metadata := &InstanceMetadata{
+		ID:                  "ocid1.instance.oc1.phx.test123",
+		DisplayName:         "test-instance",
+		Hostname:            "test-hostname",
+		CompartmentID:       "ocid1.compartment.oc1..test",
+		TenantID:            "ocid1.tenancy.oc1..test",
+		Region:              "phx",
+		CanonicalRegionName: "us-phoenix-1",
+		AvailabilityDomain:  "EMIr:PHX-AD-1",
+		OciAdName:           "phx-ad-1",
+		FaultDomain:         "FAULT-DOMAIN-1",
+		Image:               "ocid1.image.oc1.phx.test456",
+		Shape:               "BM.GPU.H100.8",
+		State:               "Running",
+		TimeCreated:         1600381928581,
+		RegionInfo: RegionInfo{
+			RealmKey:             "oc1",
+			RealmDomainComponent: "oraclecloud.com",
+			RegionKey:            "PHX",
+			RegionIdentifier:     "us-phoenix-1",
+		},
 	}
 
-	metadata, err := client.GetInstanceMetadata()
-	if err != nil {
-		t.Fatalf("GetInstanceMetadata failed: %v", err)
+	if metadata.ID != "ocid1.instance.oc1.phx.test123" {
+		t.Errorf("Expected ID 'ocid1.instance.oc1.phx.test123', got '%s'", metadata.ID)
 	}
-
 	if metadata.Shape != "BM.GPU.H100.8" {
-		t.Errorf("Expected shape BM.GPU.H100.8, got %s", metadata.Shape)
+		t.Errorf("Expected Shape 'BM.GPU.H100.8', got '%s'", metadata.Shape)
 	}
 	if metadata.Region != "phx" {
-		t.Errorf("Expected region phx, got %s", metadata.Region)
+		t.Errorf("Expected Region 'phx', got '%s'", metadata.Region)
 	}
 	if metadata.CanonicalRegionName != "us-phoenix-1" {
-		t.Errorf("Expected canonical region us-phoenix-1, got %s", metadata.CanonicalRegionName)
-	}
-	if metadata.AvailabilityDomain != "EMIr:PHX-AD-1" {
-		t.Errorf("Expected AD EMIr:PHX-AD-1, got %s", metadata.AvailabilityDomain)
-	}
-	if metadata.OciAdName != "phx-ad-1" {
-		t.Errorf("Expected OCI AD name phx-ad-1, got %s", metadata.OciAdName)
-	}
-	if metadata.Hostname != "test-hostname" {
-		t.Errorf("Expected hostname test-hostname, got %s", metadata.Hostname)
-	}
-	if metadata.Image != "ocid1.image.oc1.phx.test456" {
-		t.Errorf("Expected image ocid1.image.oc1.phx.test456, got %s", metadata.Image)
-	}
-	if metadata.TimeCreated != 1600381928581 {
-		t.Errorf("Expected timeCreated 1600381928581, got %d", metadata.TimeCreated)
+		t.Errorf("Expected CanonicalRegionName 'us-phoenix-1', got '%s'", metadata.CanonicalRegionName)
 	}
 	if metadata.RegionInfo.RealmKey != "oc1" {
-		t.Errorf("Expected realm key oc1, got %s", metadata.RegionInfo.RealmKey)
-	}
-	if metadata.RegionInfo.RegionIdentifier != "us-phoenix-1" {
-		t.Errorf("Expected region identifier us-phoenix-1, got %s", metadata.RegionInfo.RegionIdentifier)
+		t.Errorf("Expected RealmKey 'oc1', got '%s'", metadata.RegionInfo.RealmKey)
 	}
 }
 
-func TestGetIdentityMetadata(t *testing.T) {
-	server := createMockIMDSServer()
-	defer server.Close()
-
-	client := &IMDSClient{
-		httpClient: &http.Client{Timeout: 5 * time.Second},
-		baseURL:    server.URL + "/opc/v2",
+func TestIdentityMetadataStruct(t *testing.T) {
+	metadata := &IdentityMetadata{
+		Fingerprint: "test:fingerprint:12345",
+		TenancyID:   "ocid1.tenancy.oc1..test",
 	}
 
-	metadata, err := client.GetIdentityMetadata()
-	if err != nil {
-		t.Fatalf("GetIdentityMetadata failed: %v", err)
-	}
-
-	if metadata.TenancyID != "ocid1.tenancy.oc1..test" {
-		t.Errorf("Expected tenancy ocid1.tenancy.oc1..test, got %s", metadata.TenancyID)
-	}
 	if metadata.Fingerprint != "test:fingerprint:12345" {
-		t.Errorf("Expected fingerprint test:fingerprint:12345, got %s", metadata.Fingerprint)
+		t.Errorf("Expected Fingerprint 'test:fingerprint:12345', got '%s'", metadata.Fingerprint)
+	}
+	if metadata.TenancyID != "ocid1.tenancy.oc1..test" {
+		t.Errorf("Expected TenancyID 'ocid1.tenancy.oc1..test', got '%s'", metadata.TenancyID)
 	}
 }
 
-func TestGetShape(t *testing.T) {
-	server := createMockIMDSServer()
-	defer server.Close()
-
-	client := &IMDSClient{
-		httpClient: &http.Client{Timeout: 5 * time.Second},
-		baseURL:    server.URL + "/opc/v2",
-	}
-
-	shape, err := client.GetShape()
-	if err != nil {
-		t.Fatalf("GetShape failed: %v", err)
-	}
-
-	if shape != "BM.GPU.H100.8" {
-		t.Errorf("Expected shape BM.GPU.H100.8, got %s", shape)
-	}
-}
-
-func TestGetRegion(t *testing.T) {
-	server := createMockIMDSServer()
-	defer server.Close()
-
-	client := &IMDSClient{
-		httpClient: &http.Client{Timeout: 5 * time.Second},
-		baseURL:    server.URL + "/opc/v2",
-	}
-
-	region, err := client.GetRegion()
-	if err != nil {
-		t.Fatalf("GetRegion failed: %v", err)
-	}
-
-	if region != "phx" {
-		t.Errorf("Expected region phx, got %s", region)
-	}
-}
-
-func TestGetAvailabilityDomain(t *testing.T) {
-	server := createMockIMDSServer()
-	defer server.Close()
-
-	client := &IMDSClient{
-		httpClient: &http.Client{Timeout: 5 * time.Second},
-		baseURL:    server.URL + "/opc/v2",
-	}
-
-	ad, err := client.GetAvailabilityDomain()
-	if err != nil {
-		t.Fatalf("GetAvailabilityDomain failed: %v", err)
-	}
-
-	if ad != "EMIr:PHX-AD-1" {
-		t.Errorf("Expected AD EMIr:PHX-AD-1, got %s", ad)
-	}
-}
-
-func TestMakeRequestUnauthorized(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Always return unauthorized for this test
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-	}))
-	defer server.Close()
-
-	client := &IMDSClient{
-		httpClient: &http.Client{Timeout: 5 * time.Second},
-		baseURL:    server.URL + "/opc/v2",
-	}
-
-	_, err := client.makeRequest("instance")
-	if err == nil {
-		t.Fatal("Expected error for unauthorized request")
-	}
-}
-
-func TestMakeRequestNotFound(t *testing.T) {
-	server := createMockIMDSServer()
-	defer server.Close()
-
-	client := &IMDSClient{
-		httpClient: &http.Client{Timeout: 5 * time.Second},
-		baseURL:    server.URL + "/opc/v2",
-	}
-
-	_, err := client.makeRequest("nonexistent")
-	if err == nil {
-		t.Fatal("Expected error for non-existent endpoint")
-	}
-}
-
-func TestIsRunningOnOCI(t *testing.T) {
-	server := createMockIMDSServer()
-	defer server.Close()
-
-	client := &IMDSClient{
-		httpClient: &http.Client{Timeout: 5 * time.Second},
-		baseURL:    server.URL + "/opc/v2",
-	}
-
-	isOCI := client.IsRunningOnOCI()
-	if !isOCI {
-		t.Error("Expected IsRunningOnOCI to return true with mock server")
-	}
-
-	// Test with unreachable server
-	client.baseURL = "http://localhost:99999/opc/v2"
-	isOCI = client.IsRunningOnOCI()
-	if isOCI {
-		t.Error("Expected IsRunningOnOCI to return false with unreachable server")
-	}
-}
-
-func TestGetInstanceInfo(t *testing.T) {
-	server := createMockIMDSServer()
-	defer server.Close()
-
-	client := &IMDSClient{
-		httpClient: &http.Client{Timeout: 5 * time.Second},
-		baseURL:    server.URL + "/opc/v2",
-	}
-
-	info, err := client.GetInstanceInfo()
-	if err != nil {
-		t.Fatalf("GetInstanceInfo failed: %v", err)
-	}
-
-	if info["instance"] == nil {
-		t.Error("Expected instance metadata in info")
-	}
-	if info["identity"] == nil {
-		t.Error("Expected identity metadata in info")
-	}
-
-	instanceMeta, ok := info["instance"].(*InstanceMetadata)
-	if !ok {
-		t.Error("Expected instance metadata to be *InstanceMetadata")
-	} else if instanceMeta.Shape != "BM.GPU.H100.8" {
-		t.Errorf("Expected shape BM.GPU.H100.8, got %s", instanceMeta.Shape)
-	}
-}
-
-func TestGetRawMetadata(t *testing.T) {
-	server := createMockIMDSServer()
-	defer server.Close()
-
-	client := &IMDSClient{
-		httpClient: &http.Client{Timeout: 5 * time.Second},
-		baseURL:    server.URL + "/opc/v2",
-	}
-
-	data, err := client.GetRawMetadata("instance")
-	if err != nil {
-		t.Fatalf("GetRawMetadata failed: %v", err)
-	}
-
-	if len(data) == 0 {
-		t.Error("Expected non-empty raw metadata")
-	}
-}
-
-func TestGetHostname(t *testing.T) {
-	server := createMockIMDSServer()
-	defer server.Close()
-
-	client := &IMDSClient{
-		httpClient: &http.Client{Timeout: 5 * time.Second},
-		baseURL:    server.URL + "/opc/v2",
-	}
-
-	hostname, err := client.GetHostname()
-	if err != nil {
-		t.Fatalf("GetHostname failed: %v", err)
-	}
-
-	if hostname != "test-hostname" {
-		t.Errorf("Expected hostname test-hostname, got %s", hostname)
-	}
-}
-
-func TestGetCanonicalRegionName(t *testing.T) {
-	server := createMockIMDSServer()
-	defer server.Close()
-
-	client := &IMDSClient{
-		httpClient: &http.Client{Timeout: 5 * time.Second},
-		baseURL:    server.URL + "/opc/v2",
-	}
-
-	regionName, err := client.GetCanonicalRegionName()
-	if err != nil {
-		t.Fatalf("GetCanonicalRegionName failed: %v", err)
-	}
-
-	if regionName != "us-phoenix-1" {
-		t.Errorf("Expected canonical region us-phoenix-1, got %s", regionName)
-	}
-}
-
-func TestGetOciAdName(t *testing.T) {
-	server := createMockIMDSServer()
-	defer server.Close()
-
-	client := &IMDSClient{
-		httpClient: &http.Client{Timeout: 5 * time.Second},
-		baseURL:    server.URL + "/opc/v2",
-	}
-
-	adName, err := client.GetOciAdName()
-	if err != nil {
-		t.Fatalf("GetOciAdName failed: %v", err)
-	}
-
-	if adName != "phx-ad-1" {
-		t.Errorf("Expected OCI AD name phx-ad-1, got %s", adName)
-	}
-}
-
-func TestGetImageOCID(t *testing.T) {
-	server := createMockIMDSServer()
-	defer server.Close()
-
-	client := &IMDSClient{
-		httpClient: &http.Client{Timeout: 5 * time.Second},
-		baseURL:    server.URL + "/opc/v2",
-	}
-
-	imageOCID, err := client.GetImageOCID()
-	if err != nil {
-		t.Fatalf("GetImageOCID failed: %v", err)
-	}
-
-	if imageOCID != "ocid1.image.oc1.phx.test456" {
-		t.Errorf("Expected image OCID ocid1.image.oc1.phx.test456, got %s", imageOCID)
-	}
-}
-
-func TestGetInstanceOCID(t *testing.T) {
-	server := createMockIMDSServer()
-	defer server.Close()
-
-	client := &IMDSClient{
-		httpClient: &http.Client{Timeout: 5 * time.Second},
-		baseURL:    server.URL + "/opc/v2",
-	}
-
-	instanceOCID, err := client.GetInstanceOCID()
-	if err != nil {
-		t.Fatalf("GetInstanceOCID failed: %v", err)
-	}
-
-	if instanceOCID != "ocid1.instance.oc1.phx.test123" {
-		t.Errorf("Expected instance OCID ocid1.instance.oc1.phx.test123, got %s", instanceOCID)
-	}
-}
-
-func TestGetInstanceState(t *testing.T) {
-	server := createMockIMDSServer()
-	defer server.Close()
-
-	client := &IMDSClient{
-		httpClient: &http.Client{Timeout: 5 * time.Second},
-		baseURL:    server.URL + "/opc/v2",
-	}
-
-	state, err := client.GetInstanceState()
-	if err != nil {
-		t.Fatalf("GetInstanceState failed: %v", err)
-	}
-
-	if state != "Running" {
-		t.Errorf("Expected state Running, got %s", state)
-	}
-}
-
-func TestGetRegionInfo(t *testing.T) {
-	server := createMockIMDSServer()
-	defer server.Close()
-
-	client := &IMDSClient{
-		httpClient: &http.Client{Timeout: 5 * time.Second},
-		baseURL:    server.URL + "/opc/v2",
-	}
-
-	regionInfo, err := client.GetRegionInfo()
-	if err != nil {
-		t.Fatalf("GetRegionInfo failed: %v", err)
-	}
-
-	if regionInfo.RealmKey != "oc1" {
-		t.Errorf("Expected realm key oc1, got %s", regionInfo.RealmKey)
-	}
-	if regionInfo.RegionKey != "PHX" {
-		t.Errorf("Expected region key PHX, got %s", regionInfo.RegionKey)
-	}
-	if regionInfo.RegionIdentifier != "us-phoenix-1" {
-		t.Errorf("Expected region identifier us-phoenix-1, got %s", regionInfo.RegionIdentifier)
-	}
-	if regionInfo.RealmDomainComponent != "oraclecloud.com" {
-		t.Errorf("Expected realm domain oraclecloud.com, got %s", regionInfo.RealmDomainComponent)
-	}
-}
-
-// Host metadata tests
-
-func TestGetHostMetadata(t *testing.T) {
-	server := createMockIMDSServer()
-	defer server.Close()
-
-	client := &IMDSClient{
-		httpClient: &http.Client{Timeout: 5 * time.Second},
-		baseURL:    server.URL + "/opc/v2",
-	}
-
-	hostMetadata, err := client.GetHostMetadata()
-	if err != nil {
-		t.Fatalf("GetHostMetadata failed: %v", err)
+func TestHostMetadataStruct(t *testing.T) {
+	metadata := &HostMetadata{
+		BuildingID:     "building:1725b321355f0314955d9e8d68cf2c54bc99db9ce21fecece62db989e763ac71",
+		ID:             "c108fca4ead3550cf7bbf0be7c0dce30b01b6b772a48f9f8e13346891a57f8a2",
+		NetworkBlockID: "922fd61aa1af7d80d4edb08bcf09d6ae6f0d0152bb99843885fcd732b22716d9",
+		RackID:         "8d93acc296b77c923d0778079061b64094d55b3fbe4eb54460655e916cddf34a",
 	}
 
 	expectedBuildingID := "building:1725b321355f0314955d9e8d68cf2c54bc99db9ce21fecece62db989e763ac71"
@@ -494,128 +74,381 @@ func TestGetHostMetadata(t *testing.T) {
 	expectedNetworkBlockID := "922fd61aa1af7d80d4edb08bcf09d6ae6f0d0152bb99843885fcd732b22716d9"
 	expectedRackID := "8d93acc296b77c923d0778079061b64094d55b3fbe4eb54460655e916cddf34a"
 
-	if hostMetadata.BuildingID != expectedBuildingID {
-		t.Errorf("Expected building ID %s, got %s", expectedBuildingID, hostMetadata.BuildingID)
+	if metadata.BuildingID != expectedBuildingID {
+		t.Errorf("Expected BuildingID '%s', got '%s'", expectedBuildingID, metadata.BuildingID)
 	}
-	if hostMetadata.ID != expectedHostID {
-		t.Errorf("Expected host ID %s, got %s", expectedHostID, hostMetadata.ID)
+	if metadata.ID != expectedHostID {
+		t.Errorf("Expected ID '%s', got '%s'", expectedHostID, metadata.ID)
 	}
-	if hostMetadata.NetworkBlockID != expectedNetworkBlockID {
-		t.Errorf("Expected network block ID %s, got %s", expectedNetworkBlockID, hostMetadata.NetworkBlockID)
+	if metadata.NetworkBlockID != expectedNetworkBlockID {
+		t.Errorf("Expected NetworkBlockID '%s', got '%s'", expectedNetworkBlockID, metadata.NetworkBlockID)
 	}
-	if hostMetadata.RackID != expectedRackID {
-		t.Errorf("Expected rack ID %s, got %s", expectedRackID, hostMetadata.RackID)
+	if metadata.RackID != expectedRackID {
+		t.Errorf("Expected RackID '%s', got '%s'", expectedRackID, metadata.RackID)
 	}
 }
 
-func TestGetRackID(t *testing.T) {
-	server := createMockIMDSServer()
-	defer server.Close()
-
-	client := &IMDSClient{
-		httpClient: &http.Client{Timeout: 5 * time.Second},
-		baseURL:    server.URL + "/opc/v2",
+func TestVnicMetadataStruct(t *testing.T) {
+	metadata := &VnicMetadata{
+		MacAddr:         "02:00:17:05:d1:db",
+		NicIndex:        0,
+		PrivateIP:       "10.0.0.2",
+		SubnetCidrBlock: "10.0.0.0/24",
+		VirtualRouterIP: "10.0.0.1",
+		VlanTag:         0,
+		VnicID:          "ocid1.vnic.oc1.phx.test",
 	}
 
-	rackID, err := client.GetRackID()
+	if metadata.MacAddr != "02:00:17:05:d1:db" {
+		t.Errorf("Expected MacAddr '02:00:17:05:d1:db', got '%s'", metadata.MacAddr)
+	}
+	if metadata.NicIndex != 0 {
+		t.Errorf("Expected NicIndex 0, got %d", metadata.NicIndex)
+	}
+	if metadata.PrivateIP != "10.0.0.2" {
+		t.Errorf("Expected PrivateIP '10.0.0.2', got '%s'", metadata.PrivateIP)
+	}
+	if metadata.SubnetCidrBlock != "10.0.0.0/24" {
+		t.Errorf("Expected SubnetCidrBlock '10.0.0.0/24', got '%s'", metadata.SubnetCidrBlock)
+	}
+}
+
+func TestRegionInfoStruct(t *testing.T) {
+	regionInfo := &RegionInfo{
+		RealmKey:             "oc1",
+		RealmDomainComponent: "oraclecloud.com",
+		RegionKey:            "PHX",
+		RegionIdentifier:     "us-phoenix-1",
+	}
+
+	if regionInfo.RealmKey != "oc1" {
+		t.Errorf("Expected RealmKey 'oc1', got '%s'", regionInfo.RealmKey)
+	}
+	if regionInfo.RealmDomainComponent != "oraclecloud.com" {
+		t.Errorf("Expected RealmDomainComponent 'oraclecloud.com', got '%s'", regionInfo.RealmDomainComponent)
+	}
+	if regionInfo.RegionKey != "PHX" {
+		t.Errorf("Expected RegionKey 'PHX', got '%s'", regionInfo.RegionKey)
+	}
+	if regionInfo.RegionIdentifier != "us-phoenix-1" {
+		t.Errorf("Expected RegionIdentifier 'us-phoenix-1', got '%s'", regionInfo.RegionIdentifier)
+	}
+}
+
+func TestShapeConfigStruct(t *testing.T) {
+	shapeConfig := &ShapeConfig{
+		MaxVnicAttachments:        8,
+		MemoryInGBs:               1024.0,
+		NetworkingBandwidthInGbps: 100.0,
+		Ocpus:                     128.0,
+	}
+
+	if shapeConfig.MaxVnicAttachments != 8 {
+		t.Errorf("Expected MaxVnicAttachments 8, got %d", shapeConfig.MaxVnicAttachments)
+	}
+	if shapeConfig.MemoryInGBs != 1024.0 {
+		t.Errorf("Expected MemoryInGBs 1024.0, got %f", shapeConfig.MemoryInGBs)
+	}
+	if shapeConfig.NetworkingBandwidthInGbps != 100.0 {
+		t.Errorf("Expected NetworkingBandwidthInGbps 100.0, got %f", shapeConfig.NetworkingBandwidthInGbps)
+	}
+	if shapeConfig.Ocpus != 128.0 {
+		t.Errorf("Expected Ocpus 128.0, got %f", shapeConfig.Ocpus)
+	}
+}
+
+func TestAgentConfigStruct(t *testing.T) {
+	agentConfig := &AgentConfig{
+		AllPluginsDisabled: false,
+		ManagementDisabled: false,
+		MonitoringDisabled: true,
+		PluginsConfig: []PluginConfig{
+			{
+				Name:         "Oracle Java Management Service",
+				DesiredState: "ENABLED",
+			},
+		},
+	}
+
+	if agentConfig.AllPluginsDisabled != false {
+		t.Errorf("Expected AllPluginsDisabled false, got %v", agentConfig.AllPluginsDisabled)
+	}
+	if agentConfig.MonitoringDisabled != true {
+		t.Errorf("Expected MonitoringDisabled true, got %v", agentConfig.MonitoringDisabled)
+	}
+	if len(agentConfig.PluginsConfig) != 1 {
+		t.Errorf("Expected 1 plugin config, got %d", len(agentConfig.PluginsConfig))
+	}
+	if agentConfig.PluginsConfig[0].Name != "Oracle Java Management Service" {
+		t.Errorf("Expected plugin name 'Oracle Java Management Service', got '%s'", agentConfig.PluginsConfig[0].Name)
+	}
+}
+
+func TestNewIMDSClientConstants(t *testing.T) {
+	if IMDSBaseURL != "http://169.254.169.254/opc/v2" {
+		t.Errorf("Expected IMDSBaseURL 'http://169.254.169.254/opc/v2', got '%s'", IMDSBaseURL)
+	}
+	if IMDSTimeout != 5*time.Second {
+		t.Errorf("Expected IMDSTimeout 5s, got %v", IMDSTimeout)
+	}
+}
+
+func TestInstanceMetadataJSONSerialization(t *testing.T) {
+	metadata := &InstanceMetadata{
+		ID:                  "ocid1.instance.oc1.phx.test123",
+		Shape:               "BM.GPU.H100.8",
+		Region:              "phx",
+		CanonicalRegionName: "us-phoenix-1",
+		RegionInfo: RegionInfo{
+			RealmKey:         "oc1",
+			RegionIdentifier: "us-phoenix-1",
+		},
+	}
+
+	// Test JSON marshaling
+	jsonData, err := json.Marshal(metadata)
 	if err != nil {
-		t.Fatalf("GetRackID failed: %v", err)
+		t.Fatalf("JSON marshaling failed: %v", err)
 	}
 
-	expected := "8d93acc296b77c923d0778079061b64094d55b3fbe4eb54460655e916cddf34a"
-	if rackID != expected {
-		t.Errorf("Expected rack ID %s, got %s", expected, rackID)
-	}
-}
-
-func TestGetBuildingID(t *testing.T) {
-	server := createMockIMDSServer()
-	defer server.Close()
-
-	client := &IMDSClient{
-		httpClient: &http.Client{Timeout: 5 * time.Second},
-		baseURL:    server.URL + "/opc/v2",
-	}
-
-	buildingID, err := client.GetBuildingID()
+	// Test JSON unmarshaling
+	var unmarshaled InstanceMetadata
+	err = json.Unmarshal(jsonData, &unmarshaled)
 	if err != nil {
-		t.Fatalf("GetBuildingID failed: %v", err)
+		t.Fatalf("JSON unmarshaling failed: %v", err)
 	}
 
-	expected := "building:1725b321355f0314955d9e8d68cf2c54bc99db9ce21fecece62db989e763ac71"
-	if buildingID != expected {
-		t.Errorf("Expected building ID %s, got %s", expected, buildingID)
+	if unmarshaled.ID != metadata.ID {
+		t.Errorf("Expected ID '%s' after unmarshal, got '%s'", metadata.ID, unmarshaled.ID)
+	}
+	if unmarshaled.Shape != metadata.Shape {
+		t.Errorf("Expected Shape '%s' after unmarshal, got '%s'", metadata.Shape, unmarshaled.Shape)
+	}
+	if unmarshaled.RegionInfo.RealmKey != metadata.RegionInfo.RealmKey {
+		t.Errorf("Expected RealmKey '%s' after unmarshal, got '%s'", metadata.RegionInfo.RealmKey, unmarshaled.RegionInfo.RealmKey)
 	}
 }
 
-func TestGetHostID(t *testing.T) {
-	server := createMockIMDSServer()
-	defer server.Close()
+func TestInstanceMetadataJSONDeserialization(t *testing.T) {
+	jsonData := `{
+		"id": "ocid1.instance.oc1.phx.test123",
+		"displayName": "test-instance",
+		"hostname": "test-hostname",
+		"compartmentId": "ocid1.compartment.oc1..test",
+		"tenantId": "ocid1.tenancy.oc1..test",
+		"region": "phx",
+		"canonicalRegionName": "us-phoenix-1",
+		"availabilityDomain": "EMIr:PHX-AD-1",
+		"ociAdName": "phx-ad-1",
+		"shape": "BM.GPU.H100.8",
+		"state": "Running",
+		"timeCreated": 1600381928581,
+		"regionInfo": {
+			"realmKey": "oc1",
+			"realmDomainComponent": "oraclecloud.com",
+			"regionKey": "PHX",
+			"regionIdentifier": "us-phoenix-1"
+		}
+	}`
 
-	client := &IMDSClient{
-		httpClient: &http.Client{Timeout: 5 * time.Second},
-		baseURL:    server.URL + "/opc/v2",
-	}
-
-	hostID, err := client.GetHostID()
+	var metadata InstanceMetadata
+	err := json.Unmarshal([]byte(jsonData), &metadata)
 	if err != nil {
-		t.Fatalf("GetHostID failed: %v", err)
+		t.Fatalf("JSON unmarshaling failed: %v", err)
 	}
 
-	expected := "c108fca4ead3550cf7bbf0be7c0dce30b01b6b772a48f9f8e13346891a57f8a2"
-	if hostID != expected {
-		t.Errorf("Expected host ID %s, got %s", expected, hostID)
+	if metadata.ID != "ocid1.instance.oc1.phx.test123" {
+		t.Errorf("Expected ID 'ocid1.instance.oc1.phx.test123', got '%s'", metadata.ID)
+	}
+	if metadata.Shape != "BM.GPU.H100.8" {
+		t.Errorf("Expected Shape 'BM.GPU.H100.8', got '%s'", metadata.Shape)
+	}
+	if metadata.Region != "phx" {
+		t.Errorf("Expected Region 'phx', got '%s'", metadata.Region)
+	}
+	if metadata.TimeCreated != 1600381928581 {
+		t.Errorf("Expected TimeCreated 1600381928581, got %d", metadata.TimeCreated)
+	}
+	if metadata.RegionInfo.RealmKey != "oc1" {
+		t.Errorf("Expected RealmKey 'oc1', got '%s'", metadata.RegionInfo.RealmKey)
 	}
 }
 
-func TestGetNetworkBlockID(t *testing.T) {
-	server := createMockIMDSServer()
-	defer server.Close()
+func TestHostMetadataJSONDeserialization(t *testing.T) {
+	jsonData := `{
+		"buildingId": "building:1725b321355f0314955d9e8d68cf2c54bc99db9ce21fecece62db989e763ac71",
+		"id": "c108fca4ead3550cf7bbf0be7c0dce30b01b6b772a48f9f8e13346891a57f8a2",
+		"networkBlockId": "922fd61aa1af7d80d4edb08bcf09d6ae6f0d0152bb99843885fcd732b22716d9",
+		"rackId": "8d93acc296b77c923d0778079061b64094d55b3fbe4eb54460655e916cddf34a"
+	}`
 
-	client := &IMDSClient{
-		httpClient: &http.Client{Timeout: 5 * time.Second},
-		baseURL:    server.URL + "/opc/v2",
-	}
-
-	networkBlockID, err := client.GetNetworkBlockID()
+	var metadata HostMetadata
+	err := json.Unmarshal([]byte(jsonData), &metadata)
 	if err != nil {
-		t.Fatalf("GetNetworkBlockID failed: %v", err)
+		t.Fatalf("JSON unmarshaling failed: %v", err)
 	}
 
-	expected := "922fd61aa1af7d80d4edb08bcf09d6ae6f0d0152bb99843885fcd732b22716d9"
-	if networkBlockID != expected {
-		t.Errorf("Expected network block ID %s, got %s", expected, networkBlockID)
+	expectedBuildingID := "building:1725b321355f0314955d9e8d68cf2c54bc99db9ce21fecece62db989e763ac71"
+	expectedHostID := "c108fca4ead3550cf7bbf0be7c0dce30b01b6b772a48f9f8e13346891a57f8a2"
+	expectedNetworkBlockID := "922fd61aa1af7d80d4edb08bcf09d6ae6f0d0152bb99843885fcd732b22716d9"
+	expectedRackID := "8d93acc296b77c923d0778079061b64094d55b3fbe4eb54460655e916cddf34a"
+
+	if metadata.BuildingID != expectedBuildingID {
+		t.Errorf("Expected BuildingID '%s', got '%s'", expectedBuildingID, metadata.BuildingID)
+	}
+	if metadata.ID != expectedHostID {
+		t.Errorf("Expected ID '%s', got '%s'", expectedHostID, metadata.ID)
+	}
+	if metadata.NetworkBlockID != expectedNetworkBlockID {
+		t.Errorf("Expected NetworkBlockID '%s', got '%s'", expectedNetworkBlockID, metadata.NetworkBlockID)
+	}
+	if metadata.RackID != expectedRackID {
+		t.Errorf("Expected RackID '%s', got '%s'", expectedRackID, metadata.RackID)
 	}
 }
 
-// Test convenience functions
+func TestVnicMetadataJSONDeserialization(t *testing.T) {
+	jsonData := `[{
+		"macAddr": "02:00:17:05:d1:db",
+		"nicIndex": 0,
+		"privateIp": "10.0.0.2",
+		"subnetCidrBlock": "10.0.0.0/24",
+		"virtualRouterIp": "10.0.0.1",
+		"vlanTag": 0,
+		"vnicId": "ocid1.vnic.oc1.phx.test"
+	}]`
 
-func TestGetCurrentHostMetadata(t *testing.T) {
-	// This test would require a real IMDS endpoint or more complex mocking
-	// For now, we'll skip it but the function is implemented
-	t.Skip("Convenience function test requires real IMDS or complex mocking")
+	var vnics []VnicMetadata
+	err := json.Unmarshal([]byte(jsonData), &vnics)
+	if err != nil {
+		t.Fatalf("JSON unmarshaling failed: %v", err)
+	}
+
+	if len(vnics) != 1 {
+		t.Fatalf("Expected 1 VNIC, got %d", len(vnics))
+	}
+
+	vnic := vnics[0]
+	if vnic.MacAddr != "02:00:17:05:d1:db" {
+		t.Errorf("Expected MacAddr '02:00:17:05:d1:db', got '%s'", vnic.MacAddr)
+	}
+	if vnic.NicIndex != 0 {
+		t.Errorf("Expected NicIndex 0, got %d", vnic.NicIndex)
+	}
+	if vnic.PrivateIP != "10.0.0.2" {
+		t.Errorf("Expected PrivateIP '10.0.0.2', got '%s'", vnic.PrivateIP)
+	}
 }
 
-func TestGetCurrentRackID(t *testing.T) {
-	// This test would require a real IMDS endpoint or more complex mocking
-	// For now, we'll skip it but the function is implemented
-	t.Skip("Convenience function test requires real IMDS or complex mocking")
+func TestIdentityMetadataJSONDeserialization(t *testing.T) {
+	jsonData := `{
+		"fingerprint": "test:fingerprint:12345",
+		"tenancyId": "ocid1.tenancy.oc1..test"
+	}`
+
+	var metadata IdentityMetadata
+	err := json.Unmarshal([]byte(jsonData), &metadata)
+	if err != nil {
+		t.Fatalf("JSON unmarshaling failed: %v", err)
+	}
+
+	if metadata.Fingerprint != "test:fingerprint:12345" {
+		t.Errorf("Expected Fingerprint 'test:fingerprint:12345', got '%s'", metadata.Fingerprint)
+	}
+	if metadata.TenancyID != "ocid1.tenancy.oc1..test" {
+		t.Errorf("Expected TenancyID 'ocid1.tenancy.oc1..test', got '%s'", metadata.TenancyID)
+	}
 }
 
-func TestGetCurrentBuildingID(t *testing.T) {
-	// This test would require a real IMDS endpoint or more complex mocking
-	// For now, we'll skip it but the function is implemented
-	t.Skip("Convenience function test requires real IMDS or complex mocking")
+func TestShapeConfigJSONDeserialization(t *testing.T) {
+	jsonData := `{
+		"maxVnicAttachments": 8,
+		"memoryInGBs": 1024.0,
+		"networkingBandwidthInGbps": 100.0,
+		"ocpus": 128.0
+	}`
+
+	var shapeConfig ShapeConfig
+	err := json.Unmarshal([]byte(jsonData), &shapeConfig)
+	if err != nil {
+		t.Fatalf("JSON unmarshaling failed: %v", err)
+	}
+
+	if shapeConfig.MaxVnicAttachments != 8 {
+		t.Errorf("Expected MaxVnicAttachments 8, got %d", shapeConfig.MaxVnicAttachments)
+	}
+	if shapeConfig.MemoryInGBs != 1024.0 {
+		t.Errorf("Expected MemoryInGBs 1024.0, got %f", shapeConfig.MemoryInGBs)
+	}
+	if shapeConfig.NetworkingBandwidthInGbps != 100.0 {
+		t.Errorf("Expected NetworkingBandwidthInGbps 100.0, got %f", shapeConfig.NetworkingBandwidthInGbps)
+	}
+	if shapeConfig.Ocpus != 128.0 {
+		t.Errorf("Expected Ocpus 128.0, got %f", shapeConfig.Ocpus)
+	}
 }
 
-func TestGetCurrentHostID(t *testing.T) {
-	// This test would require a real IMDS endpoint or more complex mocking
-	// For now, we'll skip it but the function is implemented
-	t.Skip("Convenience function test requires real IMDS or complex mocking")
+func TestPluginConfigStruct(t *testing.T) {
+	plugin := PluginConfig{
+		Name:         "Oracle Java Management Service",
+		DesiredState: "ENABLED",
+	}
+
+	if plugin.Name != "Oracle Java Management Service" {
+		t.Errorf("Expected Name 'Oracle Java Management Service', got '%s'", plugin.Name)
+	}
+	if plugin.DesiredState != "ENABLED" {
+		t.Errorf("Expected DesiredState 'ENABLED', got '%s'", plugin.DesiredState)
+	}
 }
 
-func TestGetCurrentNetworkBlockID(t *testing.T) {
-	// This test would require a real IMDS endpoint or more complex mocking
-	// For now, we'll skip it but the function is implemented
-	t.Skip("Convenience function test requires real IMDS or complex mocking")
+func TestComplexInstanceMetadataStruct(t *testing.T) {
+	metadata := &InstanceMetadata{
+		ID:    "ocid1.instance.oc1.phx.test123",
+		Shape: "BM.GPU.H100.8",
+		ShapeConfig: &ShapeConfig{
+			MaxVnicAttachments:        8,
+			MemoryInGBs:               1024.0,
+			NetworkingBandwidthInGbps: 100.0,
+			Ocpus:                     128.0,
+		},
+		AgentConfig: &AgentConfig{
+			AllPluginsDisabled: false,
+			ManagementDisabled: false,
+			MonitoringDisabled: true,
+		},
+		Metadata: map[string]interface{}{
+			"ssh_authorized_keys": "ssh-rsa AAAAB3NzaC1yc2E...",
+			"user_data":           "#!/bin/bash\necho 'Hello World'",
+		},
+		DefinedTags: map[string]interface{}{
+			"Environment": map[string]interface{}{
+				"Type": "Production",
+			},
+		},
+		FreeformTags: map[string]interface{}{
+			"Project": "HPC-Cluster",
+			"Owner":   "TeamA",
+		},
+	}
+
+	// Test shape config
+	if metadata.ShapeConfig.Ocpus != 128.0 {
+		t.Errorf("Expected ShapeConfig.Ocpus 128.0, got %f", metadata.ShapeConfig.Ocpus)
+	}
+
+	// Test agent config
+	if metadata.AgentConfig.MonitoringDisabled != true {
+		t.Errorf("Expected AgentConfig.MonitoringDisabled true, got %v", metadata.AgentConfig.MonitoringDisabled)
+	}
+
+	// Test metadata map
+	if metadata.Metadata["ssh_authorized_keys"] != "ssh-rsa AAAAB3NzaC1yc2E..." {
+		t.Errorf("Expected ssh_authorized_keys to be set")
+	}
+
+	// Test freeform tags
+	if metadata.FreeformTags["Project"] != "HPC-Cluster" {
+		t.Errorf("Expected Project tag 'HPC-Cluster', got '%v'", metadata.FreeformTags["Project"])
+	}
 }

@@ -64,9 +64,24 @@
         "enabled": true,
         "test_category": "LEVEL_1",
         "threshold": {
-          "blacklisted_versions": ["470.57.02"],
-          "supported_versions": ["450.119.03", "450.142.0", "470.103.01", "470.129.06", "470.141.03", "510.47.03", "535.104.12", "550.90.12"]
+          "blacklisted_versions": [
+            "470.57.02"
+          ],
+          "supported_versions": [
+            "450.119.03",
+            "450.142.0",
+            "470.103.01",
+            "470.129.06",
+            "470.141.03",
+            "510.47.03",
+            "535.104.12",
+            "550.90.12"
+          ]
         }
+      },
+      "peermem_module_check": {
+        "enabled": true,
+        "test_category": "LEVEL_1"
       }
     },
     "BM.GPU.B200.8": {
@@ -107,6 +122,10 @@
         "test_category": "LEVEL_1"
       },
       "gpu_driver_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1"
+      },
+      "peermem_module_check": {
         "enabled": false,
         "test_category": "LEVEL_1"
       }
@@ -161,6 +180,10 @@
           "blacklisted_versions": ["470.57.02"],
           "supported_versions": ["450.119.03", "450.142.0", "470.103.01", "470.129.06", "470.141.03", "510.47.03", "535.104.12", "550.90.12"]
         }
+      },
+      "peermem_module_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1"
       }
     }
   }

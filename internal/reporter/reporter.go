@@ -94,18 +94,26 @@ type GPUDriverTestResult struct {
 	TimestampUTC  string `json:"timestamp_utc"`
 }
 
+// PeerMemTestResult represents peermem module test results
+type PeerMemTestResult struct {
+	Status       string `json:"status"`
+	ModuleLoaded bool   `json:"module_loaded"`
+	TimestampUTC string `json:"timestamp_utc"`
+}
+
 // HostResults represents test results for a host
 type HostResults struct {
-	GPUCountCheck   []GPUTestResult             `json:"gpu_count_check,omitempty"`
-	GPUModeCheck    []GPUModeTestResult         `json:"gpu_mode_check,omitempty"`
-	PCIeErrorCheck  []PCIeTestResult            `json:"pcie_error_check,omitempty"`
-	RDMANicsCount   []RDMATestResult            `json:"rdma_nics_count,omitempty"`
-	RXDiscardsCheck []RXDiscardsCheckTestResult `json:"rx_discards_check,omitempty"`
-	GIDIndexCheck   []GIDIndexTestResult        `json:"gid_index_check,omitempty"`
-	LinkCheck       []LinkTestResult            `json:"link_check,omitempty"`
-	EthLinkCheck    []EthLinkTestResult         `json:"eth_link_check,omitempty"`
-	SRAMErrorCheck  []SRAMErrorTestResult       `json:"sram_error_check,omitempty"`
-	GPUDriverCheck  []GPUDriverTestResult       `json:"gpu_driver_check,omitempty"`
+	GPUCountCheck      []GPUTestResult             `json:"gpu_count_check,omitempty"`
+	GPUModeCheck       []GPUModeTestResult         `json:"gpu_mode_check,omitempty"`
+	PCIeErrorCheck     []PCIeTestResult            `json:"pcie_error_check,omitempty"`
+	RDMANicsCount      []RDMATestResult            `json:"rdma_nics_count,omitempty"`
+	RXDiscardsCheck    []RXDiscardsCheckTestResult `json:"rx_discards_check,omitempty"`
+	GIDIndexCheck      []GIDIndexTestResult        `json:"gid_index_check,omitempty"`
+	LinkCheck          []LinkTestResult            `json:"link_check,omitempty"`
+	EthLinkCheck       []EthLinkTestResult         `json:"eth_link_check,omitempty"`
+	SRAMErrorCheck     []SRAMErrorTestResult       `json:"sram_error_check,omitempty"`
+	GPUDriverCheck     []GPUDriverTestResult       `json:"gpu_driver_check,omitempty"`
+	PeerMemModuleCheck []PeerMemTestResult         `json:"peermem_module_check,omitempty"`
 }
 
 // ReportOutput represents the final JSON output structure
@@ -292,6 +300,14 @@ func (r *Reporter) AddGPUDriverResult(status string, driverVersion string, err e
 		"driver_version": driverVersion,
 	}
 	r.AddResult("gpu_driver_check", status, details, err)
+}
+
+// AddPeerMemResult adds peermem module test results
+func (r *Reporter) AddPeerMemResult(status string, moduleLoaded bool, err error) {
+	details := map[string]interface{}{
+		"module_loaded": moduleLoaded,
+	}
+	r.AddResult("peermem_module_check", status, details, err)
 }
 
 // GenerateReport generates the final JSON report
@@ -488,6 +504,22 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 			TimestampUTC:  result.Timestamp.UTC().Format(time.RFC3339),
 		}
 		report.Localhost.GPUDriverCheck = []GPUDriverTestResult{gpuDriverResult}
+	}
+
+	// Process PeerMem Module results
+	if result, exists := r.results["peermem_module_check"]; exists {
+		moduleLoaded := false
+		if loadedVal, ok := result.Details["module_loaded"]; ok {
+			if loaded, ok := loadedVal.(bool); ok {
+				moduleLoaded = loaded
+			}
+		}
+		peerMemResult := PeerMemTestResult{
+			Status:       result.Status,
+			ModuleLoaded: moduleLoaded,
+			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
+		}
+		report.Localhost.PeerMemModuleCheck = []PeerMemTestResult{peerMemResult}
 	}
 
 	return report, nil
@@ -765,6 +797,23 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 		}
 	}
 
+	// PeerMem Module Tests
+	if len(report.Localhost.PeerMemModuleCheck) > 0 {
+		for _, peerMem := range report.Localhost.PeerMemModuleCheck {
+			status := peerMem.Status
+			statusSymbol := "✅"
+			if status == "FAIL" {
+				statusSymbol = "❌"
+			}
+			details := "Module Loaded"
+			if !peerMem.ModuleLoaded {
+				details = "Module Not Loaded"
+			}
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s             │\n",
+				"PeerMem Module Check", statusSymbol, statusSymbol, details))
+		}
+	}
+
 	output.WriteString("└─────────────────────────────────────────────────────────────────┘\n")
 	return output.String(), nil
 }
@@ -968,6 +1017,23 @@ func (r *Reporter) formatFriendly(report *ReportOutput) (string, error) {
 			} else {
 				failedTests++
 				output.WriteString(fmt.Sprintf("   ❌ GPU Driver: Version %s (FAILED)\n", driver.DriverVersion))
+			}
+		}
+		output.WriteString("\n")
+	}
+
+	// PeerMem Module Tests
+	if len(report.Localhost.PeerMemModuleCheck) > 0 {
+		output.WriteString("🔧 PeerMem Module Check\n")
+		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
+		for _, peerMem := range report.Localhost.PeerMemModuleCheck {
+			totalTests++
+			if peerMem.Status == "PASS" {
+				passedTests++
+				output.WriteString("   ✅ PeerMem Module: nvidia_peermem loaded (PASSED)\n")
+			} else {
+				failedTests++
+				output.WriteString("   ❌ PeerMem Module: nvidia_peermem not loaded (FAILED)\n")
 			}
 		}
 		output.WriteString("\n")

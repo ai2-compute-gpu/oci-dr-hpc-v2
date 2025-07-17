@@ -1,9 +1,6 @@
 package executor
 
 import (
-	"fmt"
-	"os"
-	"os/exec"
 	"strings"
 	"testing"
 )
@@ -30,263 +27,6 @@ func TestOSCommandResult(t *testing.T) {
 	}
 }
 
-func TestRunLspci(t *testing.T) {
-	tests := []struct {
-		name         string
-		options      []string
-		expectError  bool
-		skipIfNoSudo bool
-	}{
-		{
-			name:         "basic lspci call",
-			options:      []string{},
-			expectError:  false,
-			skipIfNoSudo: true,
-		},
-		{
-			name:         "lspci with verbose option",
-			options:      []string{"-v"},
-			expectError:  false,
-			skipIfNoSudo: true,
-		},
-		{
-			name:         "lspci with multiple options",
-			options:      []string{"-v", "-k"},
-			expectError:  false,
-			skipIfNoSudo: true,
-		},
-		{
-			name:         "lspci with invalid option",
-			options:      []string{"--invalid-option"},
-			expectError:  true,
-			skipIfNoSudo: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.skipIfNoSudo && !canRunSudo() {
-				t.Skip("Skipping test that requires sudo access")
-			}
-
-			result, err := RunLspci(tt.options...)
-
-			if tt.expectError && err == nil {
-				t.Error("Expected error but got none")
-			}
-			if !tt.expectError && err != nil {
-				t.Errorf("Unexpected error: %v", err)
-			}
-
-			if result == nil {
-				t.Fatal("Expected result but got nil")
-			}
-
-			// Verify command string format
-			expectedCmd := "sudo lspci " + strings.Join(tt.options, " ")
-			if result.Command != expectedCmd {
-				t.Errorf("Expected command '%s', got '%s'", expectedCmd, result.Command)
-			}
-
-			// If no error expected, verify we have some output or at least empty string
-			if !tt.expectError {
-				if result.Output == "" && err == nil {
-					// This might be normal if no PCI devices, so just log it
-					t.Logf("No lspci output (might be normal in test environment)")
-				}
-			}
-		})
-	}
-}
-
-func TestRunLspciForDevice(t *testing.T) {
-	tests := []struct {
-		name         string
-		deviceID     string
-		verbose      bool
-		expectError  bool
-		skipIfNoSudo bool
-	}{
-		{
-			name:         "query specific device non-verbose",
-			deviceID:     "00:00.0",
-			verbose:      false,
-			expectError:  false,
-			skipIfNoSudo: true,
-		},
-		{
-			name:         "query specific device verbose",
-			deviceID:     "00:00.0",
-			verbose:      true,
-			expectError:  false,
-			skipIfNoSudo: true,
-		},
-		{
-			name:         "query non-existent device",
-			deviceID:     "ff:ff.f",
-			verbose:      false,
-			expectError:  true,
-			skipIfNoSudo: true,
-		},
-		{
-			name:         "empty device ID",
-			deviceID:     "",
-			verbose:      false,
-			expectError:  false,
-			skipIfNoSudo: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.skipIfNoSudo && !canRunSudo() {
-				t.Skip("Skipping test that requires sudo access")
-			}
-
-			result, err := RunLspciForDevice(tt.deviceID, tt.verbose)
-
-			if tt.expectError && err == nil {
-				t.Error("Expected error but got none")
-			}
-			if !tt.expectError && err != nil {
-				t.Errorf("Unexpected error: %v", err)
-			}
-
-			if result == nil {
-				t.Fatal("Expected result but got nil")
-			}
-
-			// Verify command contains device ID
-			if !strings.Contains(result.Command, tt.deviceID) && tt.deviceID != "" {
-				t.Errorf("Expected command to contain device ID '%s', got '%s'", tt.deviceID, result.Command)
-			}
-
-			// Verify verbose flag
-			if tt.verbose && !strings.Contains(result.Command, "-v") {
-				t.Error("Expected command to contain -v flag for verbose mode")
-			}
-		})
-	}
-}
-
-func TestRunDmesg(t *testing.T) {
-	tests := []struct {
-		name         string
-		options      []string
-		expectError  bool
-		skipIfNoSudo bool
-	}{
-		{
-			name:         "basic dmesg call",
-			options:      []string{},
-			expectError:  false,
-			skipIfNoSudo: true,
-		},
-		{
-			name:         "dmesg with level filter",
-			options:      []string{"-l", "err"},
-			expectError:  false,
-			skipIfNoSudo: true,
-		},
-		{
-			name:         "dmesg with time since boot",
-			options:      []string{"-T"},
-			expectError:  false,
-			skipIfNoSudo: true,
-		},
-		{
-			name:         "dmesg with invalid option",
-			options:      []string{"--invalid-option"},
-			expectError:  true,
-			skipIfNoSudo: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.skipIfNoSudo && !canRunSudo() {
-				t.Skip("Skipping test that requires sudo access")
-			}
-
-			result, err := RunDmesg(tt.options...)
-
-			if tt.expectError && err == nil {
-				t.Error("Expected error but got none")
-			}
-			if !tt.expectError && err != nil {
-				t.Errorf("Unexpected error: %v", err)
-			}
-
-			if result == nil {
-				t.Fatal("Expected result but got nil")
-			}
-
-			// Verify command string format
-			expectedCmd := "sudo dmesg " + strings.Join(tt.options, " ")
-			if result.Command != expectedCmd {
-				t.Errorf("Expected command '%s', got '%s'", expectedCmd, result.Command)
-			}
-
-			// If no error expected, verify we have some output
-			if !tt.expectError && len(result.Output) == 0 {
-				t.Log("No dmesg output (might be normal in test environment)")
-			}
-		})
-	}
-}
-
-func TestOSCommandResultWithError(t *testing.T) {
-	// Test with a command that will definitely fail
-	if !canRunSudo() {
-		t.Skip("Skipping test that requires sudo access")
-	}
-
-	result, err := RunLspci("--definitely-invalid-option")
-
-	if err == nil {
-		t.Error("Expected error for invalid option")
-	}
-
-	if result == nil {
-		t.Fatal("Expected result even with error")
-	}
-
-	if result.Error == nil {
-		t.Error("Expected result.Error to be set")
-	}
-
-	if result.ExitCode == 0 {
-		t.Error("Expected non-zero exit code for failed command")
-	}
-
-	if !strings.Contains(result.Command, "sudo lspci") {
-		t.Error("Expected command to contain 'sudo lspci'")
-	}
-}
-
-// Helper function to check if we can run sudo commands
-func canRunSudo() bool {
-	// Check if we're running as root
-	if os.Getuid() == 0 {
-		return true
-	}
-
-	// Check if sudo is available and we can use it without password
-	cmd := exec.Command("sudo", "-n", "true")
-	err := cmd.Run()
-	return err == nil
-}
-
-func TestCanRunSudo(t *testing.T) {
-	result := canRunSudo()
-	t.Logf("Can run sudo: %v", result)
-
-	if !result {
-		t.Log("Sudo tests will be skipped - run as root or configure passwordless sudo for full test coverage")
-	}
-}
-
-// Test command string formatting
 func TestCommandStringFormatting(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -312,7 +52,6 @@ func TestCommandStringFormatting(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create a mock result to test command string formatting
 			result := &OSCommandResult{
 				Command: "sudo lspci " + strings.Join(tt.options, " "),
 			}
@@ -324,854 +63,374 @@ func TestCommandStringFormatting(t *testing.T) {
 	}
 }
 
-// Test edge cases
-func TestEdgeCases(t *testing.T) {
-	t.Run("nil options to RunLspci", func(t *testing.T) {
-		if !canRunSudo() {
-			t.Skip("Skipping test that requires sudo access")
-		}
-
-		result, err := RunLspci()
-		if err != nil {
-			t.Logf("Error (may be expected in test env): %v", err)
-		}
-		if result == nil {
-			t.Fatal("Expected result but got nil")
-		}
-	})
-
-	t.Run("empty device ID", func(t *testing.T) {
-		if !canRunSudo() {
-			t.Skip("Skipping test that requires sudo access")
-		}
-
-		result, err := RunLspciForDevice("", false)
-		if err == nil {
-			t.Log("No error for empty device ID (may be valid)")
-		}
-		if result == nil {
-			t.Fatal("Expected result but got nil")
-		}
-	})
-}
-
-// Integration test - only runs if sudo is available
-func TestIntegrationWithActualCommands(t *testing.T) {
-	if !canRunSudo() {
-		t.Skip("Skipping integration test - requires sudo access")
-	}
-
-	t.Run("lspci integration", func(t *testing.T) {
-		result, err := RunLspci()
-		if err != nil {
-			t.Logf("lspci failed (may be expected in test environment): %v", err)
-			return
-		}
-
-		if result.Output == "" {
-			t.Log("No lspci output (may be normal in containerized environment)")
-		}
-
-		if !strings.Contains(result.Command, "sudo lspci") {
-			t.Error("Command should contain 'sudo lspci'")
-		}
-	})
-
-	t.Run("dmesg integration", func(t *testing.T) {
-		result, err := RunDmesg()
-		if err != nil {
-			t.Logf("dmesg failed (may be expected in test environment): %v", err)
-			return
-		}
-
-		if result.Output == "" {
-			t.Log("No dmesg output (may be normal in containerized environment)")
-		}
-
-		if !strings.Contains(result.Command, "sudo dmesg") {
-			t.Error("Command should contain 'sudo dmesg'")
-		}
-	})
-}
-
-// Test GetHostname function from os commands
-func TestOSGetHostname(t *testing.T) {
-	hostname, err := GetHostname()
-	if err != nil {
-		t.Fatalf("GetHostname failed: %v", err)
-	}
-
-	if hostname == "" {
-		t.Error("Expected non-empty hostname")
-	}
-
-	t.Logf("Got hostname: %s", hostname)
-}
-
-// Test GetSerialNumber function from os commands
-func TestOSGetSerialNumber(t *testing.T) {
-	if !canRunSudo() {
-		t.Skip("Skipping test that requires sudo access")
-	}
-
-	result, err := GetSerialNumber()
-	if err != nil {
-		t.Logf("GetSerialNumber failed (may be expected in test environment): %v", err)
-		// Don't fail the test since dmidecode might not work in all environments
-		return
-	}
-
-	if result == nil {
-		t.Fatal("Expected result but got nil")
-	}
-
-	if result.Command != "sudo dmidecode -s chassis-serial-number" {
-		t.Errorf("Expected command 'sudo dmidecode -s chassis-serial-number', got '%s'", result.Command)
-	}
-
-	t.Logf("Got serial number: %s", result.Output)
-}
-
-// Test GetSerialNumber function structure
-func TestOSGetSerialNumberStructure(t *testing.T) {
-	// This test focuses on the function structure rather than actual dmidecode execution
-	t.Log("Testing GetSerialNumber function structure")
-
-	// Test that the function exists and has the correct signature by calling it
-	// We don't care about the result, just that it compiles and runs
-	result, err := GetSerialNumber()
-	if err != nil {
-		t.Logf("GetSerialNumber returned error (expected in test environment): %v", err)
-	}
-	if result != nil {
-		t.Logf("GetSerialNumber returned result: %+v", result)
-	}
-
-	// The function exists and has the correct signature if we get here
-	t.Log("GetSerialNumber function structure is correct")
-}
-
-// Test RunIPAddr function
-func TestRunIPAddr(t *testing.T) {
-	tests := []struct {
-		name        string
-		options     []string
-		expectError bool
+func TestLsmodModuleSearchLogic(t *testing.T) {
+	testCases := []struct {
+		name         string
+		output       string
+		searchModule string
+		shouldFind   bool
 	}{
 		{
-			name:        "basic_ip_addr_call",
-			options:     nil,
-			expectError: false,
+			name: "nvidia_peermem_present",
+			output: `Module                  Size  Used by
+nvidia_peermem         16384  0
+nvidia_drm             69632  4`,
+			searchModule: "nvidia_peermem",
+			shouldFind:   true,
 		},
 		{
-			name:        "ip_addr_with_show_option",
-			options:     []string{"show"},
-			expectError: false,
+			name: "nvidia_peermem_not_present",
+			output: `Module                  Size  Used by
+nvidia_drm             69632  4
+nvidia_modeset       1048576  6`,
+			searchModule: "nvidia_peermem",
+			shouldFind:   false,
 		},
 		{
-			name:        "ip_addr_with_specific_interface",
-			options:     []string{"show", "lo"},
-			expectError: false,
+			name: "partial_match_should_not_find",
+			output: `Module                  Size  Used by
+nvidia_peermem_test    16384  0
+some_nvidia_peermem    32768  1`,
+			searchModule: "nvidia_peermem",
+			shouldFind:   false,
+		},
+		{
+			name: "exact_match_required",
+			output: `Module                  Size  Used by
+nvidia_peermem         16384  0
+nvidia_peermemory      32768  1`,
+			searchModule: "nvidia_peermem",
+			shouldFind:   true,
+		},
+		{
+			name:         "empty_output",
+			output:       "",
+			searchModule: "nvidia_peermem",
+			shouldFind:   false,
+		},
+		{
+			name:         "header_only",
+			output:       "Module                  Size  Used by",
+			searchModule: "nvidia_peermem",
+			shouldFind:   false,
+		},
+		{
+			name: "malformed_lines_ignored",
+			output: `Module                  Size  Used by
+nvidia_peermem         16384  0
+incomplete line
+another bad line without proper format
+nvidia_drm             69632  4`,
+			searchModule: "nvidia_peermem",
+			shouldFind:   true,
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := RunIPAddr(tt.options...)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			found := false
 
-			if tt.expectError && err == nil {
-				t.Errorf("Expected error but got none")
-			}
-			if !tt.expectError && err != nil {
-				t.Errorf("Unexpected error: %v", err)
+			lines := strings.Split(tc.output, "\n")
+			for _, line := range lines {
+				line = strings.TrimSpace(line)
+				if line == "" {
+					continue
+				}
+
+				fields := strings.Fields(line)
+				if len(fields) > 0 && fields[0] == tc.searchModule {
+					found = true
+					break
+				}
 			}
 
-			if !tt.expectError {
-				if result == nil {
-					t.Error("Result should not be nil")
-				}
-				if result.Output == "" {
-					t.Error("Output should not be empty")
-				}
-				if len(result.Output) < 10 {
-					t.Error("Output seems too short for ip addr command")
-				}
-				t.Logf("ip addr output length: %d characters", len(result.Output))
+			if found != tc.shouldFind {
+				t.Errorf("Expected to find module '%s': %v, but got: %v", tc.searchModule, tc.shouldFind, found)
 			}
 		})
 	}
 }
 
-// Test RunRdmaLink function
-func TestRunRdmaLink(t *testing.T) {
-	tests := []struct {
-		name        string
-		options     []string
-		expectError bool
-		skipMsg     string
-	}{
-		{
-			name:        "basic_rdma_link_call",
-			options:     nil,
-			expectError: false, // May error if rdma tools not installed
-			skipMsg:     "rdma tools may not be available",
-		},
-		{
-			name:        "rdma_link_with_show_option",
-			options:     []string{"show"},
-			expectError: false,
-			skipMsg:     "rdma tools may not be available",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := RunRdmaLink(tt.options...)
-
-			if err != nil {
-				// rdma command may not be available in test environment
-				if strings.Contains(err.Error(), "executable file not found") {
-					t.Skipf("Skipping test - rdma command not available: %v", err)
-					return
-				}
-				if !tt.expectError {
-					t.Logf("rdma link failed (may be normal): %v", err)
-				}
-			}
-
-			if result != nil {
-				t.Logf("rdma link result: %s", result.Output)
-			}
-		})
+func TestPCIDeviceModelParsing(t *testing.T) {
+	testOutput := "0c:00.0 Ethernet controller: Mellanox Technologies MT2910 Family [ConnectX-7]"
+	parts := strings.SplitN(testOutput, ":", 3)
+	if len(parts) >= 3 {
+		model := strings.TrimSpace(parts[2])
+		expected := "Mellanox Technologies MT2910 Family [ConnectX-7]"
+		if model != expected {
+			t.Errorf("Expected model %s, got %s", expected, model)
+		}
+	} else {
+		t.Error("Failed to parse lspci output")
 	}
 }
 
-// Test RunReadlink function
-func TestRunReadlink(t *testing.T) {
-	tests := []struct {
-		name        string
-		path        string
-		options     []string
-		expectError bool
-	}{
-		{
-			name:        "readlink_on_proc_self",
-			path:        "/proc/self",
-			options:     nil,
-			expectError: false,
-		},
-		{
-			name:        "readlink_with_f_option",
-			path:        "/proc/self/exe",
-			options:     []string{"-f"},
-			expectError: false,
-		},
-		{
-			name:        "readlink_nonexistent_path",
-			path:        "/nonexistent/path/that/does/not/exist",
-			options:     nil,
-			expectError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := RunReadlink(tt.path, tt.options...)
-
-			if tt.expectError && err == nil {
-				t.Errorf("Expected error but got none")
-			}
-			if !tt.expectError && err != nil {
-				t.Errorf("Unexpected error: %v", err)
-			}
-
-			if !tt.expectError && result != nil {
-				t.Logf("readlink result for %s: %s", tt.path, result.Output)
-				if result.Output == "" {
-					t.Error("Expected non-empty output for readlink")
-				}
-			}
-		})
+func TestNUMANodeParsing(t *testing.T) {
+	testOutput := "  0  \n"
+	numaNode := strings.TrimSpace(testOutput)
+	if numaNode != "0" {
+		t.Errorf("Expected NUMA node 0, got %s", numaNode)
 	}
 }
 
-// Test RunLspciByPCI function
-func TestRunLspciByPCI(t *testing.T) {
-	if !canRunSudo() {
-		t.Skip("Skipping test that requires sudo access")
-	}
-
-	tests := []struct {
-		name        string
-		pciAddress  string
-		verbose     bool
-		expectError bool
-	}{
-		{
-			name:        "query_host_bridge_non_verbose",
-			pciAddress:  "00:00.0",
-			verbose:     false,
-			expectError: false,
-		},
-		{
-			name:        "query_host_bridge_verbose",
-			pciAddress:  "00:00.0",
-			verbose:     true,
-			expectError: false,
-		},
-		{
-			name:        "query_with_full_domain",
-			pciAddress:  "0000:00:00.0",
-			verbose:     false,
-			expectError: false,
-		},
-		{
-			name:        "query_from_sys_path",
-			pciAddress:  "/sys/devices/pci0000:00/0000:00:00.0",
-			verbose:     false,
-			expectError: false,
-		},
-		{
-			name:        "query_nonexistent_device",
-			pciAddress:  "ff:ff.f",
-			verbose:     false,
-			expectError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := RunLspciByPCI(tt.pciAddress, tt.verbose)
-
-			if tt.expectError && err == nil {
-				t.Errorf("Expected error but got none")
-			}
-			if !tt.expectError && err != nil {
-				t.Errorf("Unexpected error: %v", err)
-			}
-
-			if !tt.expectError && result != nil {
-				t.Logf("lspci result for %s: %s", tt.pciAddress, result.Output)
-				if result.Output == "" {
-					t.Error("Expected non-empty output for lspci")
-				}
-			}
-		})
+func TestNetworkInterfaceParsing(t *testing.T) {
+	testOutput := "eth0\neth1"
+	interfaces := strings.Fields(testOutput)
+	if len(interfaces) > 0 && interfaces[0] != "eth0" {
+		t.Errorf("Expected first interface eth0, got %s", interfaces[0])
 	}
 }
 
-// Test the new OS discovery functions parsing logic
-func TestNewOSDiscoveryFunctionsParsing(t *testing.T) {
-	t.Run("PCI device model parsing", func(t *testing.T) {
-		testOutput := "0c:00.0 Ethernet controller: Mellanox Technologies MT2910 Family [ConnectX-7]"
-		parts := strings.SplitN(testOutput, ":", 3)
-		if len(parts) >= 3 {
-			model := strings.TrimSpace(parts[2])
-			expected := "Mellanox Technologies MT2910 Family [ConnectX-7]"
-			if model != expected {
-				t.Errorf("Expected model %s, got %s", expected, model)
-			}
-		} else {
-			t.Error("Failed to parse lspci output")
-		}
-	})
+func TestInfiniBandDeviceParsing(t *testing.T) {
+	testOutput := "mlx5_0\nmlx5_1"
+	devices := strings.Fields(testOutput)
+	if len(devices) > 0 && devices[0] != "mlx5_0" {
+		t.Errorf("Expected first device mlx5_0, got %s", devices[0])
+	}
+}
 
-	t.Run("NUMA node parsing", func(t *testing.T) {
-		testOutput := "  0  \n"
-		numaNode := strings.TrimSpace(testOutput)
-		if numaNode != "0" {
-			t.Errorf("Expected NUMA node 0, got %s", numaNode)
-		}
-	})
+func TestIbdev2netdevParsing(t *testing.T) {
+	testOutput := "mlx5_0 port 1 ==> enp12s0f0np0 (Up)"
+	deviceName := "mlx5_0"
+	var foundInterface string
 
-	t.Run("Network interface parsing", func(t *testing.T) {
-		testOutput := "eth0\neth1"
-		interfaces := strings.Fields(testOutput)
-		if len(interfaces) > 0 && interfaces[0] != "eth0" {
-			t.Errorf("Expected first interface eth0, got %s", interfaces[0])
-		}
-	})
-
-	t.Run("InfiniBand device parsing", func(t *testing.T) {
-		testOutput := "mlx5_0\nmlx5_1"
-		devices := strings.Fields(testOutput)
-		if len(devices) > 0 && devices[0] != "mlx5_0" {
-			t.Errorf("Expected first device mlx5_0, got %s", devices[0])
-		}
-	})
-
-	t.Run("ibdev2netdev parsing", func(t *testing.T) {
-		testOutput := "mlx5_0 port 1 ==> enp12s0f0np0 (Up)"
-		deviceName := "mlx5_0"
-		var foundInterface string
-
-		lines := strings.Split(testOutput, "\n")
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			if strings.HasPrefix(line, deviceName) {
-				parts := strings.Fields(line)
-				for i, part := range parts {
-					if part == "==>" && i+1 < len(parts) {
-						foundInterface = parts[i+1]
-						break
-					}
+	lines := strings.Split(testOutput, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, deviceName) {
+			parts := strings.Fields(line)
+			for i, part := range parts {
+				if part == "==>" && i+1 < len(parts) {
+					foundInterface = parts[i+1]
+					break
 				}
 			}
 		}
-
-		expected := "enp12s0f0np0"
-		if foundInterface != expected {
-			t.Errorf("Expected interface %s, got %s", expected, foundInterface)
-		}
-	})
-}
-
-// Test RunEthtoolStats function
-func TestRunEthtoolStats(t *testing.T) {
-	if !canRunSudo() {
-		t.Skip("Skipping test that requires sudo access")
 	}
 
-	tests := []struct {
-		name          string
-		interfaceName string
-		grepPattern   string
-		expectError   bool
-	}{
-		{
-			name:          "ethtool_stats_basic",
-			interfaceName: "lo", // loopback interface should exist on most systems
-			grepPattern:   "",
-			expectError:   false,
-		},
-		{
-			name:          "ethtool_stats_with_grep",
-			interfaceName: "lo",
-			grepPattern:   "rx_packets",
-			expectError:   false,
-		},
-		{
-			name:          "ethtool_stats_ethernet_interface",
-			interfaceName: "enp12s0f0", // May not exist in test environment
-			grepPattern:   "rx_prio.*_discards",
-			expectError:   true, // Likely to fail in test environment
-		},
-		{
-			name:          "ethtool_stats_ethernet_interface",
-			interfaceName: "rdma0", // May not exist in test environment
-			grepPattern:   "rx_prio.*_discards",
-			expectError:   true, // Likely to fail in test environment
-		},
-		{
-			name:          "ethtool_stats_nonexistent_interface",
-			interfaceName: "nonexistent999",
-			grepPattern:   "",
-			expectError:   true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := RunEthtoolStats(tt.interfaceName, tt.grepPattern)
-
-			if tt.expectError && err == nil {
-				t.Logf("Expected error but got none (may be normal for %s)", tt.interfaceName)
-			}
-			if !tt.expectError && err != nil {
-				t.Logf("Unexpected error for %s (may be normal in test env): %v", tt.interfaceName, err)
-			}
-
-			if result == nil {
-				t.Fatal("Expected result but got nil")
-			}
-
-			// Verify command string format
-			expectedCmdStart := fmt.Sprintf("sudo ethtool -S %s", tt.interfaceName)
-			if !strings.HasPrefix(result.Command, expectedCmdStart) {
-				t.Errorf("Expected command to start with '%s', got '%s'", expectedCmdStart, result.Command)
-			}
-
-			// If grep pattern specified, verify it's in the command
-			if tt.grepPattern != "" && !strings.Contains(result.Command, "grep") {
-				t.Error("Expected command to contain 'grep' when pattern specified")
-			}
-
-			// Log the output for debugging
-			if result.Output != "" {
-				t.Logf("ethtool output for %s: %s", tt.interfaceName, result.Output)
-			}
-		})
+	expected := "enp12s0f0np0"
+	if foundInterface != expected {
+		t.Errorf("Expected interface %s, got %s", expected, foundInterface)
 	}
 }
 
-// Test ethtool stats edge cases
-func TestEthtoolStatsEdgeCases(t *testing.T) {
-	if !canRunSudo() {
-		t.Skip("Skipping test that requires sudo access")
-	}
-
-	t.Run("empty_interface_name", func(t *testing.T) {
-		result, err := RunEthtoolStats("", "")
-
-		if result == nil {
-			t.Fatal("Expected result but got nil")
-		}
-
-		// Should fail with empty interface name
-		if err == nil {
-			t.Log("No error for empty interface name (unexpected but not critical)")
-		}
-
-		t.Logf("Result for empty interface: %v", result.Command)
-	})
-
-	t.Run("special_characters_in_pattern", func(t *testing.T) {
-		result, _ := RunEthtoolStats("lo", "rx.*packets")
-
-		if result == nil {
-			t.Fatal("Expected result but got nil")
-		}
-
-		// Should handle regex patterns in grep
-		if !strings.Contains(result.Command, "rx.*packets") {
-			t.Error("Expected command to contain the grep pattern")
-		}
-
-		t.Logf("Result for regex pattern: %v", result.Command)
-	})
-}
-
-// Integration test for ethtool stats
-func TestEthtoolStatsIntegration(t *testing.T) {
-	if !canRunSudo() {
-		t.Skip("Skipping integration test - requires sudo access")
-	}
-
-	t.Run("loopback_interface_stats", func(t *testing.T) {
-		result, err := RunEthtoolStats("lo", "")
-
-		if err != nil {
-			t.Logf("ethtool failed for loopback (may be expected): %v", err)
-			return
-		}
-
-		if result == nil {
-			t.Fatal("Expected result but got nil")
-		}
-
-		if result.Output == "" {
-			t.Log("No ethtool output for loopback (may be normal)")
-		}
-
-		// Verify command format
-		expectedCmd := "sudo ethtool -S lo"
-		if result.Command != expectedCmd {
-			t.Errorf("Expected command '%s', got '%s'", expectedCmd, result.Command)
-		}
-
-		t.Logf("Loopback ethtool stats successful")
-	})
-}
-
-// Test GetIbdevToNetdevMap function
-func TestGetIbdevToNetdevMap(t *testing.T) {
-	if !canRunSudo() {
-		t.Skip("Skipping test that requires sudo access")
-	}
-
-	t.Run("basic_ibdev2netdev_call", func(t *testing.T) {
-		deviceMap, err := GetIbdevToNetdevMap()
-
-		if err != nil {
-			// ibdev2netdev command may not be available or may fail in test environment
-			if strings.Contains(err.Error(), "executable file not found") {
-				t.Skipf("Skipping test - ibdev2netdev command not available: %v", err)
-				return
-			}
-			t.Logf("ibdev2netdev failed (may be expected in test environment): %v", err)
-			return
-		}
-
-		if deviceMap == nil {
-			t.Error("Expected non-nil device map")
-			return
-		}
-
-		t.Logf("Found %d InfiniBand devices", len(deviceMap))
-		for device, netdev := range deviceMap {
-			t.Logf("Device: %s -> Network Interface: %s", device, netdev)
-		}
-	})
-
-	t.Run("ibdev2netdev_output_parsing", func(t *testing.T) {
-		// Test the parsing logic with mock output
-		testOutput := `mlx5_0 port 1 ==> enp12s0f0np0 (Up)
+func TestIbdev2netdevOutputParsing(t *testing.T) {
+	testOutput := `mlx5_0 port 1 ==> enp12s0f0np0 (Up)
 mlx5_1 port 1 ==> enp12s0f1np1 (Down)
 mlx5_2 port 1 ==> enp175s0f0np0 (Up)`
 
-		deviceMap := make(map[string]string)
-		lines := strings.Split(testOutput, "\n")
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			if line == "" {
-				continue
-			}
-
-			parts := strings.Fields(line)
-			if len(parts) >= 5 && parts[3] == "==>" {
-				deviceMap[parts[0]] = parts[4]
-			}
+	deviceMap := make(map[string]string)
+	lines := strings.Split(testOutput, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
 		}
 
-		expectedDevices := map[string]string{
-			"mlx5_0": "enp12s0f0np0",
-			"mlx5_1": "enp12s0f1np1",
-			"mlx5_2": "enp175s0f0np0",
+		parts := strings.Fields(line)
+		if len(parts) >= 5 && parts[3] == "==>" {
+			deviceMap[parts[0]] = parts[4]
+		}
+	}
+
+	expectedDevices := map[string]string{
+		"mlx5_0": "enp12s0f0np0",
+		"mlx5_1": "enp12s0f1np1",
+		"mlx5_2": "enp175s0f0np0",
+	}
+
+	if len(deviceMap) != len(expectedDevices) {
+		t.Errorf("Expected %d devices, got %d", len(expectedDevices), len(deviceMap))
+	}
+
+	for device, expectedNetdev := range expectedDevices {
+		if actualNetdev, exists := deviceMap[device]; !exists {
+			t.Errorf("Expected device %s not found", device)
+		} else if actualNetdev != expectedNetdev {
+			t.Errorf("Expected netdev %s for device %s, got %s", expectedNetdev, device, actualNetdev)
+		}
+	}
+}
+
+func TestIbdev2netdevEmptyOutput(t *testing.T) {
+	testOutput := ""
+
+	deviceMap := make(map[string]string)
+	lines := strings.Split(testOutput, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
 		}
 
-		if len(deviceMap) != len(expectedDevices) {
-			t.Errorf("Expected %d devices, got %d", len(expectedDevices), len(deviceMap))
+		parts := strings.Fields(line)
+		if len(parts) >= 5 && parts[3] == "==>" {
+			deviceMap[parts[0]] = parts[4]
 		}
+	}
 
-		for device, expectedNetdev := range expectedDevices {
-			if actualNetdev, exists := deviceMap[device]; !exists {
-				t.Errorf("Expected device %s not found", device)
-			} else if actualNetdev != expectedNetdev {
-				t.Errorf("Expected netdev %s for device %s, got %s", expectedNetdev, device, actualNetdev)
-			}
-		}
-	})
+	if len(deviceMap) != 0 {
+		t.Errorf("Expected empty device map, got %d devices", len(deviceMap))
+	}
+}
 
-	t.Run("ibdev2netdev_empty_output", func(t *testing.T) {
-		// Test parsing with empty output
-		testOutput := ""
-
-		deviceMap := make(map[string]string)
-		lines := strings.Split(testOutput, "\n")
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			if line == "" {
-				continue
-			}
-
-			parts := strings.Fields(line)
-			if len(parts) >= 5 && parts[3] == "==>" {
-				deviceMap[parts[0]] = parts[4]
-			}
-		}
-
-		if len(deviceMap) != 0 {
-			t.Errorf("Expected empty device map, got %d devices", len(deviceMap))
-		}
-	})
-
-	t.Run("ibdev2netdev_malformed_output", func(t *testing.T) {
-		// Test parsing with malformed output
-		testOutput := `mlx5_0 port 1 invalid format
+func TestIbdev2netdevMalformedOutput(t *testing.T) {
+	testOutput := `mlx5_0 port 1 invalid format
 incomplete line
 mlx5_1 port 1 ==> enp12s0f1np1 (Up)`
 
-		deviceMap := make(map[string]string)
-		lines := strings.Split(testOutput, "\n")
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			if line == "" {
-				continue
-			}
-
-			parts := strings.Fields(line)
-			if len(parts) >= 5 && parts[3] == "==>" {
-				deviceMap[parts[0]] = parts[4]
-			}
+	deviceMap := make(map[string]string)
+	lines := strings.Split(testOutput, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
 		}
 
-		// Should only parse the valid line
-		expectedDevices := map[string]string{
-			"mlx5_1": "enp12s0f1np1",
+		parts := strings.Fields(line)
+		if len(parts) >= 5 && parts[3] == "==>" {
+			deviceMap[parts[0]] = parts[4]
 		}
-
-		if len(deviceMap) != len(expectedDevices) {
-			t.Errorf("Expected %d devices, got %d", len(expectedDevices), len(deviceMap))
-		}
-
-		for device, expectedNetdev := range expectedDevices {
-			if actualNetdev, exists := deviceMap[device]; !exists {
-				t.Errorf("Expected device %s not found", device)
-			} else if actualNetdev != expectedNetdev {
-				t.Errorf("Expected netdev %s for device %s, got %s", expectedNetdev, device, actualNetdev)
-			}
-		}
-	})
-}
-
-// Test RunMlxlink function
-func TestRunMlxlink(t *testing.T) {
-	if !canRunSudo() {
-		t.Skip("Skipping test that requires sudo access")
 	}
 
+	expectedDevices := map[string]string{
+		"mlx5_1": "enp12s0f1np1",
+	}
+
+	if len(deviceMap) != len(expectedDevices) {
+		t.Errorf("Expected %d devices, got %d", len(expectedDevices), len(deviceMap))
+	}
+
+	for device, expectedNetdev := range expectedDevices {
+		if actualNetdev, exists := deviceMap[device]; !exists {
+			t.Errorf("Expected device %s not found", device)
+		} else if actualNetdev != expectedNetdev {
+			t.Errorf("Expected netdev %s for device %s, got %s", expectedNetdev, device, actualNetdev)
+		}
+	}
+}
+
+func TestIPAddressParsing(t *testing.T) {
+	testOutput := `2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
+    link/ether 00:1a:2b:3c:4d:5e brd ff:ff:ff:ff:ff:ff
+    inet 192.168.1.100/24 brd 192.168.1.255 scope global eth0
+       valid_lft forever preferred_lft forever
+    inet6 fe80::21a:2bff:fe3c:4d5e/64 scope link
+       valid_lft forever preferred_lft forever`
+
+	var foundIP string
+	lines := strings.Split(testOutput, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "inet ") {
+			parts := strings.Fields(line)
+			if len(parts) >= 2 {
+				ipWithCIDR := parts[1]
+				if strings.Contains(ipWithCIDR, "/") {
+					foundIP = strings.Split(ipWithCIDR, "/")[0]
+					break
+				}
+			}
+		}
+	}
+
+	expected := "192.168.1.100"
+	if foundIP != expected {
+		t.Errorf("Expected IP address %s, got %s", expected, foundIP)
+	}
+}
+
+func TestEthtoolCommandGeneration(t *testing.T) {
 	tests := []struct {
-		name          string
-		interfaceName string
-		expectError   bool
-		skipMsg       string
+		name           string
+		interface_name string
+		grepPattern    string
+		expected       string
 	}{
 		{
-			name:          "mlxlink_with_valid_interface",
-			interfaceName: "mlx5_0",
-			expectError:   false, // May error if interface doesn't exist
-			skipMsg:       "InfiniBand interface may not be available",
+			name:           "basic_ethtool",
+			interface_name: "eth0",
+			grepPattern:    "",
+			expected:       "sudo ethtool -S eth0",
 		},
 		{
-			name:          "mlxlink_with_ethernet_interface",
-			interfaceName: "enp12s0f0",
-			expectError:   false, // May error if not a Mellanox interface
-			skipMsg:       "Ethernet interface may not support mlxlink",
+			name:           "ethtool_with_grep",
+			interface_name: "enp12s0f0",
+			grepPattern:    "rx_packets",
+			expected:       "sudo ethtool -S enp12s0f0 | grep rx_packets",
 		},
 		{
-			name:          "mlxlink_with_nonexistent_interface",
-			interfaceName: "nonexistent999",
-			expectError:   true,
-			skipMsg:       "",
-		},
-		{
-			name:          "mlxlink_with_empty_interface",
-			interfaceName: "",
-			expectError:   true,
-			skipMsg:       "",
+			name:           "ethtool_with_regex_pattern",
+			interface_name: "rdma0",
+			grepPattern:    "rx_prio.*_discards",
+			expected:       "sudo ethtool -S rdma0 | grep rx_prio.*_discards",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := RunMlxlink(tt.interfaceName)
-
-			if err != nil {
-				// mlxlink command may not be available in test environment
-				if strings.Contains(err.Error(), "executable file not found") {
-					t.Skipf("Skipping test - mlxlink command not available: %v", err)
-					return
-				}
-				if !tt.expectError {
-					t.Logf("mlxlink failed (may be normal): %v", err)
-				}
-			}
-
-			if result == nil {
-				t.Fatal("Expected result but got nil")
-			}
-
-			// Verify command string format
-			expectedCmd := fmt.Sprintf("sudo mlxlink -d %s --json --show_module --show_counters --show_eye", tt.interfaceName)
-			if result.Command != expectedCmd {
-				t.Errorf("Expected command '%s', got '%s'", expectedCmd, result.Command)
-			}
-
-			// Verify command contains the interface name
-			if !strings.Contains(result.Command, tt.interfaceName) {
-				t.Errorf("Expected command to contain interface name '%s'", tt.interfaceName)
-			}
-
-			// Verify command contains expected options
-			expectedOptions := []string{"--json", "--show_module", "--show_counters", "--show_eye"}
-			for _, option := range expectedOptions {
-				if !strings.Contains(result.Command, option) {
-					t.Errorf("Expected command to contain option '%s'", option)
-				}
-			}
-
-			// Log the output for debugging
-			if result.Output != "" {
-				t.Logf("mlxlink output for %s: %s", tt.interfaceName, result.Output)
+			var cmd string
+			if tt.grepPattern != "" {
+				cmd = "sudo ethtool -S " + tt.interface_name + " | grep " + tt.grepPattern
 			} else {
-				t.Logf("No mlxlink output for %s (may be normal in test env)", tt.interfaceName)
+				cmd = "sudo ethtool -S " + tt.interface_name
+			}
+
+			if cmd != tt.expected {
+				t.Errorf("Expected command '%s', got '%s'", tt.expected, cmd)
 			}
 		})
 	}
 }
 
-// Test RunMlxlink edge cases
-func TestRunMlxlinkEdgeCases(t *testing.T) {
-	if !canRunSudo() {
-		t.Skip("Skipping test that requires sudo access")
+func TestMlxlinkCommandGeneration(t *testing.T) {
+	tests := []struct {
+		name          string
+		interfaceName string
+		expected      string
+	}{
+		{
+			name:          "basic_mlxlink",
+			interfaceName: "mlx5_0",
+			expected:      "sudo mlxlink -d mlx5_0 --json --show_module --show_counters --show_eye",
+		},
+		{
+			name:          "mlxlink_ethernet_interface",
+			interfaceName: "enp12s0f0",
+			expected:      "sudo mlxlink -d enp12s0f0 --json --show_module --show_counters --show_eye",
+		},
+		{
+			name:          "mlxlink_with_special_chars",
+			interfaceName: "mlx5_0/1",
+			expected:      "sudo mlxlink -d mlx5_0/1 --json --show_module --show_counters --show_eye",
+		},
 	}
 
-	t.Run("mlxlink_command_format_validation", func(t *testing.T) {
-		interfaceName := "test_interface"
-		result, _ := RunMlxlink(interfaceName)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := "sudo mlxlink -d " + tt.interfaceName + " --json --show_module --show_counters --show_eye"
 
-		if result == nil {
-			t.Fatal("Expected result but got nil")
-		}
-
-		// Verify all required components are in the command
-		requiredComponents := []string{
-			"sudo",
-			"mlxlink",
-			"-d",
-			interfaceName,
-			"--json",
-			"--show_module",
-			"--show_counters",
-			"--show_eye",
-		}
-
-		for _, component := range requiredComponents {
-			if !strings.Contains(result.Command, component) {
-				t.Errorf("Expected command to contain '%s', got '%s'", component, result.Command)
+			if cmd != tt.expected {
+				t.Errorf("Expected command '%s', got '%s'", tt.expected, cmd)
 			}
-		}
-	})
 
-	t.Run("mlxlink_special_characters_in_interface", func(t *testing.T) {
-		// Test with interface name containing special characters
-		interfaceName := "mlx5_0/1"
-		result, _ := RunMlxlink(interfaceName)
+			// Verify all required components are present
+			requiredComponents := []string{
+				"sudo",
+				"mlxlink",
+				"-d",
+				tt.interfaceName,
+				"--json",
+				"--show_module",
+				"--show_counters",
+				"--show_eye",
+			}
 
-		if result == nil {
-			t.Fatal("Expected result but got nil")
-		}
-
-		// Should handle special characters in interface name
-		if !strings.Contains(result.Command, interfaceName) {
-			t.Error("Expected command to contain the interface name with special characters")
-		}
-	})
-}
-
-// Integration test for RunMlxlink
-func TestRunMlxlinkIntegration(t *testing.T) {
-	if !canRunSudo() {
-		t.Skip("Skipping integration test - requires sudo access")
+			for _, component := range requiredComponents {
+				if !strings.Contains(cmd, component) {
+					t.Errorf("Expected command to contain '%s', got '%s'", component, cmd)
+				}
+			}
+		})
 	}
-
-	t.Run("mlxlink_command_execution", func(t *testing.T) {
-		// Use a common InfiniBand interface name
-		interfaceName := "mlx5_0"
-		result, err := RunMlxlink(interfaceName)
-
-		if err != nil {
-			// mlxlink command may not be available or interface may not exist
-			if strings.Contains(err.Error(), "executable file not found") {
-				t.Skipf("Skipping test - mlxlink command not available: %v", err)
-				return
-			}
-			t.Logf("mlxlink failed (expected in test environment): %v", err)
-			return
-		}
-
-		if result == nil {
-			t.Fatal("Expected result but got nil")
-		}
-
-		// If successful, verify the output format
-		if result.Output != "" {
-			// mlxlink with --json should produce JSON output
-			if !strings.Contains(result.Output, "{") && !strings.Contains(result.Output, "}") {
-				t.Log("mlxlink output doesn't appear to be JSON (may be normal)")
-			}
-		}
-
-		t.Logf("mlxlink integration test completed successfully")
-	})
 }

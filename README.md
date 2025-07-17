@@ -669,13 +669,21 @@ oci-dr-hpc-v2 recommender -r results.json --verbose
 
 ### Level 1 Tests (Production Ready)
 
-| Test Name | Description | Checks | Fault Code |
-|-----------|-------------|---------|------------|
-| **`gpu_count_check`** | Verify GPU count matches shape specification | Uses nvidia-smi and shapes.json | HPCGPU-0001-0001 |
-| **`pcie_error_check`** | Scan system logs for PCIe errors | Parses dmesg output for hardware errors | HPCGPU-0002-0001 |
-| **`rdma_nics_count`** | Validate RDMA NIC count and PCI addresses | Uses hybrid discovery (shapes.json + OS) | HPCGPU-0003-0001 |
+| Test Name               | Description                                                         | Checks                                     | Fault Code       |
+|-------------------------|---------------------------------------------------------------------|--------------------------------------------|------------------|
+| **`gpu_count_check`**   | Verify GPU count matches shape specification                        | Uses nvidia-smi and shapes.json            | HPCGPU-0001-0001 |
+| **`pcie_error_check`**  | Scan system logs for PCIe errors                                    | Parses dmesg output for hardware errors    | HPCGPU-0002-0001 |
+| **`rdma_nics_count`**   | Validate RDMA NIC count and PCI addresses                           | Uses hybrid discovery (shapes.json + OS)   | HPCGPU-0003-0001 |
 | **`gpu_driver_check`** | Validate GPU driver version compatibility | Checks against blacklisted and supported versions | HPCGPU-0007-0001/0002 |
+| **`gpu_mode_check`**    | Check if GPU is in Multi-Instance GPU (MIG) mode                    | Uses nvidia-smi and shapes.json            | HPCGPU-0001-0002 |
+| **`sram_error_check`**  | Check SRAM correctable and uncorrectable errors                     | Uses nvidia-smi and shapes.json            | HPCGPU-0001-0001 |
+| **`rx_discards_check`** | Check Network Interface for rx discard                              | Uses Ethtool and shapes.json               | HPCGPU-0004-0001 |
+| **`gid_index_check`**   | Check device GID Index are in range                                 | Uses show_gids and shapes.json             | HPCGPU-0005-0001 |
+| **`link_check`**        | Check RDMA link state and parameters                                | Uses mlxlink, ibdev2netdev and shapes.json | HPCGPU-0006-0001 |
+| **`eth_link_check`**    | Check state of each 100GbE RoCE NIC (non-RDMA Ethernet interfaces). | Uses mlxlink, ibdev2netdev and shapes.json | HPCGPU-0007-0001 |
+| **`peermem_module_check`**    | Check for presence of peermem module.                               | Uses lsmod, shapes.json   | HPCGPU-0008-0001 |
 
+{"peermem_module_check", "Check for presence of peermem module", level1_tests.RunPeermemModuleCheck},
 ### Custom Script Framework Tests
 
 | Script | Description | Features | Integration |
