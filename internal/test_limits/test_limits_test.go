@@ -203,6 +203,30 @@ func TestGetThresholdForTest(t *testing.T) {
 		t.Error("Expected threshold to be an object")
 	}
 
+	// Test nvlink speed threshold (object)
+	threshold, err = limits.GetThresholdForTest("BM.GPU.H100.8", "nvlink_speed_check")
+	if err != nil {
+		t.Errorf("Failed to get nvlink speed threshold: %v", err)
+	}
+	if thresholdObj, ok := threshold.(map[string]interface{}); ok {
+		if speed, exists := thresholdObj["speed"]; exists {
+			if speed.(float64) != 26 {
+				t.Errorf("Expected nvlink speed threshold 26, got %v", speed)
+			}
+		} else {
+			t.Error("Expected speed field in nvlink threshold")
+		}
+		if count, exists := thresholdObj["count"]; exists {
+			if count.(float64) != 18 {
+				t.Errorf("Expected nvlink count threshold 18, got %v", count)
+			}
+		} else {
+			t.Error("Expected count field in nvlink threshold")
+		}
+	} else {
+		t.Error("Expected threshold to be an object")
+	}
+
 	// Test disabled test
 	_, err = limits.GetThresholdForTest("BM.GPU.B200.8", "rx_discards_check")
 	if err == nil {
@@ -260,8 +284,8 @@ func TestGetEnabledTests(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to get enabled tests: %v", err)
 	}
-	if len(enabledTests) != 11 {
-		t.Errorf("Expected 11 enabled tests for H100, got %d", len(enabledTests))
+	if len(enabledTests) != 12 {
+		t.Errorf("Expected 12 enabled tests for H100, got %d", len(enabledTests))
 	}
 
 	expectedTests := map[string]bool{
@@ -276,6 +300,7 @@ func TestGetEnabledTests(t *testing.T) {
 		"eth_link_check":       false,
 		"gpu_driver_check":     false,
 		"peermem_module_check": false,
+		"nvlink_speed_check":   false,
 	}
 
 	for _, test := range enabledTests {
@@ -389,6 +414,23 @@ func TestJSONStructureParsing(t *testing.T) {
 		// Verify threshold structure
 		if gpuModeConfig.Threshold == nil {
 			t.Error("Expected gpu_mode_check to have threshold configuration")
+		}
+	}
+
+	// Check nvlink speed configuration
+	nvlinkConfig, exists := h100Config["nvlink_speed_check"]
+	if !exists {
+		t.Error("Expected nvlink_speed_check configuration")
+	} else {
+		if !nvlinkConfig.Enabled {
+			t.Error("Expected nvlink_speed_check to be enabled")
+		}
+		if nvlinkConfig.TestCategory != "LEVEL_1" {
+			t.Errorf("Expected test category LEVEL_1, got %s", nvlinkConfig.TestCategory)
+		}
+		// Verify threshold structure
+		if nvlinkConfig.Threshold == nil {
+			t.Error("Expected nvlink_speed_check to have threshold configuration")
 		}
 	}
 }

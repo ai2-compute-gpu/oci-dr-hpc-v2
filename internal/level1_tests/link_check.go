@@ -329,7 +329,7 @@ func RunLinkCheck() error {
 		return errors.New(errorStatement)
 	}
 
-	// Step 2: Get expected device names from shapes configuration
+	// Step 3: Get expected device names from shapes configuration
 	logger.Info("Step 2: Loading shape configuration...")
 	shapesFilePath := config.GetShapesFilePath()
 	shapeManager, err := shapes.NewShapeManager(shapesFilePath)

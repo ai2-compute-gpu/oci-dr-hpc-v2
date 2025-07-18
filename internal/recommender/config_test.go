@@ -43,6 +43,15 @@ func createMinimalTestConfig() RecommendationConfig {
 					Commands:   []string{"sudo modprobe nvidia_peermem"},
 				},
 			},
+			"nvlink_speed_check": {
+				Fail: &RecommendationTemplate{
+					Type:       "critical",
+					FaultCode:  "HPCGPU-0009-0001",
+					Issue:      "NVLink speed or count check failed",
+					Suggestion: "Check NVLink health and verify GPU interconnect topology",
+					Commands:   []string{"nvidia-smi nvlink -s", "nvidia-smi topo -m"},
+				},
+			},
 		},
 		SummaryTemplates: map[string]string{
 			"no_issues":  "All tests passed!",
@@ -120,8 +129,8 @@ func TestLoadRecommendationConfig(t *testing.T) {
 	}
 
 	// Validate structure
-	if len(loadedConfig.Recommendations) != 3 {
-		t.Errorf("Expected 3 recommendations, got %d", len(loadedConfig.Recommendations))
+	if len(loadedConfig.Recommendations) != 4 {
+		t.Errorf("Expected 4 recommendations, got %d", len(loadedConfig.Recommendations))
 	}
 
 	// Validate specific test exists
@@ -184,6 +193,13 @@ func TestGetRecommendation(t *testing.T) {
 			expectedType: "critical",
 		},
 		{
+			name:         "NVLink Speed Check",
+			testName:     "nvlink_speed_check",
+			status:       "FAIL",
+			testResult:   createTestResult("FAIL", map[string]interface{}{}),
+			expectedType: "critical",
+		},
+		{
 			name:      "Unknown Test",
 			testName:  "unknown_test",
 			status:    "FAIL",
@@ -218,6 +234,11 @@ func TestGetRecommendation(t *testing.T) {
 
 			if rec.TestName != tt.testName {
 				t.Errorf("Expected test name %s, got %s", tt.testName, rec.TestName)
+			}
+
+			// Check fault code for nvlink_speed_check
+			if tt.testName == "nvlink_speed_check" && rec.FaultCode != "HPCGPU-0009-0001" {
+				t.Errorf("Expected fault code HPCGPU-0009-0001, got %s", rec.FaultCode)
 			}
 		})
 	}
@@ -360,17 +381,20 @@ func TestConfigBasedRecommendations(t *testing.T) {
 		PeerMemModuleCheck: []TestResult{
 			createTestResult("FAIL", map[string]interface{}{"module_loaded": false}),
 		},
+		NVLinkSpeedCheck: []TestResult{
+			createTestResult("FAIL", map[string]interface{}{}),
+		},
 	}
 
 	report := generateRecommendations(results)
 
 	// Validate report structure
-	if len(report.Recommendations) != 3 {
-		t.Errorf("Expected 3 recommendations, got %d", len(report.Recommendations))
+	if len(report.Recommendations) != 4 {
+		t.Errorf("Expected 4 recommendations, got %d", len(report.Recommendations))
 	}
 
-	if report.CriticalIssues != 3 {
-		t.Errorf("Expected 3 critical issues, got %d", report.CriticalIssues)
+	if report.CriticalIssues != 4 {
+		t.Errorf("Expected 4 critical issues, got %d", report.CriticalIssues)
 	}
 
 	// Validate specific recommendations
@@ -382,6 +406,7 @@ func TestConfigBasedRecommendations(t *testing.T) {
 		{"gpu_count_check", "critical", "4"},
 		{"gpu_mode_check", "critical", "0,1"},
 		{"peermem_module_check", "critical", "not loaded"},
+		{"nvlink_speed_check", "critical", "failed"},
 	}
 
 	for _, tt := range recommendationTests {
@@ -404,6 +429,11 @@ func TestConfigBasedRecommendations(t *testing.T) {
 
 			if !strings.Contains(found.Issue, tt.issueKeyword) {
 				t.Errorf("Expected issue to contain %s, got: %s", tt.issueKeyword, found.Issue)
+			}
+
+			// Check fault code for nvlink_speed_check
+			if tt.testName == "nvlink_speed_check" && found.FaultCode != "HPCGPU-0009-0001" {
+				t.Errorf("Expected fault code HPCGPU-0009-0001, got %s", found.FaultCode)
 			}
 		})
 	}
@@ -433,13 +463,16 @@ func TestFallbackRecommendations(t *testing.T) {
 		PeerMemModuleCheck: []TestResult{
 			createTestResult("FAIL", map[string]interface{}{"module_loaded": false}),
 		},
+		NVLinkSpeedCheck: []TestResult{
+			createTestResult("FAIL", map[string]interface{}{}),
+		},
 	}
 
 	report := generateRecommendations(results)
 
 	// Validate fallback behavior
-	if len(report.Recommendations) < 3 {
-		t.Errorf("Expected at least 3 fallback recommendations, got %d", len(report.Recommendations))
+	if len(report.Recommendations) < 4 {
+		t.Errorf("Expected at least 4 fallback recommendations, got %d", len(report.Recommendations))
 	}
 
 	if !strings.Contains(report.Summary, "fallback mode") {
@@ -447,7 +480,7 @@ func TestFallbackRecommendations(t *testing.T) {
 	}
 
 	// Validate specific fallback recommendations exist
-	testNames := []string{"gpu_count_check", "gpu_mode_check", "peermem_module_check"}
+	testNames := []string{"gpu_count_check", "gpu_mode_check", "peermem_module_check", "nvlink_speed_check"}
 	for _, testName := range testNames {
 		found := false
 		for _, rec := range report.Recommendations {

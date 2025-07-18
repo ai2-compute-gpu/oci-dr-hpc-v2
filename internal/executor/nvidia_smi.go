@@ -309,3 +309,42 @@ func formatPCIAddress(nvidiaPCI string) string {
 	logger.Debugf("Formatted PCI address: '%s' -> '%s'", nvidiaPCI, formatted)
 	return formatted
 }
+
+// RunNvidiaSMINvlink runs nvidia-smi nvlink -s command to check NVLink status
+func RunNvidiaSMINvlink() *NvidiaSMIResult {
+	result := &NvidiaSMIResult{
+		Available: false,
+		Output:    "",
+		Error:     "",
+	}
+
+	logger.Info("Running nvidia-smi nvlink -s command")
+
+	// Check if nvidia-smi exists
+	_, err := exec.LookPath("nvidia-smi")
+	if err != nil {
+		result.Error = "nvidia-smi not found in PATH"
+		logger.Error("nvidia-smi not available for nvlink query:", result.Error)
+		return result
+	}
+
+	// Execute nvidia-smi nvlink -s
+	cmd := exec.Command("nvidia-smi", "nvlink", "-s")
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		result.Error = err.Error()
+		result.Output = string(output)
+		logger.Error("nvidia-smi nvlink -s failed:", err)
+		logger.Error("NVLink output:", string(output))
+		return result
+	}
+
+	result.Available = true
+	result.Output = strings.TrimSpace(string(output))
+
+	logger.Info("nvidia-smi nvlink -s completed successfully")
+	logger.Debug("NVLink result:", result.Output)
+
+	return result
+}

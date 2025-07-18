@@ -130,7 +130,7 @@
         "issue": "RX discards check passed",
         "suggestion": "RX discards does not exceed a specified threshold",
         "commands": [
-           "sudo ethtool -S {interface} | grep rx_prio.*_discards"
+          "sudo ethtool -S {interface} | grep rx_prio.*_discards"
         ]
       }
     },
@@ -319,6 +319,41 @@
         "suggestion": "GPU peer memory access is properly configured for optimal multi-GPU performance",
         "commands": [
           "sudo lsmod | grep nvidia_peermem",
+          "nvidia-smi topo -p2p r"
+        ]
+      }
+    },
+    "nvlink_speed_check": {
+      "fail": {
+        "type": "critical",
+        "fault_code": "HPCGPU-0009-0001",
+        "issue": "NVLink speed or count check failed - GPU interconnect links do not meet expected performance requirements",
+        "suggestion": "Check NVLink health, verify GPU interconnect topology, inspect link parameters, and ensure proper GPU seating and cable connections. NVLink issues can severely impact multi-GPU workload performance.",
+        "commands": [
+          "nvidia-smi nvlink -s",
+          "nvidia-smi topo -m",
+          "nvidia-smi topo -p2p r",
+          "nvidia-smi --query-gpu=index,name,pci.bus_id --format=csv",
+          "nvidia-smi nvlink --status",
+          "dmesg | grep -i nvlink",
+          "nvidia-smi --query-gpu=pstate,temperature.gpu,power.draw --format=csv",
+          "lspci | grep -i nvidia"
+        ],
+        "references": [
+          "https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#nvlink",
+          "https://developer.nvidia.com/nvlink",
+          "https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm",
+          "https://docs.nvidia.com/datacenter/tesla/tesla-installation-notes/",
+          "https://docs.nvidia.com/datacenter/tesla/nvlink-fabric-manager-user-guide/"
+        ]
+      },
+      "pass": {
+        "type": "info",
+        "issue": "NVLink speed and count check passed - all GPU interconnects meet performance requirements",
+        "suggestion": "NVLink topology is properly configured for optimal GPU-to-GPU communication. Your multi-GPU workloads should achieve maximum bandwidth.",
+        "commands": [
+          "nvidia-smi nvlink -s",
+          "nvidia-smi topo -m",
           "nvidia-smi topo -p2p r"
         ]
       }
