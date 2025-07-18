@@ -12,19 +12,20 @@ import (
 
 // TestResult represents a single test result from the reporter
 type TestResult struct {
-	Status            string   `json:"status"`
-	GPUCount          int      `json:"gpu_count,omitempty"`
-	Message           string   `json:"message,omitempty"`
-	EnabledGPUIndexes []string `json:"enabled_gpu_indexes,omitempty"`
-	NumRDMANics       int      `json:"num_rdma_nics,omitempty"`
-	FailedCount       int      `json:"failed_count,omitempty"`
-	FailedInterfaces  string   `json:"failed_interfaces,omitempty"`
-	InterfaceCount    int      `json:"interface_count,omitempty"`
-	InvalidGIDIndexes []int    `json:"invalid_gid_indexes,omitempty"`
-	MaxUncorrectable  int      `json:"max_uncorrectable,omitempty"`
-	MaxCorrectable    int      `json:"max_correctable,omitempty"`
-	ModuleLoaded      bool     `json:"module_loaded,omitempty"`
-	TimestampUTC      string   `json:"timestamp_utc"`
+	Status            string      `json:"status"`
+	GPUCount          int         `json:"gpu_count,omitempty"`
+	Message           string      `json:"message,omitempty"`
+	EnabledGPUIndexes []string    `json:"enabled_gpu_indexes,omitempty"`
+	NumRDMANics       int         `json:"num_rdma_nics,omitempty"`
+	FailedCount       int         `json:"failed_count,omitempty"`
+	FailedInterfaces  string      `json:"failed_interfaces,omitempty"`
+	InterfaceCount    int         `json:"interface_count,omitempty"`
+	InvalidGIDIndexes []int       `json:"invalid_gid_indexes,omitempty"`
+	MaxUncorrectable  int         `json:"max_uncorrectable,omitempty"`
+	MaxCorrectable    int         `json:"max_correctable,omitempty"`
+	ModuleLoaded      bool        `json:"module_loaded,omitempty"`
+	NVLinks           interface{} `json:"nvlinks,omitempty"`
+	TimestampUTC      string      `json:"timestamp_utc"`
 }
 
 // HostResults represents test results for a host
@@ -40,6 +41,7 @@ type HostResults struct {
 	SRAMErrorCheck     []TestResult `json:"sram_error_check,omitempty"`
 	GPUDriverCheck     []TestResult `json:"gpu_driver_check,omitempty"`
 	PeerMemModuleCheck []TestResult `json:"peermem_module_check,omitempty"`
+	NVLinkSpeedCheck   []TestResult `json:"nvlink_speed_check,omitempty"`
 }
 
 // ReportOutput represents the single report format
@@ -160,6 +162,7 @@ func generateRecommendations(results HostResults) RecommendationReport {
 		{"sram_error_check", results.SRAMErrorCheck},
 		{"gpu_driver_check", results.GPUDriverCheck},
 		{"peermem_module_check", results.PeerMemModuleCheck},
+		{"nvlink_speed_check", results.NVLinkSpeedCheck},
 	}
 
 	for _, mapping := range testMappings {
@@ -391,6 +394,27 @@ func generateFallbackRecommendations(results HostResults) RecommendationReport {
 				Issue:      "NVIDIA Peer Memory module (nvidia_peermem) is not loaded",
 				Suggestion: "Load the nvidia_peermem kernel module to enable GPU peer memory access",
 				Commands:   []string{"sudo modprobe nvidia_peermem", "lsmod | grep nvidia_peermem"},
+			}
+			recommendations = append(recommendations, rec)
+			criticalCount++
+		}
+	}
+
+	// Basic NVLink Speed Check recommendations
+	for _, nvlinkCheck := range results.NVLinkSpeedCheck {
+		if nvlinkCheck.Status == "FAIL" {
+			rec := Recommendation{
+				Type:       "critical",
+				TestName:   "nvlink_speed_check",
+				FaultCode:  "HPCGPU-0009-0001",
+				Issue:      "NVLink speed or count check failed - GPU interconnect links do not meet expected performance requirements",
+				Suggestion: "Check NVLink health, verify GPU interconnect topology, inspect link parameters, and ensure proper GPU seating and cable connections",
+				Commands: []string{
+					"nvidia-smi nvlink -s",
+					"nvidia-smi topo -m",
+					"nvidia-smi topo -p2p r",
+					"dmesg | grep -i nvlink",
+				},
 			}
 			recommendations = append(recommendations, rec)
 			criticalCount++

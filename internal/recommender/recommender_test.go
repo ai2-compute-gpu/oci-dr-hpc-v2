@@ -71,6 +71,15 @@ func createTestConfig() RecommendationConfig {
 					Commands:   []string{"sudo modprobe nvidia_peermem"},
 				},
 			},
+			"nvlink_speed_check": {
+				Fail: &RecommendationTemplate{
+					Type:       "critical",
+					FaultCode:  "HPCGPU-0009-0001",
+					Issue:      "NVLink speed or count check failed",
+					Suggestion: "Check NVLink health and verify GPU interconnect topology",
+					Commands:   []string{"nvidia-smi nvlink -s", "nvidia-smi topo -m"},
+				},
+			},
 		},
 		SummaryTemplates: map[string]string{
 			"no_issues":  "All tests passed!",
@@ -128,8 +137,8 @@ func TestRecommendationConfig_LoadAndGetRecommendation(t *testing.T) {
 		t.Fatalf("LoadRecommendationConfig failed: %v", err)
 	}
 
-	if len(loadedConfig.Recommendations) != 3 {
-		t.Errorf("Expected 3 recommendations, got %d", len(loadedConfig.Recommendations))
+	if len(loadedConfig.Recommendations) != 4 {
+		t.Errorf("Expected 4 recommendations, got %d", len(loadedConfig.Recommendations))
 	}
 
 	_ = tempFile // Keep for cleanup
@@ -177,6 +186,15 @@ func TestRecommendationConfig_GetRecommendation(t *testing.T) {
 			expectedType: "critical",
 		},
 		{
+			name:     "NVLink Speed Check FAIL",
+			testName: "nvlink_speed_check",
+			status:   "FAIL",
+			testResult: TestResult{
+				Status: "FAIL",
+			},
+			expectedType: "critical",
+		},
+		{
 			name:      "Unknown Test",
 			testName:  "unknown_test",
 			status:    "FAIL",
@@ -211,6 +229,11 @@ func TestRecommendationConfig_GetRecommendation(t *testing.T) {
 
 			if rec.TestName != tt.testName {
 				t.Errorf("Expected test name %s, got %s", tt.testName, rec.TestName)
+			}
+
+			// Check fault code for nvlink_speed_check
+			if tt.testName == "nvlink_speed_check" && rec.FaultCode != "HPCGPU-0009-0001" {
+				t.Errorf("Expected fault code HPCGPU-0009-0001, got %s", rec.FaultCode)
 			}
 		})
 	}
@@ -449,6 +472,10 @@ func TestTestResultSerialization(t *testing.T) {
 			MaxUncorrectable: 10,
 			MaxCorrectable:   200,
 		},
+		{
+			Status:  "FAIL",
+			NVLinks: map[string]interface{}{"speed": 26, "count": 18},
+		},
 	}
 
 	for i, original := range testResults {
@@ -506,16 +533,19 @@ func TestGenerateRecommendations_WithConfig(t *testing.T) {
 		PeerMemModuleCheck: []TestResult{
 			{Status: "FAIL", ModuleLoaded: false},
 		},
+		NVLinkSpeedCheck: []TestResult{
+			{Status: "FAIL"},
+		},
 	}
 
 	report := generateRecommendations(results)
 
-	if report.TotalIssues < 3 {
-		t.Errorf("Expected at least 3 issues, got %d", report.TotalIssues)
+	if report.TotalIssues < 4 {
+		t.Errorf("Expected at least 4 issues, got %d", report.TotalIssues)
 	}
 
-	if report.CriticalIssues < 3 {
-		t.Errorf("Expected at least 3 critical issues, got %d", report.CriticalIssues)
+	if report.CriticalIssues < 4 {
+		t.Errorf("Expected at least 4 critical issues, got %d", report.CriticalIssues)
 	}
 }
 
@@ -536,12 +566,15 @@ func TestGenerateRecommendations_FallbackMode(t *testing.T) {
 		PeerMemModuleCheck: []TestResult{
 			{Status: "FAIL", ModuleLoaded: false},
 		},
+		NVLinkSpeedCheck: []TestResult{
+			{Status: "FAIL"},
+		},
 	}
 
 	report := generateRecommendations(results)
 
-	if len(report.Recommendations) < 2 {
-		t.Errorf("Expected at least 2 fallback recommendations, got %d", len(report.Recommendations))
+	if len(report.Recommendations) < 3 {
+		t.Errorf("Expected at least 3 fallback recommendations, got %d", len(report.Recommendations))
 	}
 
 	if !strings.Contains(report.Summary, "fallback mode") {
@@ -588,6 +621,16 @@ func TestSpecificTestTypes(t *testing.T) {
 			expectType: "critical",
 			expectTest: "sram_error_check",
 		},
+		{
+			name: "NVLink Speed Check",
+			hostResult: HostResults{
+				NVLinkSpeedCheck: []TestResult{
+					{Status: "FAIL"},
+				},
+			},
+			expectType: "critical",
+			expectTest: "nvlink_speed_check",
+		},
 	}
 
 	for _, tt := range tests {
@@ -613,6 +656,11 @@ func TestSpecificTestTypes(t *testing.T) {
 
 			if found.Type != tt.expectType {
 				t.Errorf("Expected type %s, got %s", tt.expectType, found.Type)
+			}
+
+			// Check fault code for nvlink_speed_check
+			if tt.expectTest == "nvlink_speed_check" && found.FaultCode != "HPCGPU-0009-0001" {
+				t.Errorf("Expected fault code HPCGPU-0009-0001, got %s", found.FaultCode)
 			}
 		})
 	}

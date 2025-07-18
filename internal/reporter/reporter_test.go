@@ -210,6 +210,14 @@ func TestReporter_AllResultTypes(t *testing.T) {
 			resultKey:  "peermem_module_check",
 			wantStatus: "PASS",
 		},
+		{
+			name: "NVLink Result",
+			addFunc: func(r *Reporter) {
+				r.AddNVLinkResult("PASS", map[string]interface{}{"speed": 26, "count": 18}, nil)
+			},
+			resultKey:  "nvlink_speed_check",
+			wantStatus: "PASS",
+		},
 	}
 
 	for _, tt := range tests {
@@ -277,6 +285,28 @@ func TestReporter_ResultDetails(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "NVLink Details",
+			setupFunc: func(r *Reporter) {
+				nvlinks := map[string]interface{}{"speed": 26, "count": 18}
+				r.AddNVLinkResult("FAIL", nvlinks, fmt.Errorf("nvlink issues"))
+			},
+			resultKey: "nvlink_speed_check",
+			checkFunc: func(t *testing.T, result TestResult) {
+				if nvlinks, ok := result.Details["nvlinks"]; !ok {
+					t.Error("Expected nvlinks to be present")
+				} else if nvlinksMap, ok := nvlinks.(map[string]interface{}); !ok {
+					t.Error("Expected nvlinks to be a map")
+				} else {
+					if speed, ok := nvlinksMap["speed"]; !ok || speed != 26 {
+						t.Errorf("Expected speed 26, got %v", speed)
+					}
+					if count, ok := nvlinksMap["count"]; !ok || count != 18 {
+						t.Errorf("Expected count 18, got %v", count)
+					}
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -303,6 +333,7 @@ func TestReporter_GenerateReport(t *testing.T) {
 	reporter.AddGPUResult("PASS", 8, nil)
 	reporter.AddSRAMErrorResult("PASS", 1, 75, nil)
 	reporter.AddRXDiscardsCheckResult("FAIL", 16, []string{"rdma2"}, fmt.Errorf("error"))
+	reporter.AddNVLinkResult("PASS", map[string]interface{}{"speed": 26, "count": 18}, nil)
 
 	report, err := reporter.GenerateReport()
 	if err != nil {
@@ -318,6 +349,9 @@ func TestReporter_GenerateReport(t *testing.T) {
 	}
 	if len(report.Localhost.RXDiscardsCheck) != 1 {
 		t.Error("Expected 1 network result")
+	}
+	if len(report.Localhost.NVLinkSpeedCheck) != 1 {
+		t.Error("Expected 1 NVLink result")
 	}
 
 	// Validate timestamps
@@ -335,6 +369,7 @@ func TestReporter_WriteReport(t *testing.T) {
 	// Add test data
 	reporter.AddGPUResult("PASS", 8, nil)
 	reporter.AddSRAMErrorResult("FAIL", 15, 200, fmt.Errorf("threshold exceeded"))
+	reporter.AddNVLinkResult("FAIL", map[string]interface{}{"speed": 22, "count": 16}, fmt.Errorf("nvlink issues"))
 
 	// Write report
 	err := reporter.WriteReport()
@@ -357,10 +392,18 @@ func TestReporter_WriteReport(t *testing.T) {
 	if len(report.Localhost.SRAMErrorCheck) != 1 {
 		t.Error("Expected 1 SRAM result in file")
 	}
+	if len(report.Localhost.NVLinkSpeedCheck) != 1 {
+		t.Error("Expected 1 NVLink result in file")
+	}
 
 	sramResult := report.Localhost.SRAMErrorCheck[0]
 	if sramResult.Status != "FAIL" {
 		t.Errorf("Expected SRAM status FAIL, got %s", sramResult.Status)
+	}
+
+	nvlinkResult := report.Localhost.NVLinkSpeedCheck[0]
+	if nvlinkResult.Status != "FAIL" {
+		t.Errorf("Expected NVLink status FAIL, got %s", nvlinkResult.Status)
 	}
 }
 
@@ -375,6 +418,7 @@ func TestReporter_JSONSerialization(t *testing.T) {
 	reporter.AddLinkResult("PASS", []map[string]interface{}{
 		{"device": "rdma0", "link_speed": "PASS"},
 	}, nil)
+	reporter.AddNVLinkResult("PASS", map[string]interface{}{"speed": 26, "count": 18}, nil)
 
 	report, err := reporter.GenerateReport()
 	if err != nil {
@@ -403,6 +447,9 @@ func TestReporter_JSONSerialization(t *testing.T) {
 	if len(testReport.Localhost.LinkCheck) != 1 {
 		t.Error("Link results not preserved in JSON")
 	}
+	if len(testReport.Localhost.NVLinkSpeedCheck) != 1 {
+		t.Error("NVLink results not preserved in JSON")
+	}
 }
 
 // Error handling tests
@@ -413,9 +460,11 @@ func TestReporter_ErrorHandling(t *testing.T) {
 	// Test with errors
 	gpuErr := fmt.Errorf("GPU count mismatch")
 	sramErr := fmt.Errorf("SRAM errors exceed threshold")
+	nvlinkErr := fmt.Errorf("NVLink speed check failed")
 
 	reporter.AddGPUResult("FAIL", 6, gpuErr)
 	reporter.AddSRAMErrorResult("FAIL", 20, 300, sramErr)
+	reporter.AddNVLinkResult("FAIL", map[string]interface{}{"speed": 22, "count": 16}, nvlinkErr)
 
 	// Verify errors are stored
 	if result, exists := reporter.results["gpu_count_check"]; exists {
@@ -427,6 +476,12 @@ func TestReporter_ErrorHandling(t *testing.T) {
 	if result, exists := reporter.results["sram_error_check"]; exists {
 		if result.Error != sramErr.Error() {
 			t.Errorf("Expected SRAM error %s, got %s", sramErr.Error(), result.Error)
+		}
+	}
+
+	if result, exists := reporter.results["nvlink_speed_check"]; exists {
+		if result.Error != nvlinkErr.Error() {
+			t.Errorf("Expected NVLink error %s, got %s", nvlinkErr.Error(), result.Error)
 		}
 	}
 }
@@ -444,7 +499,8 @@ func TestReporter_EdgeCases(t *testing.T) {
 				reporter := createTestReporter()
 				reporter.AddSRAMErrorResult("PASS", 0, 0, nil)
 				reporter.AddRXDiscardsCheckResult("PASS", 0, []string{}, nil)
-				assertResultCount(t, reporter, 2)
+				reporter.AddNVLinkResult("PASS", map[string]interface{}{"speed": 0, "count": 0}, nil)
+				assertResultCount(t, reporter, 3)
 			},
 		},
 		{
@@ -453,7 +509,8 @@ func TestReporter_EdgeCases(t *testing.T) {
 				reporter := createTestReporter()
 				reporter.AddSRAMErrorResult("FAIL", 999, 10000, fmt.Errorf("excessive"))
 				reporter.AddRXDiscardsCheckResult("PASS", 128, []string{}, nil)
-				assertResultCount(t, reporter, 2)
+				reporter.AddNVLinkResult("PASS", map[string]interface{}{"speed": 100, "count": 50}, nil)
+				assertResultCount(t, reporter, 3)
 			},
 		},
 		{
@@ -462,7 +519,8 @@ func TestReporter_EdgeCases(t *testing.T) {
 				reporter := createTestReporter()
 				reporter.AddGIDIndexResult("PASS", []int{}, nil)
 				reporter.AddLinkResult("PASS", []map[string]interface{}{}, nil)
-				assertResultCount(t, reporter, 2)
+				reporter.AddNVLinkResult("PASS", map[string]interface{}{}, nil)
+				assertResultCount(t, reporter, 3)
 			},
 		},
 		{
@@ -504,6 +562,7 @@ func BenchmarkReporter_GenerateReport(b *testing.B) {
 	reporter.AddGPUResult("PASS", 8, nil)
 	reporter.AddSRAMErrorResult("PASS", 1, 50, nil)
 	reporter.AddRDMAResult("PASS", 16, nil)
+	reporter.AddNVLinkResult("PASS", map[string]interface{}{"speed": 26, "count": 18}, nil)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

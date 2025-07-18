@@ -101,6 +101,13 @@ type PeerMemTestResult struct {
 	TimestampUTC string `json:"timestamp_utc"`
 }
 
+// NVLinkTestResult represents NVLink test results
+type NVLinkTestResult struct {
+	Status       string      `json:"status"`
+	NVLinks      interface{} `json:"nvlinks,omitempty"`
+	TimestampUTC string      `json:"timestamp_utc"`
+}
+
 // HostResults represents test results for a host
 type HostResults struct {
 	GPUCountCheck      []GPUTestResult             `json:"gpu_count_check,omitempty"`
@@ -114,6 +121,7 @@ type HostResults struct {
 	SRAMErrorCheck     []SRAMErrorTestResult       `json:"sram_error_check,omitempty"`
 	GPUDriverCheck     []GPUDriverTestResult       `json:"gpu_driver_check,omitempty"`
 	PeerMemModuleCheck []PeerMemTestResult         `json:"peermem_module_check,omitempty"`
+	NVLinkSpeedCheck   []NVLinkTestResult          `json:"nvlink_speed_check,omitempty"`
 }
 
 // ReportOutput represents the final JSON output structure
@@ -308,6 +316,18 @@ func (r *Reporter) AddPeerMemResult(status string, moduleLoaded bool, err error)
 		"module_loaded": moduleLoaded,
 	}
 	r.AddResult("peermem_module_check", status, details, err)
+}
+
+// AddNVLinkResult adds NVLink test results
+func (r *Reporter) AddNVLinkResult(status string, nvlinks interface{}, err error) {
+	details := map[string]interface{}{}
+	if status != "PASS" {
+		details = map[string]interface{}{
+			"nvlinks": nvlinks,
+		}
+	}
+
+	r.AddResult("nvlink_speed_check", status, details, err)
 }
 
 // GenerateReport generates the final JSON report
@@ -520,6 +540,21 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
 		}
 		report.Localhost.PeerMemModuleCheck = []PeerMemTestResult{peerMemResult}
+	}
+
+	// Process NVLink Speed Check results
+	if result, exists := r.results["nvlink_speed_check"]; exists {
+		var nvlinks interface{}
+		if nvlinksVal, ok := result.Details["nvlinks"]; ok {
+			nvlinks = nvlinksVal
+		}
+
+		nvlinkResult := NVLinkTestResult{
+			Status:       result.Status,
+			NVLinks:      nvlinks,
+			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
+		}
+		report.Localhost.NVLinkSpeedCheck = []NVLinkTestResult{nvlinkResult}
 	}
 
 	return report, nil
@@ -814,6 +849,23 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 		}
 	}
 
+	// NVLink Tests
+	if len(report.Localhost.NVLinkSpeedCheck) > 0 {
+		for _, nvlink := range report.Localhost.NVLinkSpeedCheck {
+			status := nvlink.Status
+			statusSymbol := "✅"
+			if status == "FAIL" {
+				statusSymbol = "❌"
+			}
+			details := "NVLink Speed/Count OK"
+			if status == "FAIL" {
+				details = "NVLink Issues Found"
+			}
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s     │\n",
+				"NVLink Speed Check", statusSymbol, statusSymbol, details))
+		}
+	}
+
 	output.WriteString("└─────────────────────────────────────────────────────────────────┘\n")
 	return output.String(), nil
 }
@@ -1034,6 +1086,23 @@ func (r *Reporter) formatFriendly(report *ReportOutput) (string, error) {
 			} else {
 				failedTests++
 				output.WriteString("   ❌ PeerMem Module: nvidia_peermem not loaded (FAILED)\n")
+			}
+		}
+		output.WriteString("\n")
+	}
+
+	// NVLink Tests
+	if len(report.Localhost.NVLinkSpeedCheck) > 0 {
+		output.WriteString("🔗 NVLink Health Check\n")
+		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
+		for _, nvlink := range report.Localhost.NVLinkSpeedCheck {
+			totalTests++
+			if nvlink.Status == "PASS" {
+				passedTests++
+				output.WriteString("   ✅ NVLink: All links meet speed and count requirements (PASSED)\n")
+			} else {
+				failedTests++
+				output.WriteString("   ❌ NVLink: Speed or count issues detected (FAILED)\n")
 			}
 		}
 		output.WriteString("\n")

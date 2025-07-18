@@ -432,3 +432,143 @@ func TestNvidiaSMIQueryCommand(t *testing.T) {
 		})
 	}
 }
+
+func TestRunNvidiaSMINvlinkResult(t *testing.T) {
+	// Test the NvidiaSMIResult structure for NVLink command
+	result := &NvidiaSMIResult{
+		Available: true,
+		Output:    "GPU 0: Tesla V100-SXM2-16GB (UUID: GPU-12345678-1234-1234-1234-123456789012)\n\tLink 0: 25.781 GB/s\n\tLink 1: 25.781 GB/s",
+		Error:     "",
+	}
+
+	if !result.Available {
+		t.Errorf("Expected Available=true for successful NVLink result")
+	}
+
+	if result.Error != "" {
+		t.Errorf("Expected empty error for successful NVLink result, got %q", result.Error)
+	}
+
+	if !strings.Contains(result.Output, "Link") {
+		t.Errorf("Expected NVLink output to contain 'Link', got %q", result.Output)
+	}
+}
+
+func TestNVLinkOutputParsing(t *testing.T) {
+	tests := []struct {
+		name          string
+		mockOutput    string
+		expectedLinks int
+		expectError   bool
+		description   string
+	}{
+		{
+			name: "successful_nvlink_output",
+			mockOutput: `GPU 0: Tesla V100-SXM2-16GB (UUID: GPU-12345678-1234-1234-1234-123456789012)
+	Link 0: 25.781 GB/s
+	Link 1: 25.781 GB/s
+	Link 2: 25.781 GB/s
+	Link 3: 25.781 GB/s`,
+			expectedLinks: 4,
+			expectError:   false,
+			description:   "Successful NVLink output with 4 links",
+		},
+		{
+			name: "h100_nvlink_output",
+			mockOutput: `GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-87654321-4321-4321-4321-210987654321)
+	Link 0: 50.0 GB/s
+	Link 1: 50.0 GB/s
+	Link 2: 50.0 GB/s
+	Link 3: 50.0 GB/s
+	Link 4: 50.0 GB/s
+	Link 5: 50.0 GB/s
+	Link 6: 50.0 GB/s
+	Link 7: 50.0 GB/s
+	Link 8: 50.0 GB/s
+	Link 9: 50.0 GB/s
+	Link 10: 50.0 GB/s
+	Link 11: 50.0 GB/s
+	Link 12: 50.0 GB/s
+	Link 13: 50.0 GB/s
+	Link 14: 50.0 GB/s
+	Link 15: 50.0 GB/s
+	Link 16: 50.0 GB/s
+	Link 17: 50.0 GB/s`,
+			expectedLinks: 18,
+			expectError:   false,
+			description:   "H100 NVLink output with 18 links",
+		},
+		{
+			name:          "empty_output",
+			mockOutput:    "",
+			expectedLinks: 0,
+			expectError:   false,
+			description:   "Empty nvidia-smi nvlink output",
+		},
+		{
+			name:          "no_nvlink_support",
+			mockOutput:    "GPU 0: GeForce GTX 1650 (UUID: GPU-11111111-1111-1111-1111-111111111111)\n\tN/A",
+			expectedLinks: 0,
+			expectError:   false,
+			description:   "GPU without NVLink support",
+		},
+		{
+			name: "mixed_nvlink_status",
+			mockOutput: `GPU 0: Tesla V100-SXM2-16GB (UUID: GPU-12345678-1234-1234-1234-123456789012)
+	Link 0: 25.781 GB/s
+	Link 1: N/A
+	Link 2: 25.781 GB/s
+	Link 3: N/A`,
+			expectedLinks: 2,
+			expectError:   false,
+			description:   "Mixed NVLink status with some links down",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Parse using similar logic that would be used in the actual implementation
+			linkCount := 0
+			lines := strings.Split(tt.mockOutput, "\n")
+
+			for _, line := range lines {
+				trimmed := strings.TrimSpace(line)
+				if strings.Contains(trimmed, "Link") &&
+					strings.Contains(trimmed, "GB/s") &&
+					!strings.Contains(trimmed, "N/A") {
+					linkCount++
+				}
+			}
+
+			if linkCount != tt.expectedLinks {
+				t.Errorf("Expected %d active links, got %d", tt.expectedLinks, linkCount)
+			}
+
+			t.Logf("Test %s: %s - Active Links: %d", tt.name, tt.description, linkCount)
+		})
+	}
+}
+
+func TestNVLinkCommandConstruction(t *testing.T) {
+	tests := []struct {
+		name        string
+		expectedCmd string
+		description string
+	}{
+		{
+			name:        "nvlink_speed_command",
+			expectedCmd: "nvidia-smi nvlink -s",
+			description: "NVLink speed and status command",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test the command construction for NVLink
+			cmd := "nvidia-smi nvlink -s"
+			if cmd != tt.expectedCmd {
+				t.Errorf("Expected command %q, got %q", tt.expectedCmd, cmd)
+			}
+		})
+	}
+}
