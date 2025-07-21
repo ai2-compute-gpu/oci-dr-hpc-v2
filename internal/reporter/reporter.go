@@ -310,6 +310,14 @@ func (r *Reporter) AddGPUDriverResult(status string, driverVersion string, err e
 	r.AddResult("gpu_driver_check", status, details, err)
 }
 
+// AddGPUClockResult adds GPU clock speed test results
+func (r *Reporter) AddGPUClockResult(status string, message string, err error) {
+	details := map[string]interface{}{
+		"message": message,
+	}
+	r.AddResult("gpu_clk_check", status, details, err)
+}
+
 // AddPeerMemResult adds peermem module test results
 func (r *Reporter) AddPeerMemResult(status string, moduleLoaded bool, err error) {
 	details := map[string]interface{}{

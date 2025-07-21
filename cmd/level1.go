@@ -75,6 +75,7 @@ func runAllLevel1Tests() error {
 		{"sram_error_check", level1_tests.RunSRAMCheck},
 		{"gpu_mode_check", level1_tests.RunGPUModeCheck},
 		{"gpu_driver_check", level1_tests.RunGPUDriverCheck},
+		{"gpu_clk_check", level1_tests.RunGPUClkCheck},
 		{"peermem_module_check", level1_tests.RunPeermemModuleCheck},
 		{"nvlink_speed_check", level1_tests.RunNVLinkSpeedCheck}}
 
@@ -141,6 +142,7 @@ func runSpecificTests(testFilter string) error {
 		{"sram_error_check", "Check SRAM correctable and uncorrectable errors", level1_tests.RunSRAMCheck},
 		{"gpu_mode_check", "Check if GPU is in Multi-Instance GPU (MIG) mode", level1_tests.RunGPUModeCheck},
 		{"gpu_driver_check", "Check GPU driver version compatibility", level1_tests.RunGPUDriverCheck},
+		{"gpu_clk_check", "Check GPU clock speeds are within acceptable range", level1_tests.RunGPUClkCheck},
 		{"peermem_module_check", "Check for presence of peermem module", level1_tests.RunPeermemModuleCheck},
 		{"nvlink_speed_check", "Check for presence and speed for nvlink", level1_tests.RunNVLinkSpeedCheck},
 	}
