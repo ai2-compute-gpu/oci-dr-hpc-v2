@@ -21,6 +21,7 @@ type TestResult struct {
 	FailedInterfaces  string      `json:"failed_interfaces,omitempty"`
 	InterfaceCount    int         `json:"interface_count,omitempty"`
 	InvalidGIDIndexes []int       `json:"invalid_gid_indexes,omitempty"`
+	Interfaces        interface{} `json:"interfaces,omitempty"`
 	MaxUncorrectable  int         `json:"max_uncorrectable,omitempty"`
 	MaxCorrectable    int         `json:"max_correctable,omitempty"`
 	ModuleLoaded      bool        `json:"module_loaded,omitempty"`
@@ -38,6 +39,7 @@ type HostResults struct {
 	GIDIndexCheck      []TestResult `json:"gid_index_check,omitempty"`
 	LinkCheck          []TestResult `json:"link_check,omitempty"`
 	EthLinkCheck       []TestResult `json:"eth_link_check,omitempty"`
+	AuthCheck          []TestResult `json:"auth_check,omitempty"`
 	SRAMErrorCheck     []TestResult `json:"sram_error_check,omitempty"`
 	GPUDriverCheck     []TestResult `json:"gpu_driver_check,omitempty"`
 	PeerMemModuleCheck []TestResult `json:"peermem_module_check,omitempty"`
@@ -159,6 +161,7 @@ func generateRecommendations(results HostResults) RecommendationReport {
 		{"gid_index_check", results.GIDIndexCheck},
 		{"link_check", results.LinkCheck},
 		{"eth_link_check", results.EthLinkCheck},
+		{"auth_check", results.AuthCheck},
 		{"sram_error_check", results.SRAMErrorCheck},
 		{"gpu_driver_check", results.GPUDriverCheck},
 		{"peermem_module_check", results.PeerMemModuleCheck},

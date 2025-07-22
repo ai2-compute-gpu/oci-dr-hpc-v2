@@ -60,6 +60,10 @@
           "raw_physical_ber": 1e-5
         }
       },
+      "auth_check": {
+        "enabled": true,
+        "test_category": "LEVEL_1"
+      },
       "gpu_driver_check": {
         "enabled": true,
         "test_category": "LEVEL_1",
@@ -129,6 +133,10 @@
         "enabled": false,
         "test_category": "LEVEL_1"
       },
+      "auth_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1"
+      },
       "gpu_driver_check": {
         "enabled": false,
         "test_category": "LEVEL_1"
@@ -178,6 +186,10 @@
         "test_category": "LEVEL_1"
       },
       "eth_link_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1"
+      },
+      "auth_check": {
         "enabled": false,
         "test_category": "LEVEL_1"
       },

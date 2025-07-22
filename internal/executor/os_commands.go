@@ -610,3 +610,31 @@ func RunLsmod(options ...string) (*OSCommandResult, error) {
 
 	return result, nil
 }
+
+// RunWpaCliStatus executes wpa_cli status command for a specific interface
+func RunWpaCliStatus(interfaceName string) (*OSCommandResult, error) {
+	logger.Info("Running wpa_cli status command for interface:", interfaceName)
+
+	cmd := exec.Command("sudo", "wpa_cli", "-i", interfaceName, "status")
+	output, err := cmd.CombinedOutput()
+
+	result := &OSCommandResult{
+		Command: fmt.Sprintf("sudo wpa_cli -i %s status", interfaceName),
+		Output:  string(output),
+		Error:   err,
+	}
+
+	if err != nil {
+		if exitError, ok := err.(*exec.ExitError); ok {
+			result.ExitCode = exitError.ExitCode()
+		}
+		logger.Errorf("wpa_cli status command failed for interface %s: %v", interfaceName, err)
+		logger.Debugf("wpa_cli status output: %s", result.Output)
+		return result, err
+	}
+
+	logger.Info("wpa_cli status command completed successfully for interface:", interfaceName)
+	logger.Debugf("wpa_cli status output: %s", result.Output)
+
+	return result, nil
+}
