@@ -98,6 +98,26 @@
       "eth0_presence_check": {
         "enabled": true,
         "test_category": "LEVEL_1"
+      },
+      "cdfp_cable_check": {
+        "enabled": true,
+        "test_category": "LEVEL_1",
+        "threshold": {
+          "gpu_pci_ids": [
+            "00000000:0f:00.0",
+            "00000000:2d:00.0",
+            "00000000:44:00.0",
+            "00000000:5b:00.0",
+            "00000000:89:00.0",
+            "00000000:a8:00.0",
+            "00000000:c0:00.0",
+            "00000000:d8:00.0"
+          ],
+          "gpu_indices": [
+            "0", "1", "2", "3",
+            "4", "5", "6", "7"
+          ]
+        }
       }
     },
     "BM.GPU.B200.8": {

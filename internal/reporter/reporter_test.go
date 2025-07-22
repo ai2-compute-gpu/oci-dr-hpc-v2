@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -342,6 +343,14 @@ func TestReporter_GenerateReport(t *testing.T) {
 	reporter.AddSRAMErrorResult("PASS", 1, 75, nil)
 	reporter.AddRXDiscardsCheckResult("FAIL", 16, []string{"rdma2"}, fmt.Errorf("error"))
 	reporter.AddNVLinkResult("PASS", map[string]interface{}{"speed": 26, "count": 18}, nil)
+	// Add CDFP cable check result
+	cdfpResult := map[string]interface{}{
+		"status":           "PASS",
+		"expected_mapping": map[string]string{"0000:0f:00.0": "0"},
+		"actual_mapping":   map[string]string{"0000:0f:00.0": "0"},
+		"message":          "All CDFP cables correctly connected",
+	}
+	reporter.AddCDFPCableCheckResult("PASS", cdfpResult, nil)
 
 	report, err := reporter.GenerateReport()
 	if err != nil {
@@ -354,6 +363,9 @@ func TestReporter_GenerateReport(t *testing.T) {
 	}
 	if len(report.Localhost.SRAMErrorCheck) != 1 {
 		t.Error("Expected 1 SRAM result")
+	}
+	if len(report.Localhost.CDFPCableCheck) != 1 {
+		t.Error("Expected 1 CDFP cable check result")
 	}
 	if len(report.Localhost.RXDiscardsCheck) != 1 {
 		t.Error("Expected 1 network result")
@@ -578,5 +590,89 @@ func BenchmarkReporter_GenerateReport(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
+	}
+}
+
+// TestCDFPCableCheckOutputFormats tests CDFP cable check in all output formats
+func TestCDFPCableCheckOutputFormats(t *testing.T) {
+	tests := []struct {
+		name     string
+		status   string
+		cdfpData interface{}
+		wantErr  bool
+	}{
+		{
+			name:   "PASS status",
+			status: "PASS",
+			cdfpData: map[string]interface{}{
+				"status":           "PASS",
+				"expected_mapping": map[string]string{"0000:0f:00.0": "0"},
+				"actual_mapping":   map[string]string{"0000:0f:00.0": "0"},
+				"message":          "All CDFP cables correctly connected",
+			},
+		},
+		{
+			name:   "FAIL status",
+			status: "FAIL",
+			cdfpData: map[string]interface{}{
+				"status":   "FAIL",
+				"failures": []string{"PCI mismatch"},
+				"message":  "CDFP cable mismatch detected",
+			},
+		},
+		{
+			name:     "SKIP status",
+			status:   "SKIP",
+			cdfpData: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reporter := createTestReporter()
+			reporter.AddCDFPCableCheckResult(tt.status, tt.cdfpData, nil)
+
+			report, err := reporter.GenerateReport()
+			if err != nil {
+				t.Fatalf("Failed to generate report: %v", err)
+			}
+
+			// Test JSON format
+			jsonOutput, err := reporter.formatJSON(report)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("formatJSON() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if !tt.wantErr && len(jsonOutput) == 0 {
+				t.Error("JSON output is empty")
+			}
+
+			// Test table format
+			tableOutput, err := reporter.formatTable(report)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("formatTable() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if !tt.wantErr && len(tableOutput) == 0 {
+				t.Error("Table output is empty")
+			}
+
+			// Verify table contains CDFP Cable Check
+			if tt.status != "SKIP" && !strings.Contains(tableOutput, "CDFP Cable Check") {
+				t.Error("Table output missing CDFP Cable Check")
+			}
+
+			// Test friendly format
+			friendlyOutput, err := reporter.formatFriendly(report)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("formatFriendly() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if !tt.wantErr && len(friendlyOutput) == 0 {
+				t.Error("Friendly output is empty")
+			}
+
+			// Verify friendly contains CDFP check info
+			if tt.status != "SKIP" && !strings.Contains(friendlyOutput, "CDFP Cable") {
+				t.Error("Friendly output missing CDFP Cable information")
+			}
+		})
 	}
 }

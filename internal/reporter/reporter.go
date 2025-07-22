@@ -121,6 +121,13 @@ type Eth0PresenceTestResult struct {
 	TimestampUTC string `json:"timestamp_utc"`
 }
 
+// CDFPCableCheckTestResult represents CDFP cable check test results
+type CDFPCableCheckTestResult struct {
+	Status       string      `json:"status"`
+	CDFPResult   interface{} `json:"cdfp_result,omitempty"`
+	TimestampUTC string      `json:"timestamp_utc"`
+}
+
 // HostResults represents test results for a host
 type HostResults struct {
 	GPUCountCheck      []GPUTestResult             `json:"gpu_count_check,omitempty"`
@@ -137,6 +144,7 @@ type HostResults struct {
 	PeerMemModuleCheck []PeerMemTestResult         `json:"peermem_module_check,omitempty"`
 	NVLinkSpeedCheck   []NVLinkTestResult          `json:"nvlink_speed_check,omitempty"`
 	Eth0PresenceCheck  []Eth0PresenceTestResult    `json:"eth0_presence_check,omitempty"`
+	CDFPCableCheck     []CDFPCableCheckTestResult  `json:"cdfp_cable_check,omitempty"`
 }
 
 // ReportOutput represents the final JSON output structure
@@ -359,6 +367,17 @@ func (r *Reporter) AddEth0PresenceResult(status string, eth0Present bool, err er
 		"eth0_present": eth0Present,
 	}
 	r.AddResult("eth0_presence_check", status, details, err)
+}
+
+// AddCDFPCableCheckResult adds CDFP cable check test results
+func (r *Reporter) AddCDFPCableCheckResult(status string, cdfpResult interface{}, err error) {
+	details := map[string]interface{}{}
+	if cdfpResult != nil {
+		details = map[string]interface{}{
+			"cdfp_result": cdfpResult,
+		}
+	}
+	r.AddResult("cdfp_cable_check", status, details, err)
 }
 
 // GenerateReport generates the final JSON report
@@ -617,6 +636,21 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
 		}
 		report.Localhost.Eth0PresenceCheck = []Eth0PresenceTestResult{eth0Result}
+	}
+
+	// Process CDFP Cable Check results
+	if result, exists := r.results["cdfp_cable_check"]; exists {
+		var cdfpResult interface{}
+		if cdfpVal, ok := result.Details["cdfp_result"]; ok {
+			cdfpResult = cdfpVal
+		}
+
+		cdfpCableResult := CDFPCableCheckTestResult{
+			Status:       result.Status,
+			CDFPResult:   cdfpResult,
+			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
+		}
+		report.Localhost.CDFPCableCheck = []CDFPCableCheckTestResult{cdfpCableResult}
 	}
 
 	return report, nil
@@ -959,6 +993,33 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 		}
 	}
 
+	// CDFP Cable Check Tests
+	if len(report.Localhost.CDFPCableCheck) > 0 {
+		for _, cdfp := range report.Localhost.CDFPCableCheck {
+			status := cdfp.Status
+			statusSymbol := "✅"
+			if status == "FAIL" {
+				statusSymbol = "❌"
+			} else if status == "SKIP" {
+				statusSymbol = "⏭️"
+			}
+			details := "CDFP Cables OK"
+			if status == "FAIL" {
+				details = "CDFP Cable Issues"
+			} else if status == "SKIP" {
+				details = "CDFP Check Skipped"
+			}
+			// Calculate padding to align with 67-character table width
+			contentLength := 1 + 22 + 3 + 6 + 3 + 1 + len(statusSymbol) + 1 + len(details)
+			padding := 67 - contentLength - 1 // -1 for final │
+			if padding < 0 {
+				padding = 0
+			}
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s%s│\n",
+				"CDFP Cable Check", statusSymbol, statusSymbol, details, strings.Repeat(" ", padding)))
+		}
+	}
+
 	output.WriteString("└─────────────────────────────────────────────────────────────────┘\n")
 	return output.String(), nil
 }
@@ -1230,6 +1291,27 @@ func (r *Reporter) formatFriendly(report *ReportOutput) (string, error) {
 			} else {
 				failedTests++
 				output.WriteString("   ❌ Eth0 Interface: eth0 is missing (FAILED)\n")
+			}
+		}
+		output.WriteString("\n")
+	}
+
+	// CDFP Cable Check Tests
+	if len(report.Localhost.CDFPCableCheck) > 0 {
+		output.WriteString("🔌 CDFP Cable Health Check\n")
+		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
+		for _, cdfp := range report.Localhost.CDFPCableCheck {
+			totalTests++
+			if cdfp.Status == "PASS" {
+				passedTests++
+				output.WriteString("   ✅ CDFP Cables: All GPU-to-module mappings correct (PASSED)\n")
+			} else if cdfp.Status == "SKIP" {
+				// Count skipped tests as neither passed nor failed
+				totalTests-- // Adjust total count as SKIP doesn't count
+				output.WriteString("   ⏭️ CDFP Cables: Check skipped (not applicable for this shape)\n")
+			} else {
+				failedTests++
+				output.WriteString("   ❌ CDFP Cables: GPU-to-module mapping issues detected (FAILED)\n")
 			}
 		}
 		output.WriteString("\n")

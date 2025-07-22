@@ -348,3 +348,50 @@ func RunNvidiaSMINvlink() *NvidiaSMIResult {
 
 	return result
 }
+
+// RunNvidiaSMIQueryDetailed runs nvidia-smi -q for detailed GPU information
+func RunNvidiaSMIQueryDetailed() *NvidiaSMIResult {
+	result := &NvidiaSMIResult{
+		Available: false,
+		Output:    "",
+		Error:     "",
+	}
+
+	logger.Info("Running nvidia-smi -q for detailed GPU information")
+
+	// Check if nvidia-smi exists
+	_, err := exec.LookPath("nvidia-smi")
+	if err != nil {
+		result.Error = "nvidia-smi not found in PATH"
+		logger.Error("nvidia-smi not available for detailed query:", result.Error)
+		return result
+	}
+
+	// Execute nvidia-smi -q
+	cmd := exec.Command("nvidia-smi", "-q")
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		result.Error = err.Error()
+		result.Output = string(output)
+		logger.Error("nvidia-smi -q execution failed:", err)
+		logger.Error("nvidia-smi -q output:", string(output))
+		return result
+	}
+
+	result.Available = true
+	result.Output = string(output)
+
+	logger.Info("nvidia-smi -q executed successfully")
+	logger.Debug("nvidia-smi -q output (first 200 chars):", truncateString(result.Output, 200))
+
+	return result
+}
+
+// truncateString truncates a string to a maximum length for logging
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
+}

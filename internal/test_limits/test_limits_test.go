@@ -284,8 +284,8 @@ func TestGetEnabledTests(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to get enabled tests: %v", err)
 	}
-	if len(enabledTests) != 14 {
-		t.Errorf("Expected 14 enabled tests for H100, got %d", len(enabledTests))
+	if len(enabledTests) != 15 {
+		t.Errorf("Expected 15 enabled tests for H100, got %d", len(enabledTests))
 	}
 
 	expectedTests := map[string]bool{
@@ -303,6 +303,7 @@ func TestGetEnabledTests(t *testing.T) {
 		"peermem_module_check": false,
 		"nvlink_speed_check":   false,
 		"eth0_presence_check":  false,
+		"cdfp_cable_check":     false,
 	}
 
 	for _, test := range enabledTests {
