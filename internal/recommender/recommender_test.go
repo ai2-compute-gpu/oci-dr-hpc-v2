@@ -569,12 +569,15 @@ func TestGenerateRecommendations_FallbackMode(t *testing.T) {
 		NVLinkSpeedCheck: []TestResult{
 			{Status: "FAIL"},
 		},
+		Eth0PresenceCheck: []TestResult{
+			{Status: "FAIL", Eth0Present: false},
+		},
 	}
 
 	report := generateRecommendations(results)
 
-	if len(report.Recommendations) < 3 {
-		t.Errorf("Expected at least 3 fallback recommendations, got %d", len(report.Recommendations))
+	if len(report.Recommendations) < 4 {
+		t.Errorf("Expected at least 4 fallback recommendations, got %d", len(report.Recommendations))
 	}
 
 	if !strings.Contains(report.Summary, "fallback mode") {

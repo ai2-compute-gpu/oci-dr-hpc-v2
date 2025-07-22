@@ -77,7 +77,8 @@ func runAllLevel1Tests() error {
 		{"gpu_mode_check", level1_tests.RunGPUModeCheck},
 		{"gpu_driver_check", level1_tests.RunGPUDriverCheck},
 		{"peermem_module_check", level1_tests.RunPeermemModuleCheck},
-		{"nvlink_speed_check", level1_tests.RunNVLinkSpeedCheck}}
+		{"nvlink_speed_check", level1_tests.RunNVLinkSpeedCheck},
+		{"eth0_presence_check", level1_tests.RunEth0PresenceCheck}}
 
 	var failedTests []string
 
@@ -145,6 +146,7 @@ func runSpecificTests(testFilter string) error {
 		{"gpu_driver_check", "Check GPU driver version compatibility", level1_tests.RunGPUDriverCheck},
 		{"peermem_module_check", "Check for presence of peermem module", level1_tests.RunPeermemModuleCheck},
 		{"nvlink_speed_check", "Check for presence and speed for nvlink", level1_tests.RunNVLinkSpeedCheck},
+		{"eth0_presence_check", "Check if eth0 network interface is present", level1_tests.RunEth0PresenceCheck},
 	}
 
 	// If testFilter is empty, show available tests

@@ -115,6 +115,12 @@ type NVLinkTestResult struct {
 	TimestampUTC string      `json:"timestamp_utc"`
 }
 
+type Eth0PresenceTestResult struct {
+	Status       string `json:"status"`
+	Eth0Present  bool   `json:"eth0_present"`
+	TimestampUTC string `json:"timestamp_utc"`
+}
+
 // HostResults represents test results for a host
 type HostResults struct {
 	GPUCountCheck      []GPUTestResult             `json:"gpu_count_check,omitempty"`
@@ -130,6 +136,7 @@ type HostResults struct {
 	GPUDriverCheck     []GPUDriverTestResult       `json:"gpu_driver_check,omitempty"`
 	PeerMemModuleCheck []PeerMemTestResult         `json:"peermem_module_check,omitempty"`
 	NVLinkSpeedCheck   []NVLinkTestResult          `json:"nvlink_speed_check,omitempty"`
+	Eth0PresenceCheck  []Eth0PresenceTestResult    `json:"eth0_presence_check,omitempty"`
 }
 
 // ReportOutput represents the final JSON output structure
@@ -344,6 +351,14 @@ func (r *Reporter) AddNVLinkResult(status string, nvlinks interface{}, err error
 	}
 
 	r.AddResult("nvlink_speed_check", status, details, err)
+}
+
+// AddEth0PresenceResult adds eth0 presence test results
+func (r *Reporter) AddEth0PresenceResult(status string, eth0Present bool, err error) {
+	details := map[string]interface{}{
+		"eth0_present": eth0Present,
+	}
+	r.AddResult("eth0_presence_check", status, details, err)
 }
 
 // GenerateReport generates the final JSON report
@@ -586,6 +601,22 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
 		}
 		report.Localhost.NVLinkSpeedCheck = []NVLinkTestResult{nvlinkResult}
+	}
+
+	// Process Eth0 Presence Check results
+	if result, exists := r.results["eth0_presence_check"]; exists {
+		eth0Present := false
+		if presentVal, ok := result.Details["eth0_present"]; ok {
+			if present, ok := presentVal.(bool); ok {
+				eth0Present = present
+			}
+		}
+		eth0Result := Eth0PresenceTestResult{
+			Status:       result.Status,
+			Eth0Present:  eth0Present,
+			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
+		}
+		report.Localhost.Eth0PresenceCheck = []Eth0PresenceTestResult{eth0Result}
 	}
 
 	return report, nil
@@ -911,6 +942,23 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 		}
 	}
 
+	// Eth0 Presence Tests
+	if len(report.Localhost.Eth0PresenceCheck) > 0 {
+		for _, eth0 := range report.Localhost.Eth0PresenceCheck {
+			status := eth0.Status
+			statusSymbol := "✅"
+			if status == "FAIL" {
+				statusSymbol = "❌"
+			}
+			details := "eth0 Interface Present"
+			if !eth0.Eth0Present {
+				details = "eth0 Interface Missing"
+			}
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s    │\n",
+				"Eth0 Presence Check", statusSymbol, statusSymbol, details))
+		}
+	}
+
 	output.WriteString("└─────────────────────────────────────────────────────────────────┘\n")
 	return output.String(), nil
 }
@@ -1165,6 +1213,23 @@ func (r *Reporter) formatFriendly(report *ReportOutput) (string, error) {
 			} else {
 				failedTests++
 				output.WriteString("   ❌ NVLink: Speed or count issues detected (FAILED)\n")
+			}
+		}
+		output.WriteString("\n")
+	}
+
+	// Eth0 Presence Tests
+	if len(report.Localhost.Eth0PresenceCheck) > 0 {
+		output.WriteString("🌐 Eth0 Interface Check\n")
+		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
+		for _, eth0 := range report.Localhost.Eth0PresenceCheck {
+			totalTests++
+			if eth0.Status == "PASS" {
+				passedTests++
+				output.WriteString("   ✅ Eth0 Interface: eth0 is present (PASSED)\n")
+			} else {
+				failedTests++
+				output.WriteString("   ❌ Eth0 Interface: eth0 is missing (FAILED)\n")
 			}
 		}
 		output.WriteString("\n")

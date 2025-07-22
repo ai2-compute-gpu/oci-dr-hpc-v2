@@ -292,6 +292,7 @@ func TestApplyVariableSubstitution(t *testing.T) {
 		MaxUncorrectable:  5,
 		MaxCorrectable:    100,
 		FailedInterfaces:  "rdma2,rdma3",
+		Eth0Present:       true,
 	}
 
 	tests := []struct {
@@ -317,6 +318,10 @@ func TestApplyVariableSubstitution(t *testing.T) {
 		{
 			template: "Failed interfaces: {failed_interfaces}",
 			expected: "Failed interfaces: rdma2,rdma3",
+		},
+		{
+			template: "Eth0 present: {eth0_present}",
+			expected: "Eth0 present: true",
 		},
 		{
 			template: "No variables here",

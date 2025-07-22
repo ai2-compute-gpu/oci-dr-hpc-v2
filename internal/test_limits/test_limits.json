@@ -94,6 +94,10 @@
           "speed": 26,
           "count": 18
         }
+      },
+      "eth0_presence_check": {
+        "enabled": true,
+        "test_category": "LEVEL_1"
       }
     },
     "BM.GPU.B200.8": {
@@ -142,6 +146,10 @@
         "test_category": "LEVEL_1"
       },
       "nvlink_speed_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1"
+      },
+      "eth0_presence_check": {
         "enabled": false,
         "test_category": "LEVEL_1"
       }
@@ -207,6 +215,10 @@
       },
       "nvlink_speed_check": {
         "enabled": false,
+        "test_category": "LEVEL_1"
+      },
+      "eth0_presence_check": {
+        "enabled": true,
         "test_category": "LEVEL_1"
       }
     }
