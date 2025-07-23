@@ -470,6 +470,38 @@
           "nvidia-smi topo -m"
         ]
       }
+    },
+    "fabricmanager_check": {
+      "fail": {
+        "type": "critical",
+        "fault_code": "HPCGPU-0011-0001",
+        "issue": "NVIDIA Fabric Manager service is not running. This service is required for proper GPU fabric management and multi-GPU communication in H100 systems.",
+        "suggestion": "Start the nvidia-fabricmanager service to enable proper GPU fabric coordination. This service manages GPU interconnect topology and is essential for multi-GPU workloads.",
+        "commands": [
+          "sudo systemctl status nvidia-fabricmanager",
+          "sudo systemctl start nvidia-fabricmanager",
+          "sudo systemctl enable nvidia-fabricmanager",
+          "sudo journalctl -u nvidia-fabricmanager -f",
+          "nvidia-smi -q | grep -i fabric",
+          "ps aux | grep fabricmanager"
+        ],
+        "references": [
+          "https://docs.nvidia.com/datacenter/tesla/nvlink-fabric-manager-user-guide/",
+          "https://docs.nvidia.com/datacenter/tesla/tesla-installation-notes/",
+          "https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm",
+          "https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/"
+        ]
+      },
+      "pass": {
+        "type": "info",
+        "issue": "NVIDIA Fabric Manager service is running and properly configured",
+        "suggestion": "GPU fabric management is active and ready for multi-GPU workloads. The service is managing GPU interconnect topology correctly.",
+        "commands": [
+          "sudo systemctl status nvidia-fabricmanager",
+          "nvidia-smi -q | grep -i fabric",
+          "nvidia-smi topo -m"
+        ]
+      }
     }
   },
   "summary_templates": {

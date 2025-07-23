@@ -8,6 +8,7 @@ import (
 	"github.com/oracle/oci-dr-hpc-v2/internal/executor"
 	"github.com/oracle/oci-dr-hpc-v2/internal/logger"
 	"github.com/oracle/oci-dr-hpc-v2/internal/reporter"
+	"github.com/oracle/oci-dr-hpc-v2/internal/shapes"
 	"github.com/oracle/oci-dr-hpc-v2/internal/test_limits"
 )
 
@@ -29,13 +30,13 @@ type CDFPCableCheckTestConfig struct {
 
 // getCDFPCableCheckTestConfig gets test config needed to run this test
 func getCDFPCableCheckTestConfig(shape string) (*CDFPCableCheckTestConfig, error) {
-	// Load configuration from test_limits.json
+	// Load configuration from test_limits.json to check if test is enabled
 	limits, err := test_limits.LoadTestLimits()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load test limits: %w", err)
 	}
 
-	// Initialize with defaults from test_limits.json
+	// Initialize with defaults
 	cdfpTestConfig := &CDFPCableCheckTestConfig{
 		IsEnabled:       false,
 		ExpectedPCIIDs:  []string{},
@@ -56,37 +57,56 @@ func getCDFPCableCheckTestConfig(shape string) (*CDFPCableCheckTestConfig, error
 		return cdfpTestConfig, nil
 	}
 
-	// Get threshold configuration which contains PCI IDs and module IDs
-	threshold, err := limits.GetThresholdForTest(shape, "cdfp_cable_check")
+	// Load GPU configuration from shapes.json
+	shapeManager, err := shapes.GetDefaultShapeManager()
 	if err != nil {
-		logger.Info("No threshold configuration found for cdfp_cable_check on shape", shape, ", using empty arrays")
+		logger.Info("Failed to load shapes configuration:", err, ", using empty arrays")
 		return cdfpTestConfig, nil
 	}
 
-	// Parse threshold configuration
-	if thresholdMap, ok := threshold.(map[string]interface{}); ok {
-		if pciIds, exists := thresholdMap["gpu_pci_ids"]; exists {
-			if pciArray, ok := pciIds.([]interface{}); ok {
-				for _, pci := range pciArray {
-					if pciStr, ok := pci.(string); ok {
-						cdfpTestConfig.ExpectedPCIIDs = append(cdfpTestConfig.ExpectedPCIIDs, pciStr)
-					}
-				}
-			}
-		}
-		
-		if indices, exists := thresholdMap["gpu_indices"]; exists {
-			if indexArray, ok := indices.([]interface{}); ok {
-				for _, index := range indexArray {
-					if indexStr, ok := index.(string); ok {
-						cdfpTestConfig.ExpectedIndices = append(cdfpTestConfig.ExpectedIndices, indexStr)
-					}
-				}
-			}
-		}
+	// Check if shape has GPU configurations
+	hasGPUs, err := shapeManager.HasGPUs(shape)
+	if err != nil {
+		logger.Info("Failed to check GPU availability for shape", shape, ":", err, ", using empty arrays")
+		return cdfpTestConfig, nil
 	}
 
-	logger.Info("Successfully loaded cdfp_cable_check configuration for shape", shape)
+	if !hasGPUs {
+		logger.Info("Shape", shape, "has no GPU configurations")
+		return cdfpTestConfig, nil
+	}
+
+	// Get GPU PCI addresses from shapes.json
+	pciAddresses, err := shapeManager.GetGPUPCIAddresses(shape)
+	if err != nil {
+		logger.Info("Failed to get GPU PCI addresses for shape", shape, ":", err, ", using empty arrays")
+		return cdfpTestConfig, nil
+	}
+
+	// Get GPU indices from shapes.json
+	indices, err := shapeManager.GetGPUIndices(shape)
+	if err != nil {
+		logger.Info("Failed to get GPU indices for shape", shape, ":", err, ", using empty arrays")
+		return cdfpTestConfig, nil
+	}
+
+	// Ensure we have GPU configurations
+	if len(pciAddresses) == 0 || len(indices) == 0 {
+		logger.Info("No GPU PCI addresses or indices found for shape", shape)
+		return cdfpTestConfig, nil
+	}
+
+	// Normalize PCI addresses to match nvidia-smi output format
+	for _, pci := range pciAddresses {
+		// Normalize the PCI address to match the format from nvidia-smi
+		normalizedPCI := normalizePCIAddress(pci)
+		cdfpTestConfig.ExpectedPCIIDs = append(cdfpTestConfig.ExpectedPCIIDs, normalizedPCI)
+	}
+
+	cdfpTestConfig.ExpectedIndices = indices
+
+	logger.Info("Successfully loaded cdfp_cable_check configuration for shape", shape, "from shapes.json")
+	logger.Info("Found", len(cdfpTestConfig.ExpectedPCIIDs), "GPU PCI addresses and", len(cdfpTestConfig.ExpectedIndices), "GPU indices")
 	return cdfpTestConfig, nil
 }
 

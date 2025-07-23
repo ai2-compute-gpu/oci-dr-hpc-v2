@@ -414,6 +414,116 @@ func TestCDFPCableCheckTestConfig(t *testing.T) {
 	}
 }
 
+// TestCDFPCableCheckConfigWithShapes tests the configuration loading with shapes.json
+func TestCDFPCableCheckConfigWithShapes(t *testing.T) {
+	// Test getting configuration for H100 shape - this should work with shapes.json
+	config, err := getCDFPCableCheckTestConfig("BM.GPU.H100.8")
+	if err != nil {
+		t.Errorf("Failed to get CDFP config for H100: %v", err)
+	}
+
+	if config == nil {
+		t.Fatal("Expected config but got nil")
+	}
+
+	// Test should be enabled for H100 (as per test_limits.json)
+	if !config.IsEnabled {
+		t.Error("Expected CDFP test to be enabled for H100")
+	}
+
+	// Should have GPU PCI IDs and indices from shapes.json
+	if len(config.ExpectedPCIIDs) == 0 {
+		t.Error("Expected PCI IDs to be loaded from shapes.json")
+	}
+
+	if len(config.ExpectedIndices) == 0 {
+		t.Error("Expected GPU indices to be loaded from shapes.json")
+	}
+
+	// For H100, we should have 8 GPUs
+	if len(config.ExpectedPCIIDs) != 8 {
+		t.Errorf("Expected 8 GPU PCI IDs for H100, got %d", len(config.ExpectedPCIIDs))
+	}
+
+	if len(config.ExpectedIndices) != 8 {
+		t.Errorf("Expected 8 GPU indices for H100, got %d", len(config.ExpectedIndices))
+	}
+
+	// Verify indices are sequential 0-7
+	expectedIndices := []string{"0", "1", "2", "3", "4", "5", "6", "7"}
+	for i, expected := range expectedIndices {
+		if i < len(config.ExpectedIndices) && config.ExpectedIndices[i] != expected {
+			t.Errorf("Expected GPU index %s at position %d, got %s", expected, i, config.ExpectedIndices[i])
+		}
+	}
+
+	// Verify PCI addresses have the correct normalized format
+	for i, pci := range config.ExpectedPCIIDs {
+		if !strings.HasPrefix(pci, "0000:") {
+			t.Errorf("Expected PCI address at index %d to have normalized format, got %s", i, pci)
+		}
+	}
+
+	t.Logf("Successfully loaded %d PCI addresses and %d indices from shapes.json for H100", 
+		len(config.ExpectedPCIIDs), len(config.ExpectedIndices))
+}
+
+// TestCDFPCableCheckConfigWithNonGPUShape tests config for a shape without GPUs
+func TestCDFPCableCheckConfigWithNonGPUShape(t *testing.T) {
+	// Test with a shape that doesn't have GPUs or doesn't exist in shapes.json
+	config, err := getCDFPCableCheckTestConfig("BM.Standard.E5.48")
+	if err != nil {
+		t.Errorf("Unexpected error for non-GPU shape: %v", err)
+	}
+
+	if config == nil {
+		t.Fatal("Expected config but got nil")
+	}
+
+	// Test should be disabled for non-GPU shapes (not in test_limits.json for CDFP)
+	if config.IsEnabled {
+		t.Error("Expected CDFP test to be disabled for non-GPU shape")
+	}
+
+	// Should have empty arrays
+	if len(config.ExpectedPCIIDs) != 0 {
+		t.Errorf("Expected empty PCI IDs for non-GPU shape, got %d", len(config.ExpectedPCIIDs))
+	}
+
+	if len(config.ExpectedIndices) != 0 {
+		t.Errorf("Expected empty indices for non-GPU shape, got %d", len(config.ExpectedIndices))
+	}
+}
+
+// TestCDFPCableCheckConfigWithB200 tests the configuration loading with B200 shape
+func TestCDFPCableCheckConfigWithB200(t *testing.T) {
+	// Test getting configuration for B200 shape - this should work with shapes.json
+	config, err := getCDFPCableCheckTestConfig("BM.GPU.B200.8")
+	if err != nil {
+		t.Errorf("Failed to get CDFP config for B200: %v", err)
+	}
+
+	if config == nil {
+		t.Fatal("Expected config but got nil")
+	}
+
+	// Test should be disabled for B200 (as per test_limits.json)
+	if config.IsEnabled {
+		t.Error("Expected CDFP test to be disabled for B200")
+	}
+
+	// Since test is disabled, arrays should be empty
+	if len(config.ExpectedPCIIDs) != 0 {
+		t.Errorf("Expected empty PCI IDs for disabled test, got %d", len(config.ExpectedPCIIDs))
+	}
+
+	if len(config.ExpectedIndices) != 0 {
+		t.Errorf("Expected empty indices for disabled test, got %d", len(config.ExpectedIndices))
+	}
+
+	t.Logf("B200 CDFP test correctly disabled with empty configuration")
+}
+
 // TestCDFPCableCheckResult tests the result structure
 func TestCDFPCableCheckResult(t *testing.T) {
 	result := &CDFPCableCheckResult{

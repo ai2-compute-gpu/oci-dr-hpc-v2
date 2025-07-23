@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -394,4 +396,139 @@ func (sm *ShapeManager) GetAllHPCShapes() []string {
 		shapes = append(shapes, hpcShape.Shape)
 	}
 	return shapes
+}
+
+// GetGPUSpecs returns GPU specifications for a specific shape
+func (sm *ShapeManager) GetGPUSpecs(shapeName string) ([]GPUSpec, error) {
+	hpcShape, err := sm.GetHPCShape(shapeName)
+	if err != nil {
+		return nil, err
+	}
+
+	// Handle the case where GPU is a boolean (false = no GPUs)
+	if gpuBool, ok := hpcShape.GPU.(bool); ok {
+		if !gpuBool {
+			return []GPUSpec{}, nil // No GPUs for this shape
+		}
+		return nil, fmt.Errorf("GPU field is true but no GPU specifications found for shape %s", shapeName)
+	}
+
+	// Handle the case where GPU is an array of GPU specifications
+	if gpuArray, ok := hpcShape.GPU.([]interface{}); ok {
+		var gpuSpecs []GPUSpec
+		for _, gpuInterface := range gpuArray {
+			if gpuMap, ok := gpuInterface.(map[string]interface{}); ok {
+				gpuSpec := GPUSpec{}
+				
+				if pci, exists := gpuMap["pci"]; exists {
+					if pciStr, ok := pci.(string); ok {
+						gpuSpec.PCI = pciStr
+					}
+				}
+				
+				if model, exists := gpuMap["model"]; exists {
+					if modelStr, ok := model.(string); ok {
+						gpuSpec.Model = modelStr
+					}
+				}
+				
+				if id, exists := gpuMap["id"]; exists {
+					if idFloat, ok := id.(float64); ok {
+						gpuSpec.ID = int(idFloat)
+					}
+				}
+				
+				if moduleID, exists := gpuMap["module_id"]; exists {
+					if moduleIDFloat, ok := moduleID.(float64); ok {
+						gpuSpec.ModuleID = int(moduleIDFloat)
+					}
+				}
+				
+				gpuSpecs = append(gpuSpecs, gpuSpec)
+			}
+		}
+		
+		logger.Debugf("Found %d GPU specifications for shape %s", len(gpuSpecs), shapeName)
+		return gpuSpecs, nil
+	}
+
+	return nil, fmt.Errorf("GPU field has unexpected type for shape %s", shapeName)
+}
+
+// GetGPUPCIAddresses returns a list of GPU PCI addresses for a specific shape
+func (sm *ShapeManager) GetGPUPCIAddresses(shapeName string) ([]string, error) {
+	gpuSpecs, err := sm.GetGPUSpecs(shapeName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pciAddresses []string
+	for _, gpu := range gpuSpecs {
+		pciAddresses = append(pciAddresses, gpu.PCI)
+	}
+
+	return pciAddresses, nil
+}
+
+// GetGPUIndices returns a list of GPU indices for a specific shape
+func (sm *ShapeManager) GetGPUIndices(shapeName string) ([]string, error) {
+	gpuSpecs, err := sm.GetGPUSpecs(shapeName)
+	if err != nil {
+		return nil, err
+	}
+
+	var indices []string
+	for _, gpu := range gpuSpecs {
+		indices = append(indices, strconv.Itoa(gpu.ID))
+	}
+
+	return indices, nil
+}
+
+// HasGPUs returns true if the shape has GPU configurations
+func (sm *ShapeManager) HasGPUs(shapeName string) (bool, error) {
+	hpcShape, err := sm.GetHPCShape(shapeName)
+	if err != nil {
+		return false, err
+	}
+
+	// Handle the case where GPU is a boolean
+	if gpuBool, ok := hpcShape.GPU.(bool); ok {
+		return gpuBool, nil
+	}
+
+	// Handle the case where GPU is an array
+	if gpuArray, ok := hpcShape.GPU.([]interface{}); ok {
+		return len(gpuArray) > 0, nil
+	}
+
+	return false, nil
+}
+
+// getPackageDir returns the directory where this package is located
+func getPackageDir() (string, error) {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		return "", fmt.Errorf("unable to get current file path")
+	}
+	return filepath.Dir(filename), nil
+}
+
+// getDefaultShapesPath returns the default path to shapes.json
+func getDefaultShapesPath() (string, error) {
+	packageDir, err := getPackageDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(packageDir, "shapes.json"), nil
+}
+
+// GetDefaultShapeManager returns a ShapeManager using the default shapes.json file
+func GetDefaultShapeManager() (*ShapeManager, error) {
+	shapesPath, err := getDefaultShapesPath()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get default shapes path: %w", err)
+	}
+
+	return NewShapeManager(shapesPath)
 }
