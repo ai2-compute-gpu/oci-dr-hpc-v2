@@ -55,6 +55,33 @@
         ]
       }
     },
+    "gpu_clk_check": {
+      "fail": {
+        "type": "critical",
+        "fault_code": "HPCGPU-0011-0001",
+        "issue": "GPU clock speeds below acceptable threshold (found: {clock_speed})",
+        "suggestion": "Verify GPU performance state and check for thermal throttling",
+        "commands": [
+          "nvidia-smi --query-gpu=clocks.current.graphics --format=csv,noheader,nounits",
+          "nvidia-smi -q -d CLOCK",
+          "nvidia-smi --query-gpu=temperature.gpu,power.draw --format=csv,noheader",
+          "nvidia-smi --query-gpu=pstate --format=csv,noheader"
+        ],
+        "references": [
+          "https://docs.nvidia.com/datacenter/tesla/tesla-installation-notes/",
+          "https://developer.nvidia.com/nvidia-system-management-interface"
+        ]
+      },
+      "pass": {
+        "type": "info",
+        "issue": "GPU clock speed check passed ({clock_speed})",
+        "suggestion": "GPU clock speeds are within acceptable range",
+        "commands": [
+          "nvidia-smi --query-gpu=clocks.current.graphics --format=csv,noheader,nounits",
+          "nvidia-smi -q -d CLOCK"
+        ]
+      }
+    },
     "pcie_error_check": {
       "fail": {
         "type": "critical",

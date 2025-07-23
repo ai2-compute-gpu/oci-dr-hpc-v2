@@ -167,7 +167,7 @@ Fault codes follow the pattern: `HPCGPU-XXXX-XXXX`
 | `HPCGPU-0001-0001` | gpu_count_check | GPU count mismatch |
 | `HPCGPU-0002-0001` | pcie_error_check | PCIe errors detected |
 | `HPCGPU-0003-0001` | rdma_nics_count | RDMA NIC count mismatch |
-| `HPCGPU-0010-0001` | gpu_clk_check | GPU clock speeds below threshold |
+| `HPCGPU-0011-0001` | gpu_clk_check | GPU clock speeds below threshold |
 
 ## Recommendation Engine
 

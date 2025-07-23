@@ -639,7 +639,7 @@ oci-dr-hpc-v2 recommender -r results.json --verbose
      - https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm
 
 🚨 2. CRITICAL [gpu_clk_check]
-   Fault Code: HPCGPU-0010-0001
+   Fault Code: HPCGPU-0011-0001
    Issue: GPU clock speeds below acceptable threshold (found: 1700 MHz, expected: 1980 MHz)
    Suggestion: Verify GPU performance state and check for thermal throttling
    Commands to run:
@@ -691,7 +691,7 @@ oci-dr-hpc-v2 recommender -r results.json --verbose
 | **`pcie_error_check`**     | Scan system logs for PCIe errors                                    | Parses dmesg output for hardware errors    | HPCGPU-0002-0001      |
 | **`rdma_nics_count`**      | Validate RDMA NIC count and PCI addresses                           | Uses hybrid discovery (shapes.json + OS)   | HPCGPU-0003-0001      |
 | **`gpu_driver_check`**     | Validate GPU driver version compatibility                           | Checks against blacklisted and supported versions | HPCGPU-0007-0001/0002 |
-| **`gpu_clk_check`**        | Check GPU clock speeds are within acceptable range                  | Uses nvidia-smi with 90% threshold validation | HPCGPU-0010-0001      |
+| **`gpu_clk_check`**        | Check GPU clock speeds are within acceptable range                  | Uses nvidia-smi with 90% threshold validation | HPCGPU-0011-0001      |
 | **`gpu_mode_check`**       | Check if GPU is in Multi-Instance GPU (MIG) mode                    | Uses nvidia-smi and shapes.json            | HPCGPU-0001-0002      |
 | **`sram_error_check`**     | Check SRAM correctable and uncorrectable errors                     | Uses nvidia-smi and shapes.json            | HPCGPU-0001-0001      |
 | **`rx_discards_check`**    | Check Network Interface for rx discard                              | Uses Ethtool and shapes.json               | HPCGPU-0004-0001      |
