@@ -284,8 +284,8 @@ func TestGetEnabledTests(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to get enabled tests: %v", err)
 	}
-	if len(enabledTests) != 15 {
-		t.Errorf("Expected 15 enabled tests for H100, got %d", len(enabledTests))
+	if len(enabledTests) != 16 {
+		t.Errorf("Expected 16 enabled tests for H100, got %d", len(enabledTests))
 	}
 
 	expectedTests := map[string]bool{
@@ -300,6 +300,7 @@ func TestGetEnabledTests(t *testing.T) {
 		"eth_link_check":       false,
 		"auth_check":           false,
 		"gpu_driver_check":     false,
+		"gpu_clk_check":        false,
 		"peermem_module_check": false,
 		"nvlink_speed_check":   false,
 		"eth0_presence_check":  false,

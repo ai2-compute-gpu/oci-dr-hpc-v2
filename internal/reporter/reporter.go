@@ -115,6 +115,13 @@ type NVLinkTestResult struct {
 	TimestampUTC string      `json:"timestamp_utc"`
 }
 
+// GPUClockTestResult represents GPU clock speed test results
+type GPUClockTestResult struct {
+	Status       string `json:"status"`
+	Message      string `json:"message,omitempty"`
+	TimestampUTC string `json:"timestamp_utc"`
+}
+
 type Eth0PresenceTestResult struct {
 	Status       string `json:"status"`
 	Eth0Present  bool   `json:"eth0_present"`
@@ -141,6 +148,7 @@ type HostResults struct {
 	AuthCheck          []AuthCheckTestResult       `json:"auth_check,omitempty"`
 	SRAMErrorCheck     []SRAMErrorTestResult       `json:"sram_error_check,omitempty"`
 	GPUDriverCheck     []GPUDriverTestResult       `json:"gpu_driver_check,omitempty"`
+	GPUClockCheck      []GPUClockTestResult        `json:"gpu_clk_check,omitempty"`
 	PeerMemModuleCheck []PeerMemTestResult         `json:"peermem_module_check,omitempty"`
 	NVLinkSpeedCheck   []NVLinkTestResult          `json:"nvlink_speed_check,omitempty"`
 	Eth0PresenceCheck  []Eth0PresenceTestResult    `json:"eth0_presence_check,omitempty"`
@@ -339,6 +347,14 @@ func (r *Reporter) AddGPUDriverResult(status string, driverVersion string, err e
 		"driver_version": driverVersion,
 	}
 	r.AddResult("gpu_driver_check", status, details, err)
+}
+
+// AddGPUClockResult adds GPU clock speed test results
+func (r *Reporter) AddGPUClockResult(status string, message string, err error) {
+	details := map[string]interface{}{
+		"message": message,
+	}
+	r.AddResult("gpu_clk_check", status, details, err)
 }
 
 // AddPeerMemResult adds peermem module test results
@@ -589,6 +605,22 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 			TimestampUTC:  result.Timestamp.UTC().Format(time.RFC3339),
 		}
 		report.Localhost.GPUDriverCheck = []GPUDriverTestResult{gpuDriverResult}
+	}
+
+	// Process GPU Clock Check results
+	if result, exists := r.results["gpu_clk_check"]; exists {
+		message := ""
+		if messageVal, ok := result.Details["message"]; ok {
+			if msg, ok := messageVal.(string); ok {
+				message = msg
+			}
+		}
+		gpuClockResult := GPUClockTestResult{
+			Status:       result.Status,
+			Message:      message,
+			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
+		}
+		report.Localhost.GPUClockCheck = []GPUClockTestResult{gpuClockResult}
 	}
 
 	// Process PeerMem Module results
@@ -942,6 +974,28 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 		}
 	}
 
+	// GPU Clock Check Tests
+	if len(report.Localhost.GPUClockCheck) > 0 {
+		for _, clock := range report.Localhost.GPUClockCheck {
+			status := clock.Status
+			statusSymbol := "✅"
+			if status == "FAIL" {
+				statusSymbol = "❌"
+			}
+			details := "Clock Speeds OK"
+			if status == "FAIL" {
+				details = "Clock Speed Issues"
+			} else if clock.Message != "" {
+				details = clock.Message
+				if len(details) > 25 {
+					details = details[:22] + "..."
+				}
+			}
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s        │\n",
+				"GPU Clock Check", statusSymbol, statusSymbol, details))
+		}
+	}
+
 	// PeerMem Module Tests
 	if len(report.Localhost.PeerMemModuleCheck) > 0 {
 		for _, peerMem := range report.Localhost.PeerMemModuleCheck {
@@ -1240,6 +1294,31 @@ func (r *Reporter) formatFriendly(report *ReportOutput) (string, error) {
 			} else {
 				failedTests++
 				output.WriteString(fmt.Sprintf("   ❌ GPU Driver: Version %s (FAILED)\n", driver.DriverVersion))
+			}
+		}
+		output.WriteString("\n")
+	}
+
+	// GPU Clock Check Tests
+	if len(report.Localhost.GPUClockCheck) > 0 {
+		output.WriteString("⏱️ GPU Clock Speed Check\n")
+		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
+		for _, clock := range report.Localhost.GPUClockCheck {
+			totalTests++
+			if clock.Status == "PASS" {
+				passedTests++
+				if clock.Message != "" {
+					output.WriteString(fmt.Sprintf("   ✅ GPU Clock Speeds: %s (PASSED)\n", clock.Message))
+				} else {
+					output.WriteString("   ✅ GPU Clock Speeds: All GPUs running at acceptable speeds (PASSED)\n")
+				}
+			} else {
+				failedTests++
+				if clock.Message != "" {
+					output.WriteString(fmt.Sprintf("   ❌ GPU Clock Speeds: %s (FAILED)\n", clock.Message))
+				} else {
+					output.WriteString("   ❌ GPU Clock Speeds: Some GPUs below acceptable speed threshold (FAILED)\n")
+				}
 			}
 		}
 		output.WriteString("\n")
