@@ -26,6 +26,7 @@ type TestResult struct {
 	MaxCorrectable    int         `json:"max_correctable,omitempty"`
 	ModuleLoaded      bool        `json:"module_loaded,omitempty"`
 	NVLinks           interface{} `json:"nvlinks,omitempty"`
+	Eth0Present       bool        `json:"eth0_present,omitempty"`
 	TimestampUTC      string      `json:"timestamp_utc"`
 }
 
@@ -44,6 +45,7 @@ type HostResults struct {
 	GPUDriverCheck     []TestResult `json:"gpu_driver_check,omitempty"`
 	PeerMemModuleCheck []TestResult `json:"peermem_module_check,omitempty"`
 	NVLinkSpeedCheck   []TestResult `json:"nvlink_speed_check,omitempty"`
+	Eth0PresenceCheck  []TestResult `json:"eth0_presence_check,omitempty"`
 }
 
 // ReportOutput represents the single report format
@@ -166,6 +168,7 @@ func generateRecommendations(results HostResults) RecommendationReport {
 		{"gpu_driver_check", results.GPUDriverCheck},
 		{"peermem_module_check", results.PeerMemModuleCheck},
 		{"nvlink_speed_check", results.NVLinkSpeedCheck},
+		{"eth0_presence_check", results.Eth0PresenceCheck},
 	}
 
 	for _, mapping := range testMappings {
@@ -417,6 +420,27 @@ func generateFallbackRecommendations(results HostResults) RecommendationReport {
 					"nvidia-smi topo -m",
 					"nvidia-smi topo -p2p r",
 					"dmesg | grep -i nvlink",
+				},
+			}
+			recommendations = append(recommendations, rec)
+			criticalCount++
+		}
+	}
+
+	// Basic Eth0 Presence Check recommendations
+	for _, eth0Check := range results.Eth0PresenceCheck {
+		if eth0Check.Status == "FAIL" {
+			rec := Recommendation{
+				Type:       "critical",
+				TestName:   "eth0_presence_check",
+				FaultCode:  "HPCGPU-0010-0001",
+				Issue:      "eth0 network interface is missing or not detected",
+				Suggestion: "Investigate network interface configuration, check if eth0 is properly configured or renamed, and verify network drivers are loaded",
+				Commands: []string{
+					"ip addr show",
+					"ip link show",
+					"dmesg | grep -i 'eth0\\|network'",
+					"lspci | grep -i ethernet",
 				},
 			}
 			recommendations = append(recommendations, rec)

@@ -218,6 +218,14 @@ func TestReporter_AllResultTypes(t *testing.T) {
 			resultKey:  "nvlink_speed_check",
 			wantStatus: "PASS",
 		},
+		{
+			name: "Eth0 Presence Result",
+			addFunc: func(r *Reporter) {
+				r.AddEth0PresenceResult("PASS", true, nil)
+			},
+			resultKey:  "eth0_presence_check",
+			wantStatus: "PASS",
+		},
 	}
 
 	for _, tt := range tests {

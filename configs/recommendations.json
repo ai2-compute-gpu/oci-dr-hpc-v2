@@ -139,12 +139,13 @@
         "type": "critical",
         "fault_code": "HPCGPU-0005-0001",
         "issue": "GID index on a system is not in range",
-        "suggestion": "TODO: Suggestion",
+        "suggestion": "Reboot the host and re-run the check. If the issue persists, verify that you're using the correct oracle-cloud-agent plugin (v1.46+) and image. If the problem continues, contact your OCI support team.",
         "commands": [
-          "TODO: commands"
+          "sudo yum info oracle-cloud-agent",
+          "sudo yum install -y oracle-cloud-agent"
         ],
         "references": [
-          "TODO: references"
+          "https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/manage-plugins.htm"
         ]
       },
       "pass": {
@@ -224,13 +225,11 @@
         "type": "warning",
         "fault_code": "HPCGPU-0008-0001",
         "issue": "RDMA interface authentication check failed - some interfaces are not authenticated",
-        "suggestion": "Check wpa_supplicant configuration and ensure RDMA interfaces are properly authenticated",
+        "suggestion": "If the check reports an error for one of the RDMA links, rerun the test, as a reconfiguration may have been in progress during certificate rotation. If the issue persists and both test attempts fail, proceed to restart the oracle-cloud-agent plugin.",
         "commands": [
           "sudo wpa_cli -i {interface} status",
           "sudo systemctl status wpa_supplicant",
-          "sudo wpa_cli -i {interface} reassociate",
-          "sudo ibdev2netdev",
-          "ip link show"
+          "sudo systemctl restart oracle-cloud-agent"
         ],
         "references": [
           "https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/configuringrdma.htm",
@@ -384,6 +383,41 @@
           "nvidia-smi nvlink -s",
           "nvidia-smi topo -m",
           "nvidia-smi topo -p2p r"
+        ]
+      }
+    },
+    "eth0_presence_check": {
+      "fail": {
+        "type": "critical",
+        "fault_code": "HPCGPU-0010-0001",
+        "issue": "eth0 network interface is missing or not detected. This critical network interface is required for system connectivity and management operations.",
+        "suggestion": "Reboot node and see if issue persists. If persists, investigate network interface configuration, check if eth0 is properly configured or renamed, verify network drivers are loaded, and ensure the primary network interface is available for system operations.",
+        "commands": [
+          "ip addr show",
+          "ip link show",
+          "nmcli connection show",
+          "systemctl status NetworkManager",
+          "dmesg | grep -i 'eth0\\|network'",
+          "lspci | grep -i ethernet",
+          "cat /proc/net/dev",
+          "ls -la /sys/class/net/",
+          "sudo systemctl restart NetworkManager"
+        ],
+        "references": [
+          "https://docs.oracle.com/en-us/iaas/Content/Network/Concepts/overview.htm",
+          "https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/configuringmultipleVNICs.htm",
+          "https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/configuring_and_managing_networking/",
+          "https://netplan.io/reference/"
+        ]
+      },
+      "pass": {
+        "type": "info",
+        "issue": "eth0 network interface is present and detected",
+        "suggestion": "Primary network interface is properly configured and available for system operations",
+        "commands": [
+          "ip addr show eth0",
+          "ethtool eth0",
+          "systemctl status NetworkManager"
         ]
       }
     }
