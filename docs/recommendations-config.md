@@ -57,6 +57,7 @@ This hierarchy allows for:
 The following test names are currently implemented and supported:
 
 - `gpu_count_check` - GPU hardware detection and count verification
+- `gpu_clk_check` - GPU clock speed validation with threshold checking
 - `pcie_error_check` - PCIe bus error detection
 - `rdma_nics_count` - RDMA/InfiniBand NIC count verification
 
@@ -75,12 +76,14 @@ Fault codes follow the pattern: `HPCGPU-XXXX-XXXX`
 | `HPCGPU-0001-0001` | gpu_count_check | GPU count mismatch |
 | `HPCGPU-0002-0001` | pcie_error_check | PCIe errors detected |
 | `HPCGPU-0003-0001` | rdma_nics_count | RDMA NIC count mismatch |
+| `HPCGPU-0010-0001` | gpu_clk_check | GPU clock speeds below threshold |
 
 ### Variable Substitution
 
 The following variables can be used in `issue` and `suggestion` fields:
 
 - `{gpu_count}` - Number of GPUs detected
+- `{clock_speed}` - GPU clock speed information for gpu_clk_check
 - `{num_rdma_nics}` - Number of RDMA NICs detected
 - `{total_issues}` - Total number of issues (summary only)
 - `{critical_count}` - Number of critical issues (summary only)
@@ -151,6 +154,33 @@ The current `configs/recommendations.json` contains:
         "commands": [
           "lspci -tv",
           "dmesg | tail -50"
+        ]
+      }
+    },
+    "gpu_clk_check": {
+      "fail": {
+        "type": "critical",
+        "fault_code": "HPCGPU-0010-0001",
+        "issue": "GPU clock speeds below acceptable threshold ({clock_speed})",
+        "suggestion": "Verify GPU performance state and check for thermal throttling",
+        "commands": [
+          "nvidia-smi --query-gpu=clocks.current.graphics --format=csv,noheader,nounits",
+          "nvidia-smi -q -d CLOCK",
+          "nvidia-smi --query-gpu=temperature.gpu,power.draw --format=csv,noheader",
+          "nvidia-smi --query-gpu=pstate --format=csv,noheader"
+        ],
+        "references": [
+          "https://docs.nvidia.com/datacenter/tesla/tesla-installation-notes/",
+          "https://developer.nvidia.com/nvidia-system-management-interface"
+        ]
+      },
+      "pass": {
+        "type": "info",
+        "issue": "GPU clock speed check passed ({clock_speed})",
+        "suggestion": "GPU clock speeds are within acceptable range",
+        "commands": [
+          "nvidia-smi --query-gpu=clocks.current.graphics --format=csv,noheader,nounits",
+          "nvidia-smi -q -d CLOCK"
         ]
       }
     },
@@ -387,7 +417,7 @@ Fallback mode indicators:
 oci-dr-hpc-v2 level1
 
 # Run specific tests
-oci-dr-hpc-v2 level1 --test=gpu_count_check,rdma_nics_count
+oci-dr-hpc-v2 level1 --test=gpu_count_check,gpu_clk_check,rdma_nics_count
 
 # List available tests
 oci-dr-hpc-v2 level1 --list-tests
