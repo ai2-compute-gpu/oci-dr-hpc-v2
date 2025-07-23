@@ -83,6 +83,13 @@
           ]
         }
       },
+      "gpu_clk_check": {
+        "enabled": true,
+        "test_category": "LEVEL_1",
+        "threshold": {
+          "clock_speed": 1980
+        }
+      },
       "peermem_module_check": {
         "enabled": true,
         "test_category": "LEVEL_1"
@@ -165,6 +172,10 @@
         "enabled": false,
         "test_category": "LEVEL_1"
       },
+      "gpu_clk_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1"
+      },
       "nvlink_speed_check": {
         "enabled": false,
         "test_category": "LEVEL_1"
@@ -228,6 +239,10 @@
           "blacklisted_versions": ["470.57.02"],
           "supported_versions": ["450.119.03", "450.142.0", "470.103.01", "470.129.06", "470.141.03", "510.47.03", "535.104.12", "550.90.12"]
         }
+      },
+      "gpu_clk_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1"
       },
       "peermem_module_check": {
         "enabled": false,

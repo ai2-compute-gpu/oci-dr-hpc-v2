@@ -50,6 +50,13 @@ The recommender accepts two JSON format types:
       "timestamp_utc": "2024-01-01T10:00:00Z"
     }
   ],
+  "gpu_clk_check": [
+    {
+      "status": "FAIL",
+      "clock_speed": "1700 MHz",
+      "timestamp_utc": "2024-01-01T10:00:00Z"
+    }
+  ],
   "pcie_error_check": [
     {
       "status": "PASS",
@@ -71,6 +78,13 @@ The recommender accepts two JSON format types:
           {
             "status": "FAIL",
             "gpu_count": 6,
+            "timestamp_utc": "2024-01-01T10:00:00Z"
+          }
+        ],
+        "gpu_clk_check": [
+          {
+            "status": "FAIL",
+            "clock_speed": "1700 MHz",
             "timestamp_utc": "2024-01-01T10:00:00Z"
           }
         ]
@@ -153,6 +167,7 @@ Fault codes follow the pattern: `HPCGPU-XXXX-XXXX`
 | `HPCGPU-0001-0001` | gpu_count_check | GPU count mismatch |
 | `HPCGPU-0002-0001` | pcie_error_check | PCIe errors detected |
 | `HPCGPU-0003-0001` | rdma_nics_count | RDMA NIC count mismatch |
+| `HPCGPU-0011-0001` | gpu_clk_check | GPU clock speeds below threshold |
 
 ## Recommendation Engine
 

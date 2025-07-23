@@ -4,7 +4,7 @@ A comprehensive diagnostic and repair tool for High Performance Computing (HPC) 
 
 ## 🚀 Features
 
-- **🎮 GPU Diagnostics**: Check GPU count, driver status, and hardware health using nvidia-smi
+- **🎮 GPU Diagnostics**: Check GPU count, clock speeds, driver status, and hardware health using nvidia-smi
 - **🔗 RDMA Network Testing**: Validate RDMA NIC count, PCI addresses, and connectivity with hybrid discovery
 - **⚡ PCIe Error Detection**: Scan system logs for PCIe-related hardware errors
 - **🔍 Hardware Autodiscovery**: Generate logical hardware models with IMDS integration and cluster detection
@@ -323,6 +323,9 @@ oci-dr-hpc level1
 # Run specific tests
 oci-dr-hpc level1 --test=gpu_count_check,rdma_nics_count
 
+# Run GPU clock speed validation
+oci-dr-hpc level1 --test=gpu_clk_check
+
 # List available tests
 oci-dr-hpc level1 --list-tests
 
@@ -612,9 +615,9 @@ oci-dr-hpc-v2 recommender -r results.json --verbose
 🔍 HPC DIAGNOSTIC RECOMMENDATIONS
 ======================================================================
 
-📊 SUMMARY: ⚠️ Found 2 issue(s) requiring attention: 1 critical, 1 warning
-   • Total Issues: 2
-   • Critical: 1
+📊 SUMMARY: ⚠️ Found 3 issue(s) requiring attention: 2 critical, 1 warning
+   • Total Issues: 3
+   • Critical: 2
    • Warning: 1
    • Info: 1
 
@@ -635,7 +638,20 @@ oci-dr-hpc-v2 recommender -r results.json --verbose
      - https://docs.nvidia.com/datacenter/tesla/tesla-installation-notes/
      - https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm
 
-⚠️ 2. WARNING [rdma_nics_count]
+🚨 2. CRITICAL [gpu_clk_check]
+   Fault Code: HPCGPU-0011-0001
+   Issue: GPU clock speeds below acceptable threshold (found: 1700 MHz, expected: 1980 MHz)
+   Suggestion: Verify GPU performance state and check for thermal throttling
+   Commands to run:
+     $ nvidia-smi --query-gpu=clocks.current.graphics --format=csv,noheader,nounits
+     $ nvidia-smi -q -d CLOCK
+     $ nvidia-smi --query-gpu=temperature.gpu,power.draw --format=csv,noheader
+     $ nvidia-smi --query-gpu=pstate --format=csv,noheader
+   References:
+     - https://docs.nvidia.com/datacenter/tesla/tesla-installation-notes/
+     - https://developer.nvidia.com/nvidia-system-management-interface
+
+⚠️ 3. WARNING [rdma_nics_count]
    Fault Code: HPCGPU-0003-0001
    Issue: RDMA NIC count mismatch (found: 14)
    Suggestion: Verify RDMA hardware installation and driver configuration
@@ -675,6 +691,7 @@ oci-dr-hpc-v2 recommender -r results.json --verbose
 | **`pcie_error_check`**     | Scan system logs for PCIe errors                                    | Parses dmesg output for hardware errors    | HPCGPU-0002-0001      |
 | **`rdma_nics_count`**      | Validate RDMA NIC count and PCI addresses                           | Uses hybrid discovery (shapes.json + OS)   | HPCGPU-0003-0001      |
 | **`gpu_driver_check`**     | Validate GPU driver version compatibility                           | Checks against blacklisted and supported versions | HPCGPU-0007-0001/0002 |
+| **`gpu_clk_check`**        | Check GPU clock speeds are within acceptable range                  | Uses nvidia-smi with 90% threshold validation | HPCGPU-0011-0001      |
 | **`gpu_mode_check`**       | Check if GPU is in Multi-Instance GPU (MIG) mode                    | Uses nvidia-smi and shapes.json            | HPCGPU-0001-0002      |
 | **`sram_error_check`**     | Check SRAM correctable and uncorrectable errors                     | Uses nvidia-smi and shapes.json            | HPCGPU-0001-0001      |
 | **`rx_discards_check`**    | Check Network Interface for rx discard                              | Uses Ethtool and shapes.json               | HPCGPU-0004-0001      |
@@ -701,6 +718,9 @@ oci-dr-hpc-v2 level1 --test=gpu_count_check --verbose
 # Run GPU driver version check
 oci-dr-hpc-v2 level1 --test=gpu_driver_check --verbose
 
+# Run GPU clock speed check
+oci-dr-hpc-v2 level1 --test=gpu_clk_check --verbose
+
 # Output:
 # INFO: === GPU Count Check ===
 # INFO: Step 1: Getting shape from IMDS...
@@ -710,6 +730,15 @@ oci-dr-hpc-v2 level1 --test=gpu_driver_check --verbose
 # INFO: Step 3: Getting actual GPU count from nvidia-smi...
 # INFO: Actual GPU count from nvidia-smi: 8
 # INFO: GPU Count Check: PASS - Expected: 8, Actual: 8
+
+# Example GPU Clock Check Output:
+# INFO: === GPU Clock Speed Check ===
+# INFO: Starting GPU clock speed check...
+# INFO: Step 1: Getting GPU clock speeds...
+# INFO: Found GPU clock speeds: [1980 MHz, 1950 MHz, 1900 MHz, 1850 MHz]
+# INFO: Step 2: Validating clock speeds...
+# INFO: Expected clock speed (MHz): 1980
+# INFO: GPU Clock Check: PASS - Expected 1980, allowed 1850
 
 # Run custom script with verbose output
 oci-dr-hpc-v2 custom-script \
@@ -982,11 +1011,50 @@ cat /etc/oci-dr-hpc-shapes.json | grep -A 10 "BM.GPU.H100.8"
 # Debug GPU detection with verbose output
 oci-dr-hpc-v2 level1 --test=gpu_count_check --verbose
 
+# Debug GPU clock speed issues
+oci-dr-hpc-v2 level1 --test=gpu_clk_check --verbose
+
 # Test custom GPU script
 oci-dr-hpc-v2 custom-script \
   --script /usr/share/oci-dr-hpc/examples/custom-scripts/gpu_count_check.py \
   --verbose
 ```
+
+### GPU Clock Speed Issues
+
+**Problem**: `GPU clock speeds below threshold` or clock speed validation failures
+
+**Solutions**:
+```bash
+# Check current GPU clock speeds manually
+nvidia-smi --query-gpu=clocks.current.graphics --format=csv,noheader,nounits
+
+# Check GPU power management and boost clocks
+nvidia-smi -q -d CLOCK
+
+# Verify GPU performance state
+nvidia-smi --query-gpu=pstate --format=csv,noheader
+
+# Check GPU temperature and throttling
+nvidia-smi --query-gpu=temperature.gpu,power.draw --format=csv,noheader
+
+# Run GPU clock check with verbose output
+oci-dr-hpc-v2 level1 --test=gpu_clk_check --verbose
+
+# Check test limits configuration for your shape
+cat /etc/oci-dr-hpc-test-limits.json | grep -A 5 "gpu_clk_check"
+
+# Test with different expected clock speed (for testing)
+export OCI_SHAPE="BM.GPU.H100.8"
+oci-dr-hpc-v2 level1 --test=gpu_clk_check --verbose
+```
+
+**Common Causes**:
+- GPU thermal throttling due to high temperature
+- Power limits causing clock speed reduction
+- GPU not in maximum performance state
+- Driver issues affecting clock speeds
+- Hardware configuration problems
 
 ### Configuration Issues
 
