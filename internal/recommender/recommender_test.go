@@ -80,6 +80,15 @@ func createTestConfig() RecommendationConfig {
 					Commands:   []string{"nvidia-smi nvlink -s", "nvidia-smi topo -m"},
 				},
 			},
+			"hca_error_check": {
+				Fail: &RecommendationTemplate{
+					Type:       "critical",
+					FaultCode:  "HPCGPU-0011-0001",
+					Issue:      "Fatal MLX5 errors detected",
+					Suggestion: "Clear dmesg and reboot the node",
+					Commands:   []string{"sudo dmesg -T | grep -i mlx5 | grep -i fatal"},
+				},
+			},
 		},
 		SummaryTemplates: map[string]string{
 			"no_issues":  "All tests passed!",
@@ -137,8 +146,8 @@ func TestRecommendationConfig_LoadAndGetRecommendation(t *testing.T) {
 		t.Fatalf("LoadRecommendationConfig failed: %v", err)
 	}
 
-	if len(loadedConfig.Recommendations) != 4 {
-		t.Errorf("Expected 4 recommendations, got %d", len(loadedConfig.Recommendations))
+	if len(loadedConfig.Recommendations) != 5 {
+		t.Errorf("Expected 5 recommendations, got %d", len(loadedConfig.Recommendations))
 	}
 
 	_ = tempFile // Keep for cleanup
@@ -195,6 +204,15 @@ func TestRecommendationConfig_GetRecommendation(t *testing.T) {
 			expectedType: "critical",
 		},
 		{
+			name:     "HCA Error Check FAIL",
+			testName: "hca_error_check",
+			status:   "FAIL",
+			testResult: TestResult{
+				Status: "FAIL",
+			},
+			expectedType: "critical",
+		},
+		{
 			name:      "Unknown Test",
 			testName:  "unknown_test",
 			status:    "FAIL",
@@ -231,9 +249,12 @@ func TestRecommendationConfig_GetRecommendation(t *testing.T) {
 				t.Errorf("Expected test name %s, got %s", tt.testName, rec.TestName)
 			}
 
-			// Check fault code for nvlink_speed_check
+			// Check fault codes
 			if tt.testName == "nvlink_speed_check" && rec.FaultCode != "HPCGPU-0009-0001" {
 				t.Errorf("Expected fault code HPCGPU-0009-0001, got %s", rec.FaultCode)
+			}
+			if tt.testName == "hca_error_check" && rec.FaultCode != "HPCGPU-0011-0001" {
+				t.Errorf("Expected fault code HPCGPU-0011-0001, got %s", rec.FaultCode)
 			}
 		})
 	}
@@ -634,6 +655,16 @@ func TestSpecificTestTypes(t *testing.T) {
 			expectType: "critical",
 			expectTest: "nvlink_speed_check",
 		},
+		{
+			name: "HCA Error Check",
+			hostResult: HostResults{
+				HCAErrorCheck: []TestResult{
+					{Status: "FAIL"},
+				},
+			},
+			expectType: "critical",
+			expectTest: "hca_error_check",
+		},
 	}
 
 	for _, tt := range tests {
@@ -661,9 +692,12 @@ func TestSpecificTestTypes(t *testing.T) {
 				t.Errorf("Expected type %s, got %s", tt.expectType, found.Type)
 			}
 
-			// Check fault code for nvlink_speed_check
+			// Check fault codes
 			if tt.expectTest == "nvlink_speed_check" && found.FaultCode != "HPCGPU-0009-0001" {
 				t.Errorf("Expected fault code HPCGPU-0009-0001, got %s", found.FaultCode)
+			}
+			if tt.expectTest == "hca_error_check" && found.FaultCode != "HPCGPU-0011-0001" {
+				t.Errorf("Expected fault code HPCGPU-0011-0001, got %s", found.FaultCode)
 			}
 		})
 	}

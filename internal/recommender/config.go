@@ -113,6 +113,8 @@ func (config *RecommendationConfig) GetRecommendation(testName, status string, t
 	switch strings.ToUpper(status) {
 	case "FAIL":
 		template = testConfig.Fail
+	case "WARN":
+		template = testConfig.Fail
 	case "PASS":
 		template = testConfig.Pass
 	default:

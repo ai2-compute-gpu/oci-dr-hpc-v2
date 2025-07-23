@@ -502,6 +502,33 @@
           "nvidia-smi topo -m"
         ]
       }
+    },
+    "hca_error_check": {
+      "fail": {
+        "type": "critical",
+        "fault_code": "HPCGPU-0011-0001",
+        "issue": "Fatal MLX5 errors were detected in the system logs. These errors may lead to job startup failures or cause jobs to crash during execution.",
+        "suggestion": "Clear dmesg and reboot the node. If the problem persists,return the node to OCI",
+        "commands": [
+          "sudo dmesg -T | grep -i mlx5 | grep -i fatal"
+        ],
+        "references": [
+          "https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/configuringrdma.htm",
+          "https://docs.mellanox.com/display/MLNXOFEDv461000/",
+          "https://community.mellanox.com/s/article/understanding-mlx-link-utility",
+          "https://docs.mellanox.com/display/winofedv28100/Troubleshooting"
+        ]
+      },
+      "pass": {
+        "type": "info",
+        "issue": "HCA error check passed - no MLX5 fatal errors detected",
+        "suggestion": "RDMA hardware appears healthy with no critical errors in system logs",
+        "commands": [
+          "ibstat",
+          "rdma link show",
+          "dmesg -T | tail -50"
+        ]
+      }
     }
   },
   "summary_templates": {

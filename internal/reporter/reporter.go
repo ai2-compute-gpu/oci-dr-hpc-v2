@@ -137,9 +137,15 @@ type CDFPCableCheckTestResult struct {
 
 // FabricManagerTestResult represents fabric manager test results
 type FabricManagerTestResult struct {
-	Status             string      `json:"status"`
+	Status              string      `json:"status"`
 	FabricManagerResult interface{} `json:"fabricmanager_result,omitempty"`
-	TimestampUTC       string      `json:"timestamp_utc"`
+	TimestampUTC        string      `json:"timestamp_utc"`
+}
+
+// HCAErrorTestResult represents HCA error check test results
+type HCAErrorTestResult struct {
+	Status       string `json:"status"`
+	TimestampUTC string `json:"timestamp_utc"`
 }
 
 // HostResults represents test results for a host
@@ -161,6 +167,7 @@ type HostResults struct {
 	Eth0PresenceCheck  []Eth0PresenceTestResult    `json:"eth0_presence_check,omitempty"`
 	CDFPCableCheck     []CDFPCableCheckTestResult  `json:"cdfp_cable_check,omitempty"`
 	FabricManagerCheck []FabricManagerTestResult   `json:"fabricmanager_check,omitempty"`
+	HCAErrorCheck      []HCAErrorTestResult        `json:"hca_error_check,omitempty"`
 }
 
 // ReportOutput represents the final JSON output structure
@@ -413,6 +420,12 @@ func (r *Reporter) AddFabricManagerResult(status string, fabricManagerResult int
 		}
 	}
 	r.AddResult("fabricmanager_check", status, details, err)
+}
+
+// AddHCAResult adds HCA error check results
+func (r *Reporter) AddHCAResult(status string, err error) {
+	details := map[string]interface{}{}
+	r.AddResult("hca_error_check", status, details, err)
 }
 
 // GenerateReport generates the final JSON report
@@ -712,11 +725,20 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 		}
 
 		fabricManagerCheckResult := FabricManagerTestResult{
-			Status:             result.Status,
+			Status:              result.Status,
 			FabricManagerResult: fabricManagerResult,
-			TimestampUTC:       result.Timestamp.UTC().Format(time.RFC3339),
+			TimestampUTC:        result.Timestamp.UTC().Format(time.RFC3339),
 		}
 		report.Localhost.FabricManagerCheck = []FabricManagerTestResult{fabricManagerCheckResult}
+	}
+
+	// Process HCA Error Check results
+	if result, exists := r.results["hca_error_check"]; exists {
+		hcaResult := HCAErrorTestResult{
+			Status:       result.Status,
+			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
+		}
+		report.Localhost.HCAErrorCheck = []HCAErrorTestResult{hcaResult}
 	}
 
 	return report, nil
@@ -1135,6 +1157,23 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 		}
 	}
 
+	// HCA Error Check Tests
+	if len(report.Localhost.HCAErrorCheck) > 0 {
+		for _, hca := range report.Localhost.HCAErrorCheck {
+			status := hca.Status
+			statusSymbol := "✅"
+			if status == "FAIL" {
+				statusSymbol = "❌"
+			}
+			details := "No MLX5 Fatal Errors"
+			if status == "FAIL" {
+				details = "MLX5 Fatal Errors Found"
+			}
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s      │\n",
+				"HCA Error Check", statusSymbol, statusSymbol, details))
+		}
+	}
+
 	output.WriteString("└─────────────────────────────────────────────────────────────────┘\n")
 	return output.String(), nil
 }
@@ -1452,6 +1491,22 @@ func (r *Reporter) formatFriendly(report *ReportOutput) (string, error) {
 			} else {
 				failedTests++
 				output.WriteString("   ❌ CDFP Cables: GPU-to-module mapping issues detected (FAILED)\n")
+			}
+		}
+	}
+
+	// HCA Error Check Tests
+	if len(report.Localhost.HCAErrorCheck) > 0 {
+		output.WriteString("🔍 HCA Error Check\n")
+		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
+		for _, hca := range report.Localhost.HCAErrorCheck {
+			totalTests++
+			if hca.Status == "PASS" {
+				passedTests++
+				output.WriteString("   ✅ HCA Error Check: No MLX5 fatal errors detected (PASSED)\n")
+			} else {
+				failedTests++
+				output.WriteString("   ❌ HCA Error Check: MLX5 fatal errors detected (FAILED)\n")
 			}
 		}
 		output.WriteString("\n")

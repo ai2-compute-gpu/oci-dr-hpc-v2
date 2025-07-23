@@ -113,6 +113,10 @@
       "fabricmanager_check": {
         "enabled": true,
         "test_category": "LEVEL_1"
+      },
+      "hca_error_check": {
+        "enabled": true,
+        "test_category": "LEVEL_1"
       }
     },
     "BM.GPU.B200.8": {
@@ -175,7 +179,11 @@
       "cdfp_cable_check": {
         "enabled": false,
         "test_category": "LEVEL_1"
-      }
+      },
+      "hca_error_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1"
+      }      
     },
     "BM.GPU.GB200.4": {
       "gid_index_check": {
@@ -247,7 +255,11 @@
       "eth0_presence_check": {
         "enabled": true,
         "test_category": "LEVEL_1"
-      }
+      },
+      "hca_error_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1"
+      }      
     }
   }
 }
