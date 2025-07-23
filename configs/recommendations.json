@@ -412,12 +412,35 @@
       },
       "pass": {
         "type": "info",
-        "issue": "eth0 network interface is present and detected",
-        "suggestion": "Primary network interface is properly configured and available for system operations",
+        "message": "eth0 network interface is present and properly configured."
+      }
+    },
+    "cdfp_cable_check": {
+      "fail": {
+        "type": "critical",
+        "fault_code": "HPCGPU-0010-0001",
+        "issue": "CDFP cable connection mismatch detected. GPU PCI addresses and module IDs do not match expected configuration",
+        "suggestion": "Verify CDFP cable connections between GPUs match the expected mapping. Check physical cable connections and GPU seating",
         "commands": [
-          "ip addr show eth0",
-          "ethtool eth0",
-          "systemctl status NetworkManager"
+          "nvidia-smi --query-gpu=pci.bus_id --format=csv,noheader",
+          "nvidia-smi --query-gpu=module_id --format=csv,noheader",
+          "nvidia-smi -q | grep -E '(Bus Id|Module ID)'",
+          "nvidia-smi topo -m",
+          "lspci | grep -i nvidia"
+        ],
+        "references": [
+          "https://docs.nvidia.com/datacenter/tesla/tesla-installation-notes/",
+          "https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm",
+          "https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/"
+        ]
+      },
+      "pass": {
+        "type": "info",
+        "issue": "CDFP cable check passed - all GPU connections are properly configured",
+        "suggestion": "CDFP cables are correctly connected and GPU topology matches expected configuration",
+        "commands": [
+          "nvidia-smi --query-gpu=pci.bus_id,module_id --format=csv,noheader",
+          "nvidia-smi topo -m"
         ]
       }
     }

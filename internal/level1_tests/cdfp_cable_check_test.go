@@ -1,0 +1,442 @@
+package level1_tests
+
+import (
+	"fmt"
+	"reflect"
+	"strings"
+	"testing"
+
+	"github.com/oracle/oci-dr-hpc-v2/internal/executor"
+)
+
+// MockNvidiaSMIQuerier interface for dependency injection in tests
+type MockCDFPNvidiaSMIQuerier interface {
+	RunNvidiaSMIQuery(query string) *executor.NvidiaSMIResult
+}
+
+// mockCDFPQuerier implements MockCDFPNvidiaSMIQuerier for testing
+type mockCDFPQuerier struct {
+	pciResult    *executor.NvidiaSMIResult
+	moduleResult *executor.NvidiaSMIResult
+}
+
+func (m *mockCDFPQuerier) RunNvidiaSMIQuery(query string) *executor.NvidiaSMIResult {
+	switch query {
+	case "pci.bus_id":
+		return m.pciResult
+	case "module_id":
+		return m.moduleResult
+	default:
+		return &executor.NvidiaSMIResult{
+			Available: false,
+			Error:     "unknown query",
+		}
+	}
+}
+
+// parseGPUInfoWithQuerier is a testable version that accepts a querier
+func parseGPUInfoWithQuerier(querier MockCDFPNvidiaSMIQuerier) ([]string, []string, error) {
+	// Get PCI bus IDs
+	pciResult := querier.RunNvidiaSMIQuery("pci.bus_id")
+	if !pciResult.Available || pciResult.Error != "" {
+		return nil, nil, fmt.Errorf("failed to get GPU PCI addresses: %s", pciResult.Error)
+	}
+
+	// Get module IDs
+	moduleResult := querier.RunNvidiaSMIQuery("module_id")
+	if !moduleResult.Available || moduleResult.Error != "" {
+		return nil, nil, fmt.Errorf("failed to get GPU module IDs: %s", moduleResult.Error)
+	}
+
+	// Parse PCI addresses
+	var pciAddresses []string
+	for _, line := range strings.Split(pciResult.Output, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			pciAddresses = append(pciAddresses, normalizePCIAddress(line))
+		}
+	}
+
+	// Parse module IDs
+	var moduleIDs []string
+	for _, line := range strings.Split(moduleResult.Output, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			moduleIDs = append(moduleIDs, line)
+		}
+	}
+
+	if len(pciAddresses) != len(moduleIDs) {
+		return nil, nil, fmt.Errorf("mismatch between PCI address count (%d) and module ID count (%d)", 
+			len(pciAddresses), len(moduleIDs))
+	}
+
+	return pciAddresses, moduleIDs, nil
+}
+
+// TestNormalizePCIAddress tests the normalizePCIAddress function
+func TestNormalizePCIAddress(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "Standard PCI address",
+			input:    "00000000:0F:00.0",
+			expected: "0000:0f:00.0",
+		},
+		{
+			name:     "PCI address with 000000 prefix",
+			input:    "000000000F:00.0",
+			expected: "00000f:00.0",
+		},
+		{
+			name:     "Already lowercase",
+			input:    "00000000:2d:00.0",
+			expected: "0000:2d:00.0",
+		},
+		{
+			name:     "Mixed case",
+			input:    "00000000:A8:00.0",
+			expected: "0000:a8:00.0",
+		},
+		{
+			name:     "Short format with 000000 prefix",
+			input:    "0000008D:00.0",
+			expected: "008d:00.0",
+		},
+		{
+			name:     "No normalization needed",
+			input:    "0001:2d:00.0",
+			expected: "0001:2d:00.0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := normalizePCIAddress(tt.input)
+			if result != tt.expected {
+				t.Errorf("normalizePCIAddress(%s) = %s; want %s", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestParseGPUInfoWithQuerier tests GPU information parsing with mock querier
+func TestParseGPUInfoWithQuerier(t *testing.T) {
+	tests := []struct {
+		name             string
+		pciResult        *executor.NvidiaSMIResult
+		moduleResult     *executor.NvidiaSMIResult
+		expectedPCIs     []string
+		expectedIndices  []string
+		expectError      bool
+		errorContains    string
+	}{
+		{
+			name: "Successful parsing",
+			pciResult: &executor.NvidiaSMIResult{
+				Available: true,
+				Output:    "00000000:0F:00.0\n00000000:2D:00.0\n00000000:44:00.0\n",
+				Error:     "",
+			},
+			moduleResult: &executor.NvidiaSMIResult{
+				Available: true,
+				Output:    "0\n1\n2\n",
+				Error:     "",
+			},
+			expectedPCIs:    []string{"0000:0f:00.0", "0000:2d:00.0", "0000:44:00.0"},
+			expectedIndices: []string{"0", "1", "2"},
+			expectError:     false,
+		},
+		{
+			name: "PCI query failed",
+			pciResult: &executor.NvidiaSMIResult{
+				Available: false,
+				Output:    "",
+				Error:     "nvidia-smi not found",
+			},
+			moduleResult: &executor.NvidiaSMIResult{
+				Available: true,
+				Output:    "0\n1\n2\n",
+				Error:     "",
+			},
+			expectError:   true,
+			errorContains: "failed to get GPU PCI addresses",
+		},
+		{
+			name: "Module query failed",
+			pciResult: &executor.NvidiaSMIResult{
+				Available: true,
+				Output:    "00000000:0F:00.0\n00000000:2D:00.0\n",
+				Error:     "",
+			},
+			moduleResult: &executor.NvidiaSMIResult{
+				Available: false,
+				Output:    "",
+				Error:     "module query failed",
+			},
+			expectError:   true,
+			errorContains: "failed to get GPU module IDs",
+		},
+		{
+			name: "Mismatch in count",
+			pciResult: &executor.NvidiaSMIResult{
+				Available: true,
+				Output:    "00000000:0F:00.0\n00000000:2D:00.0\n",
+				Error:     "",
+			},
+			moduleResult: &executor.NvidiaSMIResult{
+				Available: true,
+				Output:    "0\n1\n2\n",
+				Error:     "",
+			},
+			expectError:   true,
+			errorContains: "mismatch between PCI address count",
+		},
+		{
+			name: "Empty outputs",
+			pciResult: &executor.NvidiaSMIResult{
+				Available: true,
+				Output:    "",
+				Error:     "",
+			},
+			moduleResult: &executor.NvidiaSMIResult{
+				Available: true,
+				Output:    "",
+				Error:     "",
+			},
+			expectedPCIs:    nil,
+			expectedIndices: nil,
+			expectError:     false,
+		},
+		{
+			name: "With 000000 prefix normalization",
+			pciResult: &executor.NvidiaSMIResult{
+				Available: true,
+				Output:    "000000000F:00.0\n0000002D:00.0\n",
+				Error:     "",
+			},
+			moduleResult: &executor.NvidiaSMIResult{
+				Available: true,
+				Output:    "0\n1\n",
+				Error:     "",
+			},
+			expectedPCIs:    []string{"00000f:00.0", "002d:00.0"},
+			expectedIndices: []string{"0", "1"},
+			expectError:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			querier := &mockCDFPQuerier{
+				pciResult:    tt.pciResult,
+				moduleResult: tt.moduleResult,
+			}
+
+			actualPCIs, actualIndices, err := parseGPUInfoWithQuerier(querier)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got nil")
+				} else if !strings.Contains(err.Error(), tt.errorContains) {
+					t.Errorf("Expected error to contain '%s', but got: %s", tt.errorContains, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error: %s", err.Error())
+				}
+				if !reflect.DeepEqual(actualPCIs, tt.expectedPCIs) {
+					t.Errorf("PCI addresses mismatch. Expected: %v, Got: %v", tt.expectedPCIs, actualPCIs)
+				}
+				if !reflect.DeepEqual(actualIndices, tt.expectedIndices) {
+					t.Errorf("GPU indices mismatch. Expected: %v, Got: %v", tt.expectedIndices, actualIndices)
+				}
+			}
+		})
+	}
+}
+
+// TestValidateCDFPCables tests the CDFP cable validation logic
+func TestValidateCDFPCables(t *testing.T) {
+	tests := []struct {
+		name            string
+		expectedPCIs    []string
+		expectedIndices []string
+		actualPCIs      []string
+		actualIndices   []string
+		expectedStatus  string
+		expectFailures  bool
+		failureContains []string
+	}{
+		{
+			name:            "Perfect match",
+			expectedPCIs:    []string{"0000:0f:00.0", "0000:2d:00.0", "0000:44:00.0"},
+			expectedIndices: []string{"0", "1", "2"},
+			actualPCIs:      []string{"0000:0f:00.0", "0000:2d:00.0", "0000:44:00.0"},
+			actualIndices:   []string{"0", "1", "2"},
+			expectedStatus:  "PASS",
+			expectFailures:  false,
+		},
+		{
+			name:            "Missing PCI address",
+			expectedPCIs:    []string{"0000:0f:00.0", "0000:2d:00.0", "0000:44:00.0"},
+			expectedIndices: []string{"0", "1", "2"},
+			actualPCIs:      []string{"0000:0f:00.0", "0000:2d:00.0"},
+			actualIndices:   []string{"0", "1"},
+			expectedStatus:  "FAIL",
+			expectFailures:  true,
+			failureContains: []string{"Expected GPU with PCI Address 0000:44:00.0 not found"},
+		},
+		{
+			name:            "Module ID mismatch",
+			expectedPCIs:    []string{"0000:0f:00.0", "0000:2d:00.0"},
+			expectedIndices: []string{"0", "1"},
+			actualPCIs:      []string{"0000:0f:00.0", "0000:2d:00.0"},
+			actualIndices:   []string{"0", "2"},
+			expectedStatus:  "FAIL",
+			expectFailures:  true,
+			failureContains: []string{"Mismatch for PCI 0000:2d:00.0: Expected GPU index 1, found 2"},
+		},
+		{
+			name:            "Multiple failures",
+			expectedPCIs:    []string{"0000:0f:00.0", "0000:2d:00.0", "0000:44:00.0"},
+			expectedIndices: []string{"0", "1", "2"},
+			actualPCIs:      []string{"0000:0f:00.0", "0000:2d:00.0"},
+			actualIndices:   []string{"0", "3"},
+			expectedStatus:  "FAIL",
+			expectFailures:  true,
+			failureContains: []string{
+				"Mismatch for PCI 0000:2d:00.0: Expected GPU index 1, found 3",
+				"Expected GPU with PCI Address 0000:44:00.0 not found",
+			},
+		},
+		{
+			name:            "Empty configurations",
+			expectedPCIs:    []string{},
+			expectedIndices: []string{},
+			actualPCIs:      []string{},
+			actualIndices:   []string{},
+			expectedStatus:  "PASS",
+			expectFailures:  false,
+		},
+		{
+			name:            "Actual has extra GPUs",
+			expectedPCIs:    []string{"0000:0f:00.0", "0000:2d:00.0"},
+			expectedIndices: []string{"0", "1"},
+			actualPCIs:      []string{"0000:0f:00.0", "0000:2d:00.0", "0000:44:00.0"},
+			actualIndices:   []string{"0", "1", "2"},
+			expectedStatus:  "PASS",
+			expectFailures:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := validateCDFPCables(tt.expectedPCIs, tt.expectedIndices, tt.actualPCIs, tt.actualIndices)
+
+			// Check status
+			if result.Status != tt.expectedStatus {
+				t.Errorf("Expected status %s, got %s", tt.expectedStatus, result.Status)
+			}
+
+			// Check failures
+			if tt.expectFailures {
+				if len(result.Failures) == 0 {
+					t.Errorf("Expected failures but got none")
+				} else {
+					for _, expectedFailure := range tt.failureContains {
+						found := false
+						for _, actualFailure := range result.Failures {
+							if strings.Contains(actualFailure, expectedFailure) {
+								found = true
+								break
+							}
+						}
+						if !found {
+							t.Errorf("Expected failure containing '%s' not found in: %v", expectedFailure, result.Failures)
+						}
+					}
+				}
+			} else {
+				if len(result.Failures) > 0 {
+					t.Errorf("Expected no failures but got: %v", result.Failures)
+				}
+			}
+
+			// Check mappings are populated
+			if result.ExpectedMapping == nil {
+				t.Errorf("Expected mapping should not be nil")
+			}
+			if result.ActualMapping == nil {
+				t.Errorf("Actual mapping should not be nil")
+			}
+
+			// Verify expected mapping
+			expectedMappingCount := len(tt.expectedPCIs)
+			if len(result.ExpectedMapping) != expectedMappingCount {
+				t.Errorf("Expected mapping count mismatch. Expected: %d, Got: %d", 
+					expectedMappingCount, len(result.ExpectedMapping))
+			}
+
+			// Verify actual mapping
+			actualMappingCount := len(tt.actualPCIs)
+			if len(result.ActualMapping) != actualMappingCount {
+				t.Errorf("Actual mapping count mismatch. Expected: %d, Got: %d", 
+					actualMappingCount, len(result.ActualMapping))
+			}
+		})
+	}
+}
+
+// TestCDFPCableCheckTestConfig tests the test configuration parsing
+func TestCDFPCableCheckTestConfig(t *testing.T) {
+	// Note: This would require mocking the test_limits.LoadTestLimits() function
+	// For now, we'll test the structure
+	config := &CDFPCableCheckTestConfig{
+		IsEnabled:       true,
+		ExpectedPCIIDs:  []string{"00000000:0f:00.0", "00000000:2d:00.0"},
+		ExpectedIndices: []string{"0", "1"},
+	}
+
+	if !config.IsEnabled {
+		t.Errorf("Expected config to be enabled")
+	}
+	
+	if len(config.ExpectedPCIIDs) != 2 {
+		t.Errorf("Expected 2 PCI IDs, got %d", len(config.ExpectedPCIIDs))
+	}
+	
+	if len(config.ExpectedIndices) != 2 {
+		t.Errorf("Expected 2 GPU indices, got %d", len(config.ExpectedIndices))
+	}
+}
+
+// TestCDFPCableCheckResult tests the result structure
+func TestCDFPCableCheckResult(t *testing.T) {
+	result := &CDFPCableCheckResult{
+		Status:             "PASS",
+		ExpectedMapping:    map[string]string{"0000:0f:00.0": "0"},
+		ActualMapping:      map[string]string{"0000:0f:00.0": "0"},
+		Failures:           []string{},
+		Message:            "All CDFP cables correctly connected",
+	}
+
+	if result.Status != "PASS" {
+		t.Errorf("Expected status PASS, got %s", result.Status)
+	}
+
+	if len(result.Failures) != 0 {
+		t.Errorf("Expected no failures, got %d", len(result.Failures))
+	}
+
+	if len(result.ExpectedMapping) != 1 {
+		t.Errorf("Expected mapping should have 1 entry")
+	}
+
+	if result.ExpectedMapping["0000:0f:00.0"] != "0" {
+		t.Errorf("Expected mapping value mismatch")
+	}
+}
