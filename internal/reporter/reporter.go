@@ -135,6 +135,13 @@ type CDFPCableCheckTestResult struct {
 	TimestampUTC string      `json:"timestamp_utc"`
 }
 
+// FabricManagerTestResult represents fabric manager test results
+type FabricManagerTestResult struct {
+	Status             string      `json:"status"`
+	FabricManagerResult interface{} `json:"fabricmanager_result,omitempty"`
+	TimestampUTC       string      `json:"timestamp_utc"`
+}
+
 // HostResults represents test results for a host
 type HostResults struct {
 	GPUCountCheck      []GPUTestResult             `json:"gpu_count_check,omitempty"`
@@ -153,6 +160,7 @@ type HostResults struct {
 	NVLinkSpeedCheck   []NVLinkTestResult          `json:"nvlink_speed_check,omitempty"`
 	Eth0PresenceCheck  []Eth0PresenceTestResult    `json:"eth0_presence_check,omitempty"`
 	CDFPCableCheck     []CDFPCableCheckTestResult  `json:"cdfp_cable_check,omitempty"`
+	FabricManagerCheck []FabricManagerTestResult   `json:"fabricmanager_check,omitempty"`
 }
 
 // ReportOutput represents the final JSON output structure
@@ -394,6 +402,17 @@ func (r *Reporter) AddCDFPCableCheckResult(status string, cdfpResult interface{}
 		}
 	}
 	r.AddResult("cdfp_cable_check", status, details, err)
+}
+
+// AddFabricManagerResult adds fabric manager test results
+func (r *Reporter) AddFabricManagerResult(status string, fabricManagerResult interface{}, err error) {
+	details := map[string]interface{}{}
+	if fabricManagerResult != nil {
+		details = map[string]interface{}{
+			"fabricmanager_result": fabricManagerResult,
+		}
+	}
+	r.AddResult("fabricmanager_check", status, details, err)
 }
 
 // GenerateReport generates the final JSON report
@@ -683,6 +702,21 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
 		}
 		report.Localhost.CDFPCableCheck = []CDFPCableCheckTestResult{cdfpCableResult}
+	}
+
+	// Process Fabric Manager Check results
+	if result, exists := r.results["fabricmanager_check"]; exists {
+		var fabricManagerResult interface{}
+		if fabricVal, ok := result.Details["fabricmanager_result"]; ok {
+			fabricManagerResult = fabricVal
+		}
+
+		fabricManagerCheckResult := FabricManagerTestResult{
+			Status:             result.Status,
+			FabricManagerResult: fabricManagerResult,
+			TimestampUTC:       result.Timestamp.UTC().Format(time.RFC3339),
+		}
+		report.Localhost.FabricManagerCheck = []FabricManagerTestResult{fabricManagerCheckResult}
 	}
 
 	return report, nil
@@ -1074,6 +1108,33 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 		}
 	}
 
+	// Fabric Manager Check Tests
+	if len(report.Localhost.FabricManagerCheck) > 0 {
+		for _, fabric := range report.Localhost.FabricManagerCheck {
+			status := fabric.Status
+			statusSymbol := "✅"
+			if status == "FAIL" {
+				statusSymbol = "❌"
+			} else if status == "SKIP" {
+				statusSymbol = "⏭️"
+			}
+			details := "Service Running"
+			if status == "FAIL" {
+				details = "Service Issues"
+			} else if status == "SKIP" {
+				details = "Check Skipped"
+			}
+			// Calculate padding to align with 67-character table width
+			contentLength := 1 + 22 + 3 + 6 + 3 + 1 + len(statusSymbol) + 1 + len(details)
+			padding := 67 - contentLength - 1 // -1 for final │
+			if padding < 0 {
+				padding = 0
+			}
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s%s│\n",
+				"Fabric Manager Check", statusSymbol, statusSymbol, details, strings.Repeat(" ", padding)))
+		}
+	}
+
 	output.WriteString("└─────────────────────────────────────────────────────────────────┘\n")
 	return output.String(), nil
 }
@@ -1391,6 +1452,27 @@ func (r *Reporter) formatFriendly(report *ReportOutput) (string, error) {
 			} else {
 				failedTests++
 				output.WriteString("   ❌ CDFP Cables: GPU-to-module mapping issues detected (FAILED)\n")
+			}
+		}
+		output.WriteString("\n")
+	}
+
+	// Fabric Manager Check Tests
+	if len(report.Localhost.FabricManagerCheck) > 0 {
+		output.WriteString("🔧 Fabric Manager Service Check\n")
+		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
+		for _, fabric := range report.Localhost.FabricManagerCheck {
+			totalTests++
+			if fabric.Status == "PASS" {
+				passedTests++
+				output.WriteString("   ✅ Fabric Manager: nvidia-fabricmanager service is running (PASSED)\n")
+			} else if fabric.Status == "SKIP" {
+				// Count skipped tests as neither passed nor failed
+				totalTests-- // Adjust total count as SKIP doesn't count
+				output.WriteString("   ⏭️ Fabric Manager: Check skipped (not applicable for this shape)\n")
+			} else {
+				failedTests++
+				output.WriteString("   ❌ Fabric Manager: nvidia-fabricmanager service issues (FAILED)\n")
 			}
 		}
 		output.WriteString("\n")
