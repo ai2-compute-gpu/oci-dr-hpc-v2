@@ -235,6 +235,14 @@ func TestReporter_AllResultTypes(t *testing.T) {
 			resultKey:  "hca_error_check",
 			wantStatus: "PASS",
 		},
+		{
+			name: "Missing Interface Check Result",
+			addFunc: func(r *Reporter) {
+				r.AddMissingInterfaceResult("PASS", 0, nil)
+			},
+			resultKey:  "missing_interface_check",
+			wantStatus: "PASS",
+		},
 	}
 
 	for _, tt := range tests {

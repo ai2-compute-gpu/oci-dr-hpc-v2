@@ -89,6 +89,15 @@ func createTestConfig() RecommendationConfig {
 					Commands:   []string{"sudo dmesg -T | grep -i mlx5 | grep -i fatal"},
 				},
 			},
+			"missing_interface_check": {
+				Fail: &RecommendationTemplate{
+					Type:       "critical",
+					FaultCode:  "HPCGPU-0012-0001",
+					Issue:      "Missing PCIe interfaces detected",
+					Suggestion: "Check hardware connections and reseat components",
+					Commands:   []string{"lspci | grep -i 'rev ff'"},
+				},
+			},
 		},
 		SummaryTemplates: map[string]string{
 			"no_issues":  "All tests passed!",
@@ -146,8 +155,8 @@ func TestRecommendationConfig_LoadAndGetRecommendation(t *testing.T) {
 		t.Fatalf("LoadRecommendationConfig failed: %v", err)
 	}
 
-	if len(loadedConfig.Recommendations) != 5 {
-		t.Errorf("Expected 5 recommendations, got %d", len(loadedConfig.Recommendations))
+	if len(loadedConfig.Recommendations) != 6 {
+		t.Errorf("Expected 6 recommendations, got %d", len(loadedConfig.Recommendations))
 	}
 
 	_ = tempFile // Keep for cleanup
@@ -213,6 +222,15 @@ func TestRecommendationConfig_GetRecommendation(t *testing.T) {
 			expectedType: "critical",
 		},
 		{
+			name:     "Missing Interface Check FAIL",
+			testName: "missing_interface_check",
+			status:   "FAIL",
+			testResult: TestResult{
+				Status: "FAIL",
+			},
+			expectedType: "critical",
+		},
+		{
 			name:      "Unknown Test",
 			testName:  "unknown_test",
 			status:    "FAIL",
@@ -255,6 +273,9 @@ func TestRecommendationConfig_GetRecommendation(t *testing.T) {
 			}
 			if tt.testName == "hca_error_check" && rec.FaultCode != "HPCGPU-0011-0001" {
 				t.Errorf("Expected fault code HPCGPU-0011-0001, got %s", rec.FaultCode)
+			}
+			if tt.testName == "missing_interface_check" && rec.FaultCode != "HPCGPU-0012-0001" {
+				t.Errorf("Expected fault code HPCGPU-0012-0001, got %s", rec.FaultCode)
 			}
 		})
 	}
@@ -665,6 +686,16 @@ func TestSpecificTestTypes(t *testing.T) {
 			expectType: "critical",
 			expectTest: "hca_error_check",
 		},
+		{
+			name: "Missing Interface Check",
+			hostResult: HostResults{
+				MissingInterfaceCheck: []TestResult{
+					{Status: "FAIL"},
+				},
+			},
+			expectType: "critical",
+			expectTest: "missing_interface_check",
+		},
 	}
 
 	for _, tt := range tests {
@@ -698,6 +729,9 @@ func TestSpecificTestTypes(t *testing.T) {
 			}
 			if tt.expectTest == "hca_error_check" && found.FaultCode != "HPCGPU-0011-0001" {
 				t.Errorf("Expected fault code HPCGPU-0011-0001, got %s", found.FaultCode)
+			}
+			if tt.expectTest == "missing_interface_check" && found.FaultCode != "HPCGPU-0012-0001" {
+				t.Errorf("Expected fault code HPCGPU-0012-0001, got %s", found.FaultCode)
 			}
 		})
 	}

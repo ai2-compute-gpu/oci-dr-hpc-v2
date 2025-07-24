@@ -24,6 +24,7 @@ type TestResult struct {
 	Interfaces        interface{} `json:"interfaces,omitempty"`
 	MaxUncorrectable  int         `json:"max_uncorrectable,omitempty"`
 	MaxCorrectable    int         `json:"max_correctable,omitempty"`
+	MissingCount      int         `json:"missing_count,omitempty"`
 	ModuleLoaded      bool        `json:"module_loaded,omitempty"`
 	NVLinks           interface{} `json:"nvlinks,omitempty"`
 	Eth0Present       bool        `json:"eth0_present,omitempty"`
@@ -47,7 +48,8 @@ type HostResults struct {
 	NVLinkSpeedCheck   []TestResult `json:"nvlink_speed_check,omitempty"`
 	Eth0PresenceCheck  []TestResult `json:"eth0_presence_check,omitempty"`
 	GPUClkCheck        []TestResult `json:"gpu_clk_check,omitempty"`
-	HCAErrorCheck      []TestResult `json:"hca_error_check,omitempty"`
+	HCAErrorCheck          []TestResult `json:"hca_error_check,omitempty"`
+	MissingInterfaceCheck  []TestResult `json:"missing_interface_check,omitempty"`
 }
 
 // ReportOutput represents the single report format
@@ -173,6 +175,7 @@ func generateRecommendations(results HostResults) RecommendationReport {
 		{"eth0_presence_check", results.Eth0PresenceCheck},
 		{"gpu_clk_check", results.GPUClkCheck},
 		{"hca_error_check", results.HCAErrorCheck},
+		{"missing_interface_check", results.MissingInterfaceCheck},
 	}
 
 	for _, mapping := range testMappings {
@@ -462,6 +465,22 @@ func generateFallbackRecommendations(results HostResults) RecommendationReport {
 				Issue:      "Fatal MLX5 errors were detected in the system logs",
 				Suggestion: "Clear dmesg and reboot the node. If the problem persists, return the node to OCI",
 				Commands:   []string{"dmesg -T | grep -i mlx5 | grep -i fatal"},
+			}
+			recommendations = append(recommendations, rec)
+			criticalCount++
+		}
+	}
+
+	// Basic Missing Interface Check recommendations
+	for _, missingCheck := range results.MissingInterfaceCheck {
+		if missingCheck.Status == "FAIL" {
+			rec := Recommendation{
+				Type:       "critical",
+				TestName:   "missing_interface_check",
+				FaultCode:  "HPCGPU-0012-0001",
+				Issue:      fmt.Sprintf("Missing PCIe interfaces detected (%d interface(s) with revision 'ff')", missingCheck.MissingCount),
+				Suggestion: "Check hardware connections, reseat PCIe cards, and verify all components are properly installed",
+				Commands:   []string{"lspci | grep -i 'rev ff'", "lspci -tv"},
 			}
 			recommendations = append(recommendations, rec)
 			criticalCount++

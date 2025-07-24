@@ -284,8 +284,8 @@ func TestGetEnabledTests(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to get enabled tests: %v", err)
 	}
-	if len(enabledTests) != 18 {
-		t.Errorf("Expected 18 enabled tests for H100, got %d", len(enabledTests))
+	if len(enabledTests) != 19 {
+		t.Errorf("Expected 19 enabled tests for H100, got %d", len(enabledTests))
 	}
 
 	expectedTests := map[string]bool{
@@ -307,6 +307,7 @@ func TestGetEnabledTests(t *testing.T) {
 		"cdfp_cable_check":     false,
 		"fabricmanager_check":  false,
 		"hca_error_check":      false,
+		"missing_interface_check": false,
 	}
 
 	for _, test := range enabledTests {

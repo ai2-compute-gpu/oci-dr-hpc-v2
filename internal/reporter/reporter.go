@@ -148,26 +148,34 @@ type HCAErrorTestResult struct {
 	TimestampUTC string `json:"timestamp_utc"`
 }
 
+// MissingInterfaceTestResult represents missing interface check test results
+type MissingInterfaceTestResult struct {
+	Status       string `json:"status"`
+	MissingCount int    `json:"missing_count,omitempty"`
+	TimestampUTC string `json:"timestamp_utc"`
+}
+
 // HostResults represents test results for a host
 type HostResults struct {
-	GPUCountCheck      []GPUTestResult             `json:"gpu_count_check,omitempty"`
-	GPUModeCheck       []GPUModeTestResult         `json:"gpu_mode_check,omitempty"`
-	PCIeErrorCheck     []PCIeTestResult            `json:"pcie_error_check,omitempty"`
-	RDMANicsCount      []RDMATestResult            `json:"rdma_nics_count,omitempty"`
-	RXDiscardsCheck    []RXDiscardsCheckTestResult `json:"rx_discards_check,omitempty"`
-	GIDIndexCheck      []GIDIndexTestResult        `json:"gid_index_check,omitempty"`
-	LinkCheck          []LinkTestResult            `json:"link_check,omitempty"`
-	EthLinkCheck       []EthLinkTestResult         `json:"eth_link_check,omitempty"`
-	AuthCheck          []AuthCheckTestResult       `json:"auth_check,omitempty"`
-	SRAMErrorCheck     []SRAMErrorTestResult       `json:"sram_error_check,omitempty"`
-	GPUDriverCheck     []GPUDriverTestResult       `json:"gpu_driver_check,omitempty"`
-	GPUClockCheck      []GPUClockTestResult        `json:"gpu_clk_check,omitempty"`
-	PeerMemModuleCheck []PeerMemTestResult         `json:"peermem_module_check,omitempty"`
-	NVLinkSpeedCheck   []NVLinkTestResult          `json:"nvlink_speed_check,omitempty"`
-	Eth0PresenceCheck  []Eth0PresenceTestResult    `json:"eth0_presence_check,omitempty"`
-	CDFPCableCheck     []CDFPCableCheckTestResult  `json:"cdfp_cable_check,omitempty"`
-	FabricManagerCheck []FabricManagerTestResult   `json:"fabricmanager_check,omitempty"`
-	HCAErrorCheck      []HCAErrorTestResult        `json:"hca_error_check,omitempty"`
+	GPUCountCheck         []GPUTestResult              `json:"gpu_count_check,omitempty"`
+	GPUModeCheck          []GPUModeTestResult          `json:"gpu_mode_check,omitempty"`
+	PCIeErrorCheck        []PCIeTestResult             `json:"pcie_error_check,omitempty"`
+	RDMANicsCount         []RDMATestResult             `json:"rdma_nics_count,omitempty"`
+	RXDiscardsCheck       []RXDiscardsCheckTestResult  `json:"rx_discards_check,omitempty"`
+	GIDIndexCheck         []GIDIndexTestResult         `json:"gid_index_check,omitempty"`
+	LinkCheck             []LinkTestResult             `json:"link_check,omitempty"`
+	EthLinkCheck          []EthLinkTestResult          `json:"eth_link_check,omitempty"`
+	AuthCheck             []AuthCheckTestResult        `json:"auth_check,omitempty"`
+	SRAMErrorCheck        []SRAMErrorTestResult        `json:"sram_error_check,omitempty"`
+	GPUDriverCheck        []GPUDriverTestResult        `json:"gpu_driver_check,omitempty"`
+	GPUClockCheck         []GPUClockTestResult         `json:"gpu_clk_check,omitempty"`
+	PeerMemModuleCheck    []PeerMemTestResult          `json:"peermem_module_check,omitempty"`
+	NVLinkSpeedCheck      []NVLinkTestResult           `json:"nvlink_speed_check,omitempty"`
+	Eth0PresenceCheck     []Eth0PresenceTestResult     `json:"eth0_presence_check,omitempty"`
+	CDFPCableCheck        []CDFPCableCheckTestResult   `json:"cdfp_cable_check,omitempty"`
+	FabricManagerCheck    []FabricManagerTestResult    `json:"fabricmanager_check,omitempty"`
+	HCAErrorCheck         []HCAErrorTestResult         `json:"hca_error_check,omitempty"`
+	MissingInterfaceCheck []MissingInterfaceTestResult `json:"missing_interface_check,omitempty"`
 }
 
 // ReportOutput represents the final JSON output structure
@@ -426,6 +434,14 @@ func (r *Reporter) AddFabricManagerResult(status string, fabricManagerResult int
 func (r *Reporter) AddHCAResult(status string, err error) {
 	details := map[string]interface{}{}
 	r.AddResult("hca_error_check", status, details, err)
+}
+
+// AddMissingInterfaceResult adds missing interface check results
+func (r *Reporter) AddMissingInterfaceResult(status string, missingCount int, err error) {
+	details := map[string]interface{}{
+		"missing_count": missingCount,
+	}
+	r.AddResult("missing_interface_check", status, details, err)
 }
 
 // GenerateReport generates the final JSON report
@@ -739,6 +755,20 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
 		}
 		report.Localhost.HCAErrorCheck = []HCAErrorTestResult{hcaResult}
+	}
+
+	// Process Missing Interface Check results
+	if result, exists := r.results["missing_interface_check"]; exists {
+		missingCount := 0
+		if count, ok := result.Details["missing_count"].(int); ok {
+			missingCount = count
+		}
+		missingInterfaceResult := MissingInterfaceTestResult{
+			Status:       result.Status,
+			MissingCount: missingCount,
+			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
+		}
+		report.Localhost.MissingInterfaceCheck = []MissingInterfaceTestResult{missingInterfaceResult}
 	}
 
 	return report, nil
@@ -1174,6 +1204,23 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 		}
 	}
 
+	// Missing Interface Check Tests
+	if len(report.Localhost.MissingInterfaceCheck) > 0 {
+		for _, missing := range report.Localhost.MissingInterfaceCheck {
+			status := missing.Status
+			statusSymbol := "✅"
+			if status == "FAIL" {
+				statusSymbol = "❌"
+			}
+			details := "No Missing Interfaces"
+			if status == "FAIL" {
+				details = fmt.Sprintf("%d Missing Interface(s)", missing.MissingCount)
+			}
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s     │\n",
+				"Missing Interface", statusSymbol, statusSymbol, details))
+		}
+	}
+
 	output.WriteString("└─────────────────────────────────────────────────────────────────┘\n")
 	return output.String(), nil
 }
@@ -1507,6 +1554,23 @@ func (r *Reporter) formatFriendly(report *ReportOutput) (string, error) {
 			} else {
 				failedTests++
 				output.WriteString("   ❌ HCA Error Check: MLX5 fatal errors detected (FAILED)\n")
+			}
+		}
+		output.WriteString("\n")
+	}
+
+	// Missing Interface Check Tests
+	if len(report.Localhost.MissingInterfaceCheck) > 0 {
+		output.WriteString("🔍 Missing Interface Check\n")
+		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
+		for _, missing := range report.Localhost.MissingInterfaceCheck {
+			totalTests++
+			if missing.Status == "PASS" {
+				passedTests++
+				output.WriteString("   ✅ Missing Interface Check: No missing PCIe interfaces detected (PASSED)\n")
+			} else {
+				failedTests++
+				output.WriteString(fmt.Sprintf("   ❌ Missing Interface Check: %d missing PCIe interface(s) detected (FAILED)\n", missing.MissingCount))
 			}
 		}
 		output.WriteString("\n")
