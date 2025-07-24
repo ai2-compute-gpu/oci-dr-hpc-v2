@@ -155,6 +155,14 @@ type MissingInterfaceTestResult struct {
 	TimestampUTC string `json:"timestamp_utc"`
 }
 
+// GPUXIDTestResult represents GPU XID error check test results
+type GPUXIDTestResult struct {
+	Status       string      `json:"status"`
+	Message      string      `json:"message,omitempty"`
+	XIDResult    interface{} `json:"xid_result,omitempty"`
+	TimestampUTC string      `json:"timestamp_utc"`
+}
+
 // HostResults represents test results for a host
 type HostResults struct {
 	GPUCountCheck         []GPUTestResult              `json:"gpu_count_check,omitempty"`
@@ -176,6 +184,7 @@ type HostResults struct {
 	FabricManagerCheck    []FabricManagerTestResult    `json:"fabricmanager_check,omitempty"`
 	HCAErrorCheck         []HCAErrorTestResult         `json:"hca_error_check,omitempty"`
 	MissingInterfaceCheck []MissingInterfaceTestResult `json:"missing_interface_check,omitempty"`
+	GPUXIDCheck           []GPUXIDTestResult           `json:"gpu_xid_check,omitempty"`
 }
 
 // ReportOutput represents the final JSON output structure
@@ -442,6 +451,17 @@ func (r *Reporter) AddMissingInterfaceResult(status string, missingCount int, er
 		"missing_count": missingCount,
 	}
 	r.AddResult("missing_interface_check", status, details, err)
+}
+
+// AddGPUXIDResult adds GPU XID error check test results
+func (r *Reporter) AddGPUXIDResult(status string, xidResult interface{}, err error) {
+	details := map[string]interface{}{}
+	if xidResult != nil {
+		details = map[string]interface{}{
+			"xid_result": xidResult,
+		}
+	}
+	r.AddResult("gpu_xid_check", status, details, err)
 }
 
 // GenerateReport generates the final JSON report
@@ -769,6 +789,29 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
 		}
 		report.Localhost.MissingInterfaceCheck = []MissingInterfaceTestResult{missingInterfaceResult}
+	}
+
+	// Process GPU XID check results
+	if result, exists := r.results["gpu_xid_check"]; exists {
+		var xidResult interface{}
+		if xidVal, ok := result.Details["xid_result"]; ok {
+			xidResult = xidVal
+		}
+
+		gpuXIDCheckResult := GPUXIDTestResult{
+			Status:       result.Status,
+			XIDResult:    xidResult,
+			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
+		}
+
+		// Add message from result details if available
+		if xidResultObj, ok := xidResult.(map[string]interface{}); ok {
+			if message, ok := xidResultObj["message"].(string); ok {
+				gpuXIDCheckResult.Message = message
+			}
+		}
+
+		report.Localhost.GPUXIDCheck = []GPUXIDTestResult{gpuXIDCheckResult}
 	}
 
 	return report, nil
@@ -1221,6 +1264,27 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 		}
 	}
 
+	// GPU XID Check Tests
+	if len(report.Localhost.GPUXIDCheck) > 0 {
+		for _, xid := range report.Localhost.GPUXIDCheck {
+			status := xid.Status
+			statusSymbol := "✅"
+			if status == "FAIL" {
+				statusSymbol = "❌"
+			} else if status == "WARN" {
+				statusSymbol = "⚠️"
+			}
+			details := "No GPU XID Errors"
+			if status == "FAIL" {
+				details = "GPU XID Errors Found"
+			} else if status == "WARN" {
+				details = "GPU XID Warnings Found"
+			}
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s         │\n",
+				"GPU XID Check", statusSymbol, statusSymbol, details))
+		}
+	}
+
 	output.WriteString("└─────────────────────────────────────────────────────────────────┘\n")
 	return output.String(), nil
 }
@@ -1592,6 +1656,35 @@ func (r *Reporter) formatFriendly(report *ReportOutput) (string, error) {
 			} else {
 				failedTests++
 				output.WriteString("   ❌ Fabric Manager: nvidia-fabricmanager service issues (FAILED)\n")
+			}
+		}
+		output.WriteString("\n")
+	}
+
+	// GPU XID Check Tests
+	if len(report.Localhost.GPUXIDCheck) > 0 {
+		output.WriteString("🎮 GPU XID Error Check\n")
+		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
+		for _, xid := range report.Localhost.GPUXIDCheck {
+			totalTests++
+			if xid.Status == "PASS" {
+				passedTests++
+				output.WriteString("   ✅ GPU XID Check: No XID errors detected in system logs (PASSED)\n")
+			} else if xid.Status == "WARN" {
+				// Count warnings as passed but note them
+				passedTests++
+				if xid.Message != "" {
+					output.WriteString(fmt.Sprintf("   ⚠️ GPU XID Check: %s (WARNING)\n", xid.Message))
+				} else {
+					output.WriteString("   ⚠️ GPU XID Check: Warning XID errors detected in system logs (WARNING)\n")
+				}
+			} else {
+				failedTests++
+				if xid.Message != "" {
+					output.WriteString(fmt.Sprintf("   ❌ GPU XID Check: %s (FAILED)\n", xid.Message))
+				} else {
+					output.WriteString("   ❌ GPU XID Check: Critical XID errors detected in system logs (FAILED)\n")
+				}
 			}
 		}
 		output.WriteString("\n")

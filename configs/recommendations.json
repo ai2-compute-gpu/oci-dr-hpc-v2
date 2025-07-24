@@ -555,6 +555,51 @@
           "lspci -tv"
         ]
       }
+    },
+    "gpu_xid_check": {
+      "fail": {
+        "type": "critical",
+        "fault_code": "HPCGPU-0016-0001",
+        "issue": "Critical GPU XID errors detected in system logs. XID errors indicate serious GPU hardware or software issues that can cause system instability and data corruption.",
+        "suggestion": "Investigate and resolve GPU XID errors immediately. These errors may indicate GPU hardware failure, driver issues, or system configuration problems that require immediate attention.",
+        "commands": [
+          "sudo dmesg | grep -i 'NVRM: Xid'",
+          "nvidia-smi -q",
+          "nvidia-smi -x -q",
+          "sudo journalctl -b | grep -i nvidia",
+          "nvidia-bug-report.sh",
+          "lspci -vvv | grep -A 20 -B 5 -i nvidia"
+        ],
+        "references": [
+          "https://docs.nvidia.com/deploy/xid-errors/index.html",
+          "https://docs.nvidia.com/datacenter/tesla/tesla-installation-notes/",
+          "https://developer.nvidia.com/nvidia-system-management-interface",
+          "https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm"
+        ]
+      },
+      "warn": {
+        "type": "warning",
+        "fault_code": "HPCGPU-0016-0002",
+        "issue": "GPU XID warning errors detected in system logs. While not immediately critical, these warnings may indicate potential issues that should be monitored.",
+        "suggestion": "Monitor GPU XID warnings and investigate if they persist or increase in frequency. Consider updating GPU drivers or checking system configuration.",
+        "commands": [
+          "sudo dmesg | grep -i 'NVRM: Xid'",
+          "nvidia-smi -q -d MEMORY,ECC,TEMPERATURE,POWER",
+          "watch -n 1 'nvidia-smi'",
+          "nvidia-smi --query-gpu=gpu_name,driver_version,temperature.gpu,power.draw --format=csv"
+        ]
+        ]
+      },
+      "pass": {
+        "type": "info",
+        "issue": "No GPU XID errors found in system logs",
+        "suggestion": "GPU hardware is operating normally without XID errors. Continue monitoring system logs for any future GPU-related issues.",
+        "commands": [
+          "nvidia-smi -q",
+          "nvidia-smi --query-gpu=name,driver_version,temperature.gpu --format=csv"
+        ]
+        ]
+      }
     }
   },
   "summary_templates": {

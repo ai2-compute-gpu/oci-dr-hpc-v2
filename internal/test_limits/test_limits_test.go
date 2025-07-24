@@ -284,30 +284,31 @@ func TestGetEnabledTests(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to get enabled tests: %v", err)
 	}
-	if len(enabledTests) != 19 {
-		t.Errorf("Expected 19 enabled tests for H100, got %d", len(enabledTests))
+	if len(enabledTests) != 20 {
+		t.Errorf("Expected 20 enabled tests for H100, got %d", len(enabledTests))
 	}
 
 	expectedTests := map[string]bool{
-		"gid_index_check":      false,
-		"gpu_mode_check":       false,
-		"rx_discards_check":    false,
-		"sram_error_check":     false,
-		"gpu_count_check":      false,
-		"rdma_nic_count":       false,
-		"pcie_error_check":     false,
-		"link_check":           false,
-		"eth_link_check":       false,
-		"auth_check":           false,
-		"gpu_driver_check":     false,
-		"gpu_clk_check":        false,
-		"peermem_module_check": false,
-		"nvlink_speed_check":   false,
-		"eth0_presence_check":  false,
-		"cdfp_cable_check":     false,
-		"fabricmanager_check":  false,
-		"hca_error_check":      false,
+		"gid_index_check":         false,
+		"gpu_mode_check":          false,
+		"rx_discards_check":       false,
+		"sram_error_check":        false,
+		"gpu_count_check":         false,
+		"rdma_nic_count":          false,
+		"pcie_error_check":        false,
+		"link_check":              false,
+		"eth_link_check":          false,
+		"auth_check":              false,
+		"gpu_driver_check":        false,
+		"gpu_clk_check":           false,
+		"peermem_module_check":    false,
+		"nvlink_speed_check":      false,
+		"eth0_presence_check":     false,
+		"cdfp_cable_check":        false,
+		"fabricmanager_check":     false,
+		"hca_error_check":         false,
 		"missing_interface_check": false,
+		"gpu_xid_check":           false,
 	}
 
 	for _, test := range enabledTests {
