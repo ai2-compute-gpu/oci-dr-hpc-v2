@@ -47,6 +47,7 @@ type HostResults struct {
 	NVLinkSpeedCheck   []TestResult `json:"nvlink_speed_check,omitempty"`
 	Eth0PresenceCheck  []TestResult `json:"eth0_presence_check,omitempty"`
 	GPUClkCheck        []TestResult `json:"gpu_clk_check,omitempty"`
+	HCAErrorCheck      []TestResult `json:"hca_error_check,omitempty"`
 }
 
 // ReportOutput represents the single report format
@@ -171,6 +172,7 @@ func generateRecommendations(results HostResults) RecommendationReport {
 		{"nvlink_speed_check", results.NVLinkSpeedCheck},
 		{"eth0_presence_check", results.Eth0PresenceCheck},
 		{"gpu_clk_check", results.GPUClkCheck},
+		{"hca_error_check", results.HCAErrorCheck},
 	}
 
 	for _, mapping := range testMappings {
@@ -444,6 +446,22 @@ func generateFallbackRecommendations(results HostResults) RecommendationReport {
 					"dmesg | grep -i 'eth0\\|network'",
 					"lspci | grep -i ethernet",
 				},
+			}
+			recommendations = append(recommendations, rec)
+			criticalCount++
+		}
+	}
+
+	// Basic HCA Error Check recommendations
+	for _, hcaCheck := range results.HCAErrorCheck {
+		if hcaCheck.Status == "FAIL" {
+			rec := Recommendation{
+				Type:       "critical",
+				TestName:   "hca_error_check",
+				FaultCode:  "HPCGPU-0011-0001",
+				Issue:      "Fatal MLX5 errors were detected in the system logs",
+				Suggestion: "Clear dmesg and reboot the node. If the problem persists, return the node to OCI",
+				Commands:   []string{"dmesg -T | grep -i mlx5 | grep -i fatal"},
 			}
 			recommendations = append(recommendations, rec)
 			criticalCount++

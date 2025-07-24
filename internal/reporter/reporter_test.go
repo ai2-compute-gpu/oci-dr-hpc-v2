@@ -227,6 +227,14 @@ func TestReporter_AllResultTypes(t *testing.T) {
 			resultKey:  "eth0_presence_check",
 			wantStatus: "PASS",
 		},
+		{
+			name: "HCA Error Check Result",
+			addFunc: func(r *Reporter) {
+				r.AddHCAResult("PASS", nil)
+			},
+			resultKey:  "hca_error_check",
+			wantStatus: "PASS",
+		},
 	}
 
 	for _, tt := range tests {

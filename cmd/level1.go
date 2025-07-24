@@ -81,7 +81,9 @@ func runAllLevel1Tests() error {
 		{"nvlink_speed_check", level1_tests.RunNVLinkSpeedCheck},
 		{"eth0_presence_check", level1_tests.RunEth0PresenceCheck},
 		{"cdfp_cable_check", level1_tests.RunCDFPCableCheck},
-		{"fabricmanager_check", level1_tests.RunFabricManagerCheck}}
+		{"fabricmanager_check", level1_tests.RunFabricManagerCheck},
+		{"hca_error_check", level1_tests.RunHCAErrorCheck},
+	}
 
 	var failedTests []string
 
@@ -153,6 +155,7 @@ func runSpecificTests(testFilter string) error {
 		{"eth0_presence_check", "Check if eth0 network interface is present", level1_tests.RunEth0PresenceCheck},
 		{"cdfp_cable_check", "Check CDFP cable connections between GPUs", level1_tests.RunCDFPCableCheck},
 		{"fabricmanager_check", "Check if nvidia-fabricmanager service is running", level1_tests.RunFabricManagerCheck},
+		{"hca_error_check", "Check for MLX5 HCA fatal errors in system logs", level1_tests.RunHCAErrorCheck},
 	}
 
 	// If testFilter is empty, show available tests
