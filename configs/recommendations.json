@@ -529,6 +529,32 @@
           "dmesg -T | tail -50"
         ]
       }
+    },
+    "missing_interface_check": {
+      "fail": {
+        "type": "critical",
+        "fault_code": "HPCGPU-0012-0001",
+        "issue": "Missing PCIe interfaces detected ({missing_count} interface(s) with revision 'ff'). This typically indicates failed or missing hardware components that may cause system instability.",
+        "suggestion": "Reboot the node. If one or more components show up missing within a day, return to OCI. If it fails to reboot, terminate and send it to OCI.",
+        "commands": [
+          "lspci | grep -i 'rev ff'",
+          "dmesg | grep -i pci"
+        ],
+        "references": [
+          "https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm",
+          "https://www.kernel.org/doc/Documentation/PCI/pci.txt",
+          "https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/managinginstances.htm"
+        ]
+      },
+      "pass": {
+        "type": "info",
+        "issue": "Missing interface check passed - no missing PCIe interfaces detected",
+        "suggestion": "All PCIe interfaces are properly detected and functioning correctly",
+        "commands": [
+          "lspci",
+          "lspci -tv"
+        ]
+      }
     }
   },
   "summary_templates": {

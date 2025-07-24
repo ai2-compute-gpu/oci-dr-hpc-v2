@@ -83,6 +83,7 @@ func runAllLevel1Tests() error {
 		{"cdfp_cable_check", level1_tests.RunCDFPCableCheck},
 		{"fabricmanager_check", level1_tests.RunFabricManagerCheck},
 		{"hca_error_check", level1_tests.RunHCAErrorCheck},
+		{"missing_interface_check", level1_tests.RunMissingInterfaceCheck},
 	}
 
 	var failedTests []string
@@ -156,6 +157,7 @@ func runSpecificTests(testFilter string) error {
 		{"cdfp_cable_check", "Check CDFP cable connections between GPUs", level1_tests.RunCDFPCableCheck},
 		{"fabricmanager_check", "Check if nvidia-fabricmanager service is running", level1_tests.RunFabricManagerCheck},
 		{"hca_error_check", "Check for MLX5 HCA fatal errors in system logs", level1_tests.RunHCAErrorCheck},
+		{"missing_interface_check", "Check for missing PCIe interfaces (revision ff)", level1_tests.RunMissingInterfaceCheck},
 	}
 
 	// If testFilter is empty, show available tests

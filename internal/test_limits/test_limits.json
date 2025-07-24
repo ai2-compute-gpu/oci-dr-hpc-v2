@@ -117,6 +117,11 @@
       "hca_error_check": {
         "enabled": true,
         "test_category": "LEVEL_1"
+      },
+      "missing_interface_check": {
+        "enabled": true,
+        "test_category": "LEVEL_1",
+        "threshold": 0
       }
     },
     "BM.GPU.B200.8": {
@@ -183,6 +188,11 @@
       "hca_error_check": {
         "enabled": false,
         "test_category": "LEVEL_1"
+      },
+      "missing_interface_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1",
+        "threshold": 0
       }      
     },
     "BM.GPU.GB200.4": {
@@ -259,6 +269,11 @@
       "hca_error_check": {
         "enabled": false,
         "test_category": "LEVEL_1"
+      },
+      "missing_interface_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1",
+        "threshold": 0
       }      
     }
   }
