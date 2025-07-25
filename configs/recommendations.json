@@ -588,7 +588,6 @@
           "watch -n 1 'nvidia-smi'",
           "nvidia-smi --query-gpu=gpu_name,driver_version,temperature.gpu,power.draw --format=csv"
         ]
-        ]
       },
       "pass": {
         "type": "info",
@@ -597,7 +596,6 @@
         "commands": [
           "nvidia-smi -q",
           "nvidia-smi --query-gpu=name,driver_version,temperature.gpu --format=csv"
-        ]
         ]
       }
     },
