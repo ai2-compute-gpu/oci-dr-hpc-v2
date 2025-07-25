@@ -615,9 +615,9 @@ oci-dr-hpc-v2 recommender -r results.json --verbose
 🔍 HPC DIAGNOSTIC RECOMMENDATIONS
 ======================================================================
 
-📊 SUMMARY: ⚠️ Found 3 issue(s) requiring attention: 2 critical, 1 warning
-   • Total Issues: 3
-   • Critical: 2
+📊 SUMMARY: ⚠️ Found 4 issue(s) requiring attention: 3 critical, 1 warning
+   • Total Issues: 4
+   • Critical: 3
    • Warning: 1
    • Info: 1
 
@@ -664,6 +664,20 @@ oci-dr-hpc-v2 recommender -r results.json --verbose
    References:
      - https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/configuringrdma.htm
      - https://docs.mellanox.com/display/MLNXOFEDv461000/
+
+🚨 4. CRITICAL [max_acc_check]
+   Fault Code: HPCGPU-0017-0001
+   Issue: MAX_ACC_OUT_READ and/or ADVANCED_PCI_SETTINGS configuration is incorrect for optimal data transfer rates on devices: 0000:2a:00.0, 0000:41:00.0. On H100 systems with DGX OS 6.0, incorrect CX-7 controller settings can result in reduced performance.
+   Suggestion: Verify and correct the MAX_ACC_OUT_READ setting (must be 0, 44, or 128) and ensure ADVANCED_PCI_SETTINGS is set to True. These settings are critical for optimal RDMA performance on H100 systems.
+   Commands to run:
+     $ sudo /usr/bin/mlxconfig -d 0000:2a:00.0 query | grep -E 'MAX_ACC_OUT_READ|ADVANCED_PCI_SETTINGS'
+     $ sudo /usr/bin/mlxconfig -d 0000:2a:00.0 set MAX_ACC_OUT_READ=44
+     $ sudo /usr/bin/mlxconfig -d 0000:2a:00.0 set ADVANCED_PCI_SETTINGS=True
+     $ lspci | grep -i mellanox
+     $ ibstat
+   References:
+     - https://docs.mellanox.com/display/MLNXOFEDv461000/
+     - https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm
 ```
 
 ### Verbose and Debug Mode
@@ -700,6 +714,7 @@ oci-dr-hpc-v2 recommender -r results.json --verbose
 | **`eth_link_check`**       | Check state of each 100GbE RoCE NIC (non-RDMA Ethernet interfaces). | Uses mlxlink, ibdev2netdev and shapes.json | HPCGPU-0007-0001      |
 | **`peermem_module_check`** | Check for presence of peermem module.                               | Uses lsmod, shapes.json   | HPCGPU-0008-0001      |
 | **`nvlink_speed_check`**   | Check for NVLink presence and speed.                                | Uses lsmod, shapes.json   | HPCGPU-0009-0001      |
+| **`max_acc_check`**        | Validate MAX_ACC_OUT_READ and ADVANCED_PCI_SETTINGS for ConnectX-7 NICs | Uses mlxconfig command and shapes.json | HPCGPU-0017-0001 |
 
 {"peermem_module_check", "Check for presence of peermem module", level1_tests.RunPeermemModuleCheck},
 ### Custom Script Framework Tests
@@ -721,6 +736,9 @@ oci-dr-hpc-v2 level1 --test=gpu_driver_check --verbose
 # Run GPU clock speed check
 oci-dr-hpc-v2 level1 --test=gpu_clk_check --verbose
 
+# Run MAX_ACC_OUT_READ configuration check for ConnectX-7 NICs
+oci-dr-hpc-v2 level1 --test=max_acc_check --verbose
+
 # Output:
 # INFO: === GPU Count Check ===
 # INFO: Step 1: Getting shape from IMDS...
@@ -739,6 +757,19 @@ oci-dr-hpc-v2 level1 --test=gpu_clk_check --verbose
 # INFO: Step 2: Validating clock speeds...
 # INFO: Expected clock speed (MHz): 1980
 # INFO: GPU Clock Check: PASS - Expected 1980, allowed 1850
+
+# Example MAX_ACC Check Output:
+# INFO: === MAX_ACC_OUT_READ Configuration Check ===
+# INFO: Starting MAX_ACC_OUT_READ configuration check...
+# INFO: Step 1: Checking mlxconfig availability...
+# INFO: Step 2: Checking PCI device configurations...
+# INFO: Checking 8 PCI devices: [0000:0c:00.0 0000:2a:00.0 0000:41:00.0 0000:58:00.0 0000:86:00.0 0000:a5:00.0 0000:bd:00.0 0000:d5:00.0]
+# INFO: Checking PCI device: 0000:0c:00.0
+# INFO: Step 3: Validating device configurations...
+# INFO: MAX_ACC Check: PASS - All 8 PCI devices configured correctly
+# 
+# This test validates that ConnectX-7 NICs have proper MAX_ACC_OUT_READ values (0, 44, or 128)
+# and ADVANCED_PCI_SETTINGS set to True for optimal performance
 
 # Run custom script with verbose output
 oci-dr-hpc-v2 custom-script \

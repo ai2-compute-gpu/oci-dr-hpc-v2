@@ -163,6 +163,14 @@ type GPUXIDTestResult struct {
 	TimestampUTC string      `json:"timestamp_utc"`
 }
 
+// MaxAccTestResult represents MAX_ACC_OUT_READ configuration test results
+type MaxAccTestResult struct {
+	Status       string      `json:"status"`
+	Message      string      `json:"message,omitempty"`
+	MaxAccResult interface{} `json:"max_acc_result,omitempty"`
+	TimestampUTC string      `json:"timestamp_utc"`
+}
+
 // HostResults represents test results for a host
 type HostResults struct {
 	GPUCountCheck         []GPUTestResult              `json:"gpu_count_check,omitempty"`
@@ -185,6 +193,7 @@ type HostResults struct {
 	HCAErrorCheck         []HCAErrorTestResult         `json:"hca_error_check,omitempty"`
 	MissingInterfaceCheck []MissingInterfaceTestResult `json:"missing_interface_check,omitempty"`
 	GPUXIDCheck           []GPUXIDTestResult           `json:"gpu_xid_check,omitempty"`
+	MaxAccCheck           []MaxAccTestResult           `json:"max_acc_check,omitempty"`
 }
 
 // ReportOutput represents the final JSON output structure
@@ -462,6 +471,17 @@ func (r *Reporter) AddGPUXIDResult(status string, xidResult interface{}, err err
 		}
 	}
 	r.AddResult("gpu_xid_check", status, details, err)
+}
+
+// AddMaxAccResult adds MAX_ACC_OUT_READ configuration test results
+func (r *Reporter) AddMaxAccResult(status string, maxAccResult interface{}, err error) {
+	details := map[string]interface{}{}
+	if maxAccResult != nil {
+		details = map[string]interface{}{
+			"max_acc_result": maxAccResult,
+		}
+	}
+	r.AddResult("max_acc_check", status, details, err)
 }
 
 // GenerateReport generates the final JSON report
@@ -812,6 +832,29 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 		}
 
 		report.Localhost.GPUXIDCheck = []GPUXIDTestResult{gpuXIDCheckResult}
+	}
+
+	// Process MAX_ACC check results
+	if result, exists := r.results["max_acc_check"]; exists {
+		var maxAccResult interface{}
+		if maxAccVal, ok := result.Details["max_acc_result"]; ok {
+			maxAccResult = maxAccVal
+		}
+
+		maxAccCheckResult := MaxAccTestResult{
+			Status:       result.Status,
+			MaxAccResult: maxAccResult,
+			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
+		}
+
+		// Add message from result details if available
+		if maxAccResultObj, ok := maxAccResult.(map[string]interface{}); ok {
+			if message, ok := maxAccResultObj["message"].(string); ok {
+				maxAccCheckResult.Message = message
+			}
+		}
+
+		report.Localhost.MaxAccCheck = []MaxAccTestResult{maxAccCheckResult}
 	}
 
 	return report, nil

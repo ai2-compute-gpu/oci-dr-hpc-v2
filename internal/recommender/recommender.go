@@ -28,6 +28,7 @@ type TestResult struct {
 	ModuleLoaded      bool        `json:"module_loaded,omitempty"`
 	NVLinks           interface{} `json:"nvlinks,omitempty"`
 	Eth0Present       bool        `json:"eth0_present,omitempty"`
+	MaxAccResult      interface{} `json:"max_acc_result,omitempty"`
 	TimestampUTC      string      `json:"timestamp_utc"`
 }
 
@@ -53,6 +54,7 @@ type HostResults struct {
 	HCAErrorCheck         []TestResult `json:"hca_error_check,omitempty"`
 	MissingInterfaceCheck []TestResult `json:"missing_interface_check,omitempty"`
 	GPUXIDCheck           []TestResult `json:"gpu_xid_check,omitempty"`
+	MaxAccCheck           []TestResult `json:"max_acc_check,omitempty"`
 }
 
 // ReportOutput represents the single report format
@@ -182,6 +184,7 @@ func generateRecommendations(results HostResults) RecommendationReport {
 		{"hca_error_check", results.HCAErrorCheck},
 		{"missing_interface_check", results.MissingInterfaceCheck},
 		{"gpu_xid_check", results.GPUXIDCheck},
+		{"max_acc_check", results.MaxAccCheck},
 	}
 
 	for _, mapping := range testMappings {
