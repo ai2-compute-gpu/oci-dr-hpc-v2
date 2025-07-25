@@ -174,6 +174,27 @@ func applyVariableSubstitution(template string, testResult TestResult) string {
 	result = strings.ReplaceAll(result, "{missing_count}", fmt.Sprintf("%d", testResult.MissingCount))
 	result = strings.ReplaceAll(result, "{eth0_present}", fmt.Sprintf("%t", testResult.Eth0Present))
 
+	// Replace max_acc_check specific variables
+	if testResult.MaxAccResult != nil {
+		if maxAccResultMap, ok := testResult.MaxAccResult.(map[string]interface{}); ok {
+			if pcieConfigs, ok := maxAccResultMap["pcie_config"].([]interface{}); ok {
+				failedDevices := []string{}
+				for _, config := range pcieConfigs {
+					if configMap, ok := config.(map[string]interface{}); ok {
+						if pciID, ok := configMap["pci_busid"].(string); ok {
+							maxAccOut, _ := configMap["max_acc_out"].(string)
+							advancedPci, _ := configMap["advanced_pci_settings"].(string)
+							if maxAccOut == "FAIL" || advancedPci == "FAIL" {
+								failedDevices = append(failedDevices, pciID)
+							}
+						}
+					}
+				}
+				result = strings.ReplaceAll(result, "{failed_devices}", strings.Join(failedDevices, ", "))
+			}
+		}
+	}
+
 	// Replace GPU mode check specific variables
 	if len(testResult.EnabledGPUIndexes) > 0 {
 		result = strings.ReplaceAll(result, "{enabled_gpu_indexes}", strings.Join(testResult.EnabledGPUIndexes, ","))

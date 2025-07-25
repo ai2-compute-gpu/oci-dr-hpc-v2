@@ -176,6 +176,24 @@
           "121": {"description": "C2C Link Error", "severity": "Critical"}
           }
         }
+      },
+      "max_acc_check": {
+        "enabled": true,
+        "test_category": "LEVEL_1",
+        "threshold": {
+          "pci_ids": [
+            "0000:0c:00.0",
+            "0000:2a:00.0",
+            "0000:41:00.0",
+            "0000:58:00.0",
+            "0000:86:00.0",
+            "0000:a5:00.0",
+            "0000:bd:00.0",
+            "0000:d5:00.0"
+          ],
+          "valid_max_acc_values": [0, 44, 128],
+          "required_advanced_pci_settings": true
+        }
       }
     },
     "BM.GPU.B200.8": {
@@ -253,6 +271,10 @@
         "threshold": 0
       },
       "gpu_xid_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1"
+      },
+      "max_acc_check": {
         "enabled": false,
         "test_category": "LEVEL_1"
       }
@@ -346,6 +368,10 @@
         "threshold": 0
       },
       "gpu_xid_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1"
+      },
+      "max_acc_check": {
         "enabled": false,
         "test_category": "LEVEL_1"
       }

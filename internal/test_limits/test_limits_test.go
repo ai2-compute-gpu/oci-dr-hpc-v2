@@ -284,8 +284,8 @@ func TestGetEnabledTests(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to get enabled tests: %v", err)
 	}
-	if len(enabledTests) != 20 {
-		t.Errorf("Expected 20 enabled tests for H100, got %d", len(enabledTests))
+	if len(enabledTests) != 21 {
+		t.Errorf("Expected 21 enabled tests for H100, got %d", len(enabledTests))
 	}
 
 	expectedTests := map[string]bool{
@@ -309,6 +309,7 @@ func TestGetEnabledTests(t *testing.T) {
 		"hca_error_check":         false,
 		"missing_interface_check": false,
 		"gpu_xid_check":           false,
+		"max_acc_check":           false,
 	}
 
 	for _, test := range enabledTests {
@@ -439,6 +440,238 @@ func TestJSONStructureParsing(t *testing.T) {
 		// Verify threshold structure
 		if nvlinkConfig.Threshold == nil {
 			t.Error("Expected nvlink_speed_check to have threshold configuration")
+		}
+	}
+}
+
+// Test max_acc_check configuration specifically
+func TestMaxAccCheckConfiguration(t *testing.T) {
+	limits, err := LoadTestLimits()
+	if err != nil {
+		t.Fatalf("Failed to load test limits: %v", err)
+	}
+
+	// Test max_acc_check is enabled for H100
+	enabled, err := limits.IsTestEnabled("BM.GPU.H100.8", "max_acc_check")
+	if err != nil {
+		t.Errorf("Failed to check if max_acc_check is enabled: %v", err)
+	}
+	if !enabled {
+		t.Error("Expected max_acc_check to be enabled for H100")
+	}
+
+	// Test max_acc_check is disabled for B200
+	enabled, err = limits.IsTestEnabled("BM.GPU.B200.8", "max_acc_check")
+	if err != nil {
+		t.Errorf("Failed to check if max_acc_check is enabled: %v", err)
+	}
+	if enabled {
+		t.Error("Expected max_acc_check to be disabled for B200")
+	}
+
+	// Test max_acc_check is disabled for GB200
+	enabled, err = limits.IsTestEnabled("BM.GPU.GB200.4", "max_acc_check")
+	if err != nil {
+		t.Errorf("Failed to check if max_acc_check is enabled: %v", err)
+	}
+	if enabled {
+		t.Error("Expected max_acc_check to be disabled for GB200")
+	}
+
+	// Test max_acc_check configuration structure for H100
+	config, err := limits.GetTestConfig("BM.GPU.H100.8", "max_acc_check")
+	if err != nil {
+		t.Errorf("Failed to get max_acc_check config: %v", err)
+	}
+
+	if config == nil {
+		t.Fatal("Expected max_acc_check config but got nil")
+	}
+
+	if !config.Enabled {
+		t.Error("Expected max_acc_check to be enabled")
+	}
+
+	if config.TestCategory != "LEVEL_1" {
+		t.Errorf("Expected test category 'LEVEL_1', got '%s'", config.TestCategory)
+	}
+
+	// Verify threshold structure exists
+	if config.Threshold == nil {
+		t.Error("Expected max_acc_check to have threshold configuration")
+	}
+}
+
+func TestMaxAccCheckThreshold(t *testing.T) {
+	limits, err := LoadTestLimits()
+	if err != nil {
+		t.Fatalf("Failed to load test limits: %v", err)
+	}
+
+	// Test max_acc_check threshold structure
+	threshold, err := limits.GetThresholdForTest("BM.GPU.H100.8", "max_acc_check")
+	if err != nil {
+		t.Errorf("Failed to get max_acc_check threshold: %v", err)
+	}
+	
+	if threshold == nil {
+		t.Fatal("Expected max_acc_check threshold but got nil")
+	}
+
+	// Verify it's an object with the expected fields
+	if thresholdObj, ok := threshold.(map[string]interface{}); ok {
+		// Test pci_ids field
+		if pciIds, exists := thresholdObj["pci_ids"]; exists {
+			if pciIdsArray, ok := pciIds.([]interface{}); ok {
+				if len(pciIdsArray) != 8 {
+					t.Errorf("Expected 8 PCI IDs, got %d", len(pciIdsArray))
+				}
+				
+				// Verify expected H100 PCI IDs
+				expectedPCIIDs := []string{
+					"0000:0c:00.0", "0000:2a:00.0", "0000:41:00.0", "0000:58:00.0",
+					"0000:86:00.0", "0000:a5:00.0", "0000:bd:00.0", "0000:d5:00.0",
+				}
+				
+				for i, pciId := range pciIdsArray {
+					if pciIdStr, ok := pciId.(string); ok {
+						if i < len(expectedPCIIDs) && pciIdStr != expectedPCIIDs[i] {
+							t.Errorf("Expected PCI ID %s at index %d, got %s", expectedPCIIDs[i], i, pciIdStr)
+						}
+					} else {
+						t.Errorf("Expected PCI ID to be a string, got %T", pciId)
+					}
+				}
+			} else {
+				t.Error("Expected pci_ids to be an array")
+			}
+		} else {
+			t.Error("Expected pci_ids field in max_acc_check threshold")
+		}
+
+		// Test valid_max_acc_values field
+		if validValues, exists := thresholdObj["valid_max_acc_values"]; exists {
+			if validValuesArray, ok := validValues.([]interface{}); ok {
+				if len(validValuesArray) != 3 {
+					t.Errorf("Expected 3 valid values, got %d", len(validValuesArray))
+				}
+				
+				// Verify expected valid values: 0, 44, 128
+				expectedValues := map[float64]bool{0: false, 44: false, 128: false}
+				for _, value := range validValuesArray {
+					if valueNum, ok := value.(float64); ok {
+						if _, exists := expectedValues[valueNum]; exists {
+							expectedValues[valueNum] = true
+						} else {
+							t.Errorf("Unexpected valid value: %v", valueNum)
+						}
+					} else {
+						t.Errorf("Expected valid value to be a number, got %T", value)
+					}
+				}
+				
+				// Check all expected values were found
+				for value, found := range expectedValues {
+					if !found {
+						t.Errorf("Expected valid value %v not found", value)
+					}
+				}
+			} else {
+				t.Error("Expected valid_max_acc_values to be an array")
+			}
+		} else {
+			t.Error("Expected valid_max_acc_values field in max_acc_check threshold")
+		}
+
+		// Test required_advanced_pci_settings field
+		if advancedPCI, exists := thresholdObj["required_advanced_pci_settings"]; exists {
+			if advancedPCIBool, ok := advancedPCI.(bool); ok {
+				if !advancedPCIBool {
+					t.Error("Expected required_advanced_pci_settings to be true")
+				}
+			} else {
+				t.Errorf("Expected required_advanced_pci_settings to be a boolean, got %T", advancedPCI)
+			}
+		} else {
+			t.Error("Expected required_advanced_pci_settings field in max_acc_check threshold")
+		}
+	} else {
+		t.Error("Expected threshold to be an object")
+	}
+
+	// Test that disabled shapes return error for threshold
+	_, err = limits.GetThresholdForTest("BM.GPU.B200.8", "max_acc_check")
+	if err == nil {
+		t.Error("Expected error for disabled test threshold on B200")
+	}
+
+	_, err = limits.GetThresholdForTest("BM.GPU.GB200.4", "max_acc_check")
+	if err == nil {
+		t.Error("Expected error for disabled test threshold on GB200")
+	}
+}
+
+func TestMaxAccCheckJSONStructure(t *testing.T) {
+	limits, err := LoadTestLimits()
+	if err != nil {
+		t.Fatalf("Failed to load test limits: %v", err)
+	}
+
+	// Check H100 max_acc_check configuration exists
+	h100Config, exists := limits.TestLimits["BM.GPU.H100.8"]
+	if !exists {
+		t.Fatal("Expected BM.GPU.H100.8 configuration")
+	}
+
+	maxAccConfig, exists := h100Config["max_acc_check"]
+	if !exists {
+		t.Error("Expected max_acc_check configuration in H100")
+	} else {
+		if !maxAccConfig.Enabled {
+			t.Error("Expected max_acc_check to be enabled for H100")
+		}
+		if maxAccConfig.TestCategory != "LEVEL_1" {
+			t.Errorf("Expected test category LEVEL_1, got %s", maxAccConfig.TestCategory)
+		}
+		// Verify threshold structure
+		if maxAccConfig.Threshold == nil {
+			t.Error("Expected max_acc_check to have threshold configuration")
+		}
+	}
+
+	// Check B200 max_acc_check configuration exists but is disabled
+	b200Config, exists := limits.TestLimits["BM.GPU.B200.8"]
+	if !exists {
+		t.Fatal("Expected BM.GPU.B200.8 configuration")
+	}
+
+	maxAccConfigB200, exists := b200Config["max_acc_check"]
+	if !exists {
+		t.Error("Expected max_acc_check configuration in B200")
+	} else {
+		if maxAccConfigB200.Enabled {
+			t.Error("Expected max_acc_check to be disabled for B200")
+		}
+		if maxAccConfigB200.TestCategory != "LEVEL_1" {
+			t.Errorf("Expected test category LEVEL_1, got %s", maxAccConfigB200.TestCategory)
+		}
+	}
+
+	// Check GB200 max_acc_check configuration exists but is disabled
+	gb200Config, exists := limits.TestLimits["BM.GPU.GB200.4"]
+	if !exists {
+		t.Fatal("Expected BM.GPU.GB200.4 configuration")
+	}
+
+	maxAccConfigGB200, exists := gb200Config["max_acc_check"]
+	if !exists {
+		t.Error("Expected max_acc_check configuration in GB200")
+	} else {
+		if maxAccConfigGB200.Enabled {
+			t.Error("Expected max_acc_check to be disabled for GB200")
+		}
+		if maxAccConfigGB200.TestCategory != "LEVEL_1" {
+			t.Errorf("Expected test category LEVEL_1, got %s", maxAccConfigGB200.TestCategory)
 		}
 	}
 }

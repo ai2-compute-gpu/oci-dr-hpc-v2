@@ -588,7 +588,6 @@
           "watch -n 1 'nvidia-smi'",
           "nvidia-smi --query-gpu=gpu_name,driver_version,temperature.gpu,power.draw --format=csv"
         ]
-        ]
       },
       "pass": {
         "type": "info",
@@ -598,6 +597,36 @@
           "nvidia-smi -q",
           "nvidia-smi --query-gpu=name,driver_version,temperature.gpu --format=csv"
         ]
+      }
+    },
+    "max_acc_check": {
+      "fail": {
+        "type": "critical",
+        "fault_code": "HPCGPU-0017-0001",
+        "issue": "MAX_ACC_OUT_READ and/or ADVANCED_PCI_SETTINGS configuration is incorrect for optimal data transfer rates on devices: {failed_devices}. On H100 systems with DGX OS 6.0, incorrect CX-7 controller settings can result in reduced performance.",
+        "suggestion": "Verify and correct the MAX_ACC_OUT_READ setting (must be 0, 44, or 128) and ensure ADVANCED_PCI_SETTINGS is set to True. These settings are critical for optimal RDMA performance on H100 systems.",
+        "commands": [
+          "sudo /usr/bin/mlxconfig -d <pci_device> query | grep -E 'MAX_ACC_OUT_READ|ADVANCED_PCI_SETTINGS'",
+          "sudo /usr/bin/mlxconfig -d <pci_device> set MAX_ACC_OUT_READ=44",
+          "sudo /usr/bin/mlxconfig -d <pci_device> set ADVANCED_PCI_SETTINGS=True",
+          "lspci | grep -i mellanox",
+          "ibstat"
+        ],
+        "references": [
+          "https://docs.mellanox.com/display/MLNXOFEDv461000/",
+          "https://docs.nvidia.com/networking/display/MLNXOFEDv461000/mlxconfig",
+          "https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/configuringrdma.htm",
+          "https://community.mellanox.com/s/article/understanding-mlx-link-utility"
+        ]
+      },
+      "pass": {
+        "type": "info",
+        "issue": "MAX_ACC_OUT_READ and ADVANCED_PCI_SETTINGS are correctly configured for optimal data transfer rates",
+        "suggestion": "RDMA NIC configuration is optimal for high-performance data transfers. All CX-7 controller settings meet recommended values.",
+        "commands": [
+          "sudo /usr/bin/mlxconfig -d <pci_device> query",
+          "ibstat",
+          "rdma link show"
         ]
       }
     }

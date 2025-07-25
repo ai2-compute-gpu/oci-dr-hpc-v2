@@ -85,6 +85,7 @@ func runAllLevel1Tests() error {
 		{"hca_error_check", level1_tests.RunHCAErrorCheck},
 		{"missing_interface_check", level1_tests.RunMissingInterfaceCheck},
 		{"gpu_xid_check", level1_tests.RunGPUXIDCheck},
+		{"max_acc_check", level1_tests.RunMaxAccCheck},
 	}
 
 	var failedTests []string
@@ -160,6 +161,7 @@ func runSpecificTests(testFilter string) error {
 		{"hca_error_check", "Check for MLX5 HCA fatal errors in system logs", level1_tests.RunHCAErrorCheck},
 		{"missing_interface_check", "Check for missing PCIe interfaces (revision ff)", level1_tests.RunMissingInterfaceCheck},
 		{"gpu_xid_check", "Check for NVIDIA GPU XID errors in system logs", level1_tests.RunGPUXIDCheck},
+		{"max_acc_check", "Check MAX_ACC_OUT_READ and ADVANCED_PCI_SETTINGS configuration", level1_tests.RunMaxAccCheck},
 	}
 
 	// If testFilter is empty, show available tests
