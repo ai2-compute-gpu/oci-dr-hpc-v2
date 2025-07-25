@@ -15,6 +15,29 @@
         "enabled": true,
         "test_category": "LEVEL_1"
       },
+      "pcie_width_missing_lanes_check": {
+        "enabled": true,
+        "test_category": "LEVEL_1",
+        "threshold": {
+          "gpu_widths": {
+            "Width x2": 4,
+            "Width x16": 8
+          },
+          "rdma_widths": {
+            "Width x8": 2,
+            "Width x16": 16
+          },
+          "gpu_speeds": {
+            "Speed 16GT/s": 4,
+            "Speed 32GT/s": 8
+          },
+          "rdma_speeds": {
+            "Speed 16GT/s": 2,
+            "Speed 32GT/s": 16
+          },
+          "expected_link_state": "ok"
+        }
+      },
       "gpu_count_check": {
         "threshold": 8,
         "enabled": true,
