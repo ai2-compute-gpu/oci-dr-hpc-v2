@@ -1328,6 +1328,32 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 		}
 	}
 
+	// MAX_ACC Configuration Check Tests
+	if len(report.Localhost.MaxAccCheck) > 0 {
+		for _, maxAcc := range report.Localhost.MaxAccCheck {
+			status := maxAcc.Status
+			statusSymbol := "✅"
+			if status == "FAIL" {
+				statusSymbol = "❌"
+			}
+			details := "ConnectX-7 Config OK"
+			if status == "FAIL" {
+				if maxAcc.Message != "" {
+					// Truncate message if too long for table
+					if len(maxAcc.Message) > 25 {
+						details = maxAcc.Message[:22] + "..."
+					} else {
+						details = maxAcc.Message
+					}
+				} else {
+					details = "Config Issues Detected"
+				}
+			}
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s      │\n",
+				"MAX_ACC Check", statusSymbol, statusSymbol, details))
+		}
+	}
+
 	output.WriteString("└─────────────────────────────────────────────────────────────────┘\n")
 	return output.String(), nil
 }
