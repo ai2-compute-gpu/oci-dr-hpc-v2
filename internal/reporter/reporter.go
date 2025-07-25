@@ -1733,6 +1733,27 @@ func (r *Reporter) formatFriendly(report *ReportOutput) (string, error) {
 		output.WriteString("\n")
 	}
 
+	// MAX_ACC Configuration Check
+	if len(report.Localhost.MaxAccCheck) > 0 {
+		output.WriteString("🔧 MAX_ACC Configuration Check\n")
+		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
+		for _, maxAcc := range report.Localhost.MaxAccCheck {
+			totalTests++
+			if maxAcc.Status == "PASS" {
+				passedTests++
+				output.WriteString("   ✅ MAX_ACC Check: ConnectX-7 NICs properly configured for optimal RDMA performance (PASSED)\n")
+			} else {
+				failedTests++
+				if maxAcc.Message != "" {
+					output.WriteString(fmt.Sprintf("   ❌ MAX_ACC Check: %s (FAILED)\n", maxAcc.Message))
+				} else {
+					output.WriteString("   ❌ MAX_ACC Check: ConnectX-7 NIC configuration issues detected (FAILED)\n")
+				}
+			}
+		}
+		output.WriteString("\n")
+	}
+
 	// Summary
 	output.WriteString("📊 Summary\n")
 	output.WriteString("   " + strings.Repeat("-", 30) + "\n")
