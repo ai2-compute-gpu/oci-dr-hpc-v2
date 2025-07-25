@@ -122,6 +122,60 @@
         "enabled": true,
         "test_category": "LEVEL_1",
         "threshold": 0
+      },
+      "gpu_xid_check": {
+        "enabled": true,
+        "test_category": "LEVEL_1",
+        "threshold": {
+          "xid_error_codes": {
+          "1": {"description": "Invalid or corrupted push buffer stream", "severity": "Critical"},
+          "2": {"description": "Invalid or corrupted push buffer stream", "severity": "Critical"},
+          "3": {"description": "Invalid or corrupted push buffer stream", "severity": "Critical"},
+          "4": {"description": "Invalid or corrupted push buffer stream", "severity": "Critical"},
+          "5": {"description": "Unused", "severity": "Critical"},
+          "6": {"description": "Invalid or corrupted push buffer stream", "severity": "Critical"},
+          "7": {"description": "Invalid or corrupted push buffer address", "severity": "Critical"},
+          "8": {"description": "GPU stopped processing", "severity": "Critical"},
+          "9": {"description": "Driver error programming GPU", "severity": "Critical"},
+          "10": {"description": "Unused", "severity": "Critical"},
+          "11": {"description": "Invalid or corrupted push buffer stream", "severity": "Critical"},
+          "12": {"description": "Driver error handling GPU exception", "severity": "Critical"},
+          "13": {"description": "Graphics Engine Exception", "severity": "Critical"},
+          "14": {"description": "Unused", "severity": "Warn"},
+          "15": {"description": "Unused", "severity": "Warn"},
+          "16": {"description": "Display engine hung", "severity": "Warn"},
+          "18": {"description": "Bus mastering disabled in PCI Config Space", "severity": "Warn"},
+          "19": {"description": "Display Engine error", "severity": "Warn"},
+          "24": {"description": "GPU semaphore timeout", "severity": "Warn"},
+          "25": {"description": "Invalid or illegal push buffer stream", "severity": "Warn"},
+          "31": {"description": "GPU memory page fault", "severity": "Critical"},
+          "43": {"description": "GPU stopped processing", "severity": "Warn"},
+          "44": {"description": "Graphics Engine fault during context switch", "severity": "Warn"},
+          "45": {"description": "Preemptive cleanup, due to previous errors", "severity": "Warn"},
+          "48": {"description": "Double Bit ECC Error", "severity": "Critical"},
+          "56": {"description": "Display Engine error", "severity": "Critical"},
+          "57": {"description": "Error programming video memory interface", "severity": "Critical"},
+          "58": {"description": "Unstable video memory interface detected", "severity": "Critical"},
+          "62": {"description": "Internal micro-controller halt", "severity": "Critical"},
+          "63": {"description": "ECC page retirement or row remapping recording event", "severity": "Critical"},
+          "64": {"description": "ECC page retirement or row remapper recording failure", "severity": "Critical"},
+          "65": {"description": "Video processor exception", "severity": "Critical"},
+          "68": {"description": "NVDEC0 Exception", "severity": "Critical"},
+          "69": {"description": "Graphics Engine class error", "severity": "Critical"},
+          "73": {"description": "NVENC2 Error", "severity": "Critical"},
+          "74": {"description": "NVLINK Error", "severity": "Critical"},
+          "79": {"description": "GPU has fallen off the bus", "severity": "Critical"},
+          "80": {"description": "Corrupted data sent to GPU", "severity": "Critical"},
+          "81": {"description": "VGA Subsystem Error", "severity": "Critical"},
+          "92": {"description": "High single-bit ECC error rate", "severity": "Critical"},
+          "94": {"description": "Contained ECC error", "severity": "Critical"},
+          "95": {"description": "Uncontained ECC error", "severity": "Critical"},
+          "109": {"description": "Context Switch Timeout Error", "severity": "Critical"},
+          "119": {"description": "GSP RPC Timeout", "severity": "Critical"},
+          "120": {"description": "GSP Error", "severity": "Critical"},
+          "121": {"description": "C2C Link Error", "severity": "Critical"}
+          }
+        }
       }
     },
     "BM.GPU.B200.8": {
@@ -185,6 +239,10 @@
         "enabled": false,
         "test_category": "LEVEL_1"
       },
+      "fabricmanager_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1"
+      },
       "hca_error_check": {
         "enabled": false,
         "test_category": "LEVEL_1"
@@ -193,7 +251,11 @@
         "enabled": false,
         "test_category": "LEVEL_1",
         "threshold": 0
-      }      
+      },
+      "gpu_xid_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1"
+      }
     },
     "BM.GPU.GB200.4": {
       "gid_index_check": {
@@ -266,6 +328,14 @@
         "enabled": true,
         "test_category": "LEVEL_1"
       },
+      "cdfp_cable_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1"
+      },
+      "fabricmanager_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1"
+      },
       "hca_error_check": {
         "enabled": false,
         "test_category": "LEVEL_1"
@@ -274,7 +344,11 @@
         "enabled": false,
         "test_category": "LEVEL_1",
         "threshold": 0
-      }      
+      },
+      "gpu_xid_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1"
+      }
     }
   }
 }

@@ -48,8 +48,11 @@ type HostResults struct {
 	NVLinkSpeedCheck   []TestResult `json:"nvlink_speed_check,omitempty"`
 	Eth0PresenceCheck  []TestResult `json:"eth0_presence_check,omitempty"`
 	GPUClkCheck        []TestResult `json:"gpu_clk_check,omitempty"`
-	HCAErrorCheck          []TestResult `json:"hca_error_check,omitempty"`
-	MissingInterfaceCheck  []TestResult `json:"missing_interface_check,omitempty"`
+	CDFPCableCheck        []TestResult `json:"cdfp_cable_check,omitempty"`
+	FabricManagerCheck    []TestResult `json:"fabricmanager_check,omitempty"`
+	HCAErrorCheck         []TestResult `json:"hca_error_check,omitempty"`
+	MissingInterfaceCheck []TestResult `json:"missing_interface_check,omitempty"`
+	GPUXIDCheck           []TestResult `json:"gpu_xid_check,omitempty"`
 }
 
 // ReportOutput represents the single report format
@@ -174,8 +177,11 @@ func generateRecommendations(results HostResults) RecommendationReport {
 		{"nvlink_speed_check", results.NVLinkSpeedCheck},
 		{"eth0_presence_check", results.Eth0PresenceCheck},
 		{"gpu_clk_check", results.GPUClkCheck},
+		{"cdfp_cable_check", results.CDFPCableCheck},
+		{"fabricmanager_check", results.FabricManagerCheck},
 		{"hca_error_check", results.HCAErrorCheck},
 		{"missing_interface_check", results.MissingInterfaceCheck},
+		{"gpu_xid_check", results.GPUXIDCheck},
 	}
 
 	for _, mapping := range testMappings {
