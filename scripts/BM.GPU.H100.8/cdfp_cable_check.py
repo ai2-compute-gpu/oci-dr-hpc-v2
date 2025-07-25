@@ -28,9 +28,9 @@ def normalize_pci_address(pci_addr):
         normalized = "00" + pci_addr[6:].lower()
     return normalized
 
-# Function to get GPU PCI addresses and indices
+# Function to get GPU PCI addresses and module IDs
 def get_gpu_info():
-    """Get GPU PCI addresses and corresponding GPU indices using nvidia-smi -q."""
+    """Get GPU PCI addresses and corresponding GPU module IDs using nvidia-smi -q."""
     # Use nvidia-smi -q to get detailed GPU information
     query_cmd = 'nvidia-smi -q'
     
@@ -39,11 +39,13 @@ def get_gpu_info():
         return [], []
     
     pci_addresses = []
-    gpu_indices = []
+    module_ids = []
     
-    # Parse the output to extract Bus ID in order of appearance
+    # First pass: collect all PCI addresses in order
     for line in query_result:
         line = line.strip()
+        
+        # Look for Bus ID lines
         if "Bus Id" in line and ":" in line:
             # Extract Bus ID from lines like "    Bus Id                        : 00000000:0F:00.0"
             try:
@@ -54,13 +56,27 @@ def get_gpu_info():
                     bus_id = parts[-3].strip() + ":" + parts[-2].strip() + ":" + parts[-1].strip()
                     if bus_id and bus_id != "::" and bus_id != "":
                         # Normalize the PCI address
-                        normalized_pci = normalize_pci_address(bus_id)
-                        pci_addresses.append(normalized_pci)
-                        gpu_indices.append(str(len(pci_addresses) - 1))  # Index based on order
+                        pci_addresses.append(normalize_pci_address(bus_id))
             except:
                 continue
     
-    return pci_addresses, gpu_indices
+    # Second pass: collect all module IDs using the exact working command
+    # nvidia-smi -q | grep -i "Module ID" | awk '{print $4}'
+    module_cmd = 'bash -c "nvidia-smi -q | grep -i \\"Module ID\\" | awk \'{print $4}\'"'
+    module_result = run_cmd(module_cmd)
+    
+    for line in module_result:
+        line = line.strip()
+        if line and not line.startswith("Error"):
+            module_ids.append(line)
+    
+    # If no module IDs found, use sequential numbering
+    if len(module_ids) == 0:
+        print("No module IDs found, using sequential numbering")
+        for i in range(len(pci_addresses)):
+            module_ids.append(str(i + 1))
+    
+    return pci_addresses, module_ids
 
 # Function to run CDFP cable check
 def run_cdfp_cable_check():
@@ -76,31 +92,31 @@ def run_cdfp_cable_check():
             "00000000:c0:00.0",
             "00000000:d8:00.0"
         ],
-        "gpu_indices": [
-            "0", "1", "2", "3",
-            "4", "5", "6", "7"
+        "gpu_module_ids": [
+            "2", "4", "3", "1",
+            "7", "5", "8", "6"
         ]
     }
     
     expected_pci_ids = config["gpu_pci_ids"]
-    expected_gpu_indices = config["gpu_indices"]
+    expected_gpu_module_ids = config["gpu_module_ids"]
     
     # Get actual GPU information
-    pci_result, index_result = get_gpu_info()
+    pci_result, module_id_result = get_gpu_info()
     
     # Parse the CDFP results
-    result = parse_cdfp_results(pci_result, index_result, expected_pci_ids, expected_gpu_indices)
+    result = parse_cdfp_results(pci_result, module_id_result, expected_pci_ids, expected_gpu_module_ids)
     return result
 
 # Function to parse CDFP cable results
-def parse_cdfp_results(pci_result=None, index_result=None, pci_expected=None, index_expected=None):
+def parse_cdfp_results(pci_result=None, module_id_result=None, pci_expected=None, module_id_expected=None):
     result = {
         "gpu": {
             "cdfp": "PASS"
         }
     }
 
-    if not pci_result or not index_result or len(pci_result) == 0 or len(index_result) == 0:
+    if not pci_result or not module_id_result or len(pci_result) == 0 or len(module_id_result) == 0:
         result["gpu"]["cdfp"] = "FAIL - Missing input data"
         return result
 
@@ -111,18 +127,18 @@ def parse_cdfp_results(pci_result=None, index_result=None, pci_expected=None, in
         pci_result_list.append(normalized)
 
     # Create dictionaries for mapping
-    expected_mapping = dict(zip([normalize_pci_address(pci) for pci in pci_expected], index_expected))
-    actual_mapping = dict(zip(pci_result_list, index_result))
+    expected_mapping = dict(zip([normalize_pci_address(pci) for pci in pci_expected], module_id_expected))
+    actual_mapping = dict(zip(pci_result_list, module_id_result))
 
-    # Validate each expected PCI and index pair
+    # Validate each expected PCI and module ID pair
     fail_list = []
-    for expected_pci, expected_index in expected_mapping.items():
-        actual_index = actual_mapping.get(expected_pci)
+    for expected_pci, expected_module_id in expected_mapping.items():
+        actual_module_id = actual_mapping.get(expected_pci)
         
-        if actual_index is None:
+        if actual_module_id is None:
             fail_list.append(f"Expected GPU with PCI Address {expected_pci} not found")
-        elif actual_index != expected_index:
-            fail_list.append(f"Mismatch for PCI {expected_pci}: Expected GPU index {expected_index}, found {actual_index}")
+        elif actual_module_id != expected_module_id:
+            fail_list.append(f"Mismatch for PCI {expected_pci}: Expected GPU module ID {expected_module_id}, found {actual_module_id}")
 
     if fail_list:
         result["gpu"]["cdfp"] = "FAIL - " + ", ".join(fail_list)

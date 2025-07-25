@@ -2,7 +2,8 @@
 
 # CDFP Cable Check Script
 # This script checks if CDFP cables are correctly cabled by validating GPU PCI addresses 
-# and module IDs against expected configurations for H100 GPUs
+# and module IDs against expected configurations for H100 GPUs.
+# Uses nvidia-smi to query both PCI bus IDs and module IDs for accurate hardware validation.
 
 echo "Health check is in progress ..."
 
@@ -18,10 +19,10 @@ expected_pci_bus_ids=(
     "00000000:d8:00.0"
 )
 
-# Define expected GPU indices for H100 GPUs  
-expected_gpu_indices=(
-    "0" "1" "2" "3"
-    "4" "5" "6" "7"
+# Define expected GPU module IDs for H100 GPUs (matches shapes.json configuration)
+expected_gpu_module_ids=(
+    "2" "4" "3" "1"
+    "7" "5" "8" "6"
 )
 
 # Function to normalize PCI address
@@ -49,30 +50,57 @@ if [ $query_exit_code -ne 0 ]; then
     exit 1
 fi
 
-# Extract PCI bus IDs using the approach: nvidia-smi -q | grep -i "Bus Id" | awk '{print $4}'
-pci_output=$(echo "$gpu_query_output" | grep -i "Bus Id" | awk '{print $4}')
-
-# Extract GPU indices by parsing the GPU sections in order
-gpu_index=0
-actual_gpu_indices=()
+# Parse PCI bus IDs and module IDs from nvidia-smi -q output
 actual_pci_bus_ids=()
+actual_gpu_module_ids=()
 
-# Parse PCI bus IDs and assign GPU indices
-gpu_index=0
+# First pass: collect all PCI addresses in order
+while IFS= read -r line; do
+    line=$(echo "$line" | xargs)  # Trim whitespace
+    
+    # Look for Bus ID lines - format: "Bus Id                        : 00000000:0F:00.0"
+    if [[ "$line" == *"Bus Id"* && "$line" == *":"* ]]; then
+        # Extract Bus ID (take last 3 colon-separated parts)
+        if [[ "$line" =~ :.*:.*:.*\. ]]; then
+            bus_id=$(echo "$line" | sed 's/.*\([0-9a-fA-F]\{8\}:[0-9a-fA-F]\{2\}:[0-9a-fA-F]\{2\}\.[0-9a-fA-F]\).*/\1/')
+            if [ -n "$bus_id" ] && [ "$bus_id" != "::" ]; then
+                normalized_pci=$(normalize_pci_address "$bus_id")
+                actual_pci_bus_ids+=("$normalized_pci")
+            fi
+        fi
+    fi
+done <<< "$gpu_query_output"
+
+# Second pass: collect all module IDs using the exact working command
+# nvidia-smi -q | grep -i "Module ID" | awk '{print $4}'
+module_output=$(nvidia-smi -q | grep -i "Module ID" | awk '{print $4}')
+
+# Parse module IDs
 while IFS= read -r line; do
     if [ -n "$line" ]; then
-        # Normalize PCI address
-        normalized_pci=$(normalize_pci_address "$line")
-        actual_pci_bus_ids+=("$normalized_pci")
-        actual_gpu_indices+=("$gpu_index")
-        ((gpu_index++))
+        actual_gpu_module_ids+=("$line")
     fi
-done <<< "$pci_output"
+done <<< "$module_output"
+
+# If no module IDs found, use sequential numbering
+if [ ${#actual_gpu_module_ids[@]} -eq 0 ]; then
+    echo "No module IDs found, using sequential numbering"
+    for ((i=1; i<=${#actual_pci_bus_ids[@]}; i++)); do
+        actual_gpu_module_ids+=("$i")
+    done
+fi
 
 # Check if we found any GPUs
 if [ ${#actual_pci_bus_ids[@]} -eq 0 ]; then
     echo "Error: No GPUs found"
     jq -n '{"gpu": {"cdfp": "FAIL - No GPUs detected"}}'
+    exit 1
+fi
+
+# Check if PCI address count matches module ID count
+if [ ${#actual_pci_bus_ids[@]} -ne ${#actual_gpu_module_ids[@]} ]; then
+    echo "Error: Mismatch between PCI address count (${#actual_pci_bus_ids[@]}) and module ID count (${#actual_gpu_module_ids[@]})"
+    jq -n '{"gpu": {"cdfp": "FAIL - Missing input data"}}'
     exit 1
 fi
 
@@ -83,24 +111,24 @@ declare -A actual_mapping
 # Populate expected mapping
 for i in "${!expected_pci_bus_ids[@]}"; do
     expected_pci_normalized=$(normalize_pci_address "${expected_pci_bus_ids[$i]}")
-    expected_mapping["$expected_pci_normalized"]="${expected_gpu_indices[$i]}"
+    expected_mapping["$expected_pci_normalized"]="${expected_gpu_module_ids[$i]}"
 done
 
 # Populate actual mapping
 for i in "${!actual_pci_bus_ids[@]}"; do
-    actual_mapping["${actual_pci_bus_ids[$i]}"]="${actual_gpu_indices[$i]}"
+    actual_mapping["${actual_pci_bus_ids[$i]}"]="${actual_gpu_module_ids[$i]}"
 done
 
-# Validate each expected PCI and GPU index pair
+# Validate each expected PCI and GPU module ID pair
 fail_list=()
 for expected_pci in "${!expected_mapping[@]}"; do
-    expected_index="${expected_mapping[$expected_pci]}"
-    actual_index="${actual_mapping[$expected_pci]}"
+    expected_module_id="${expected_mapping[$expected_pci]}"
+    actual_module_id="${actual_mapping[$expected_pci]}"
     
-    if [ -z "$actual_index" ]; then
+    if [ -z "$actual_module_id" ]; then
         fail_list+=("Expected GPU with PCI Address $expected_pci not found")
-    elif [ "$actual_index" != "$expected_index" ]; then
-        fail_list+=("Mismatch for PCI $expected_pci: Expected GPU index $expected_index, found $actual_index")
+    elif [ "$actual_module_id" != "$expected_module_id" ]; then
+        fail_list+=("Mismatch for PCI $expected_pci: Expected GPU module ID $expected_module_id, found $actual_module_id")
     fi
 done
 
