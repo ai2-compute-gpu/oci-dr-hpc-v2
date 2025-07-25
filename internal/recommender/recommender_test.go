@@ -696,6 +696,16 @@ func TestSpecificTestTypes(t *testing.T) {
 			expectType: "critical",
 			expectTest: "missing_interface_check",
 		},
+		{
+			name: "Row Remap Error Check",
+			hostResult: HostResults{
+				RowRemapErrorCheck: []TestResult{
+					{Status: "FAIL", FailureCount: 2},
+				},
+			},
+			expectType: "critical",
+			expectTest: "row_remap_error_check",
+		},
 	}
 
 	for _, tt := range tests {

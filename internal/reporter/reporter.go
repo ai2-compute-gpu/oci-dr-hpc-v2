@@ -171,6 +171,13 @@ type MaxAccTestResult struct {
 	TimestampUTC string      `json:"timestamp_utc"`
 }
 
+// RowRemapErrorTestResult represents row remap error check test results
+type RowRemapErrorTestResult struct {
+	Status       string `json:"status"`
+	FailureCount int    `json:"failure_count,omitempty"`
+	TimestampUTC string `json:"timestamp_utc"`
+}
+
 // HostResults represents test results for a host
 type HostResults struct {
 	GPUCountCheck         []GPUTestResult              `json:"gpu_count_check,omitempty"`
@@ -194,6 +201,7 @@ type HostResults struct {
 	MissingInterfaceCheck []MissingInterfaceTestResult `json:"missing_interface_check,omitempty"`
 	GPUXIDCheck           []GPUXIDTestResult           `json:"gpu_xid_check,omitempty"`
 	MaxAccCheck           []MaxAccTestResult           `json:"max_acc_check,omitempty"`
+	RowRemapErrorCheck    []RowRemapErrorTestResult    `json:"row_remap_error_check,omitempty"`
 }
 
 // ReportOutput represents the final JSON output structure
@@ -482,6 +490,14 @@ func (r *Reporter) AddMaxAccResult(status string, maxAccResult interface{}, err 
 		}
 	}
 	r.AddResult("max_acc_check", status, details, err)
+}
+
+// AddRowRemapResult adds row remap error check results
+func (r *Reporter) AddRowRemapResult(status string, err error, failureCount int) {
+	details := map[string]interface{}{
+		"failure_count": failureCount,
+	}
+	r.AddResult("row_remap_error_check", status, details, err)
 }
 
 // GenerateReport generates the final JSON report
@@ -855,6 +871,20 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 		}
 
 		report.Localhost.MaxAccCheck = []MaxAccTestResult{maxAccCheckResult}
+	}
+
+	// Process Row Remap Error Check results
+	if result, exists := r.results["row_remap_error_check"]; exists {
+		failureCount := 0
+		if count, ok := result.Details["failure_count"].(int); ok {
+			failureCount = count
+		}
+		rowRemapResult := RowRemapErrorTestResult{
+			Status:       result.Status,
+			FailureCount: failureCount,
+			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
+		}
+		report.Localhost.RowRemapErrorCheck = []RowRemapErrorTestResult{rowRemapResult}
 	}
 
 	return report, nil
@@ -1353,6 +1383,26 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 				"MAX_ACC Check", statusSymbol, statusSymbol, details))
 		}
 	}
+			
+	// Row Remap Error Check Tests
+	if len(report.Localhost.RowRemapErrorCheck) > 0 {
+		for _, rowRemap := range report.Localhost.RowRemapErrorCheck {
+			status := rowRemap.Status
+			statusSymbol := "✅"
+			if status == "FAIL" {
+				statusSymbol = "❌"
+			}
+			details := "No Row Remap Errors"
+			if status == "FAIL" {
+				details = fmt.Sprintf("%d GPU(s) with Failures", rowRemap.FailureCount)
+			} else if strings.Contains(status, "Not applicable") {
+				statusSymbol = "⏭️"
+				details = "Driver Version < 550"
+			}
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s       │\n",
+				"Row Remap Check", statusSymbol, statusSymbol, details))
+		}
+	}
 
 	output.WriteString("└─────────────────────────────────────────────────────────────────┘\n")
 	return output.String(), nil
@@ -1704,6 +1754,31 @@ func (r *Reporter) formatFriendly(report *ReportOutput) (string, error) {
 			} else {
 				failedTests++
 				output.WriteString(fmt.Sprintf("   ❌ Missing Interface Check: %d missing PCIe interface(s) detected (FAILED)\n", missing.MissingCount))
+			}
+		}
+		output.WriteString("\n")
+	}
+
+	// Row Remap Error Check Tests
+	if len(report.Localhost.RowRemapErrorCheck) > 0 {
+		output.WriteString("🛠️ Row Remap Error Check\n")
+		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
+		for _, rowRemap := range report.Localhost.RowRemapErrorCheck {
+			totalTests++
+			if rowRemap.Status == "PASS" {
+				passedTests++
+				output.WriteString("   ✅ Row Remap Error Check: No GPU row remap errors detected (PASSED)\n")
+			} else if strings.Contains(rowRemap.Status, "Not applicable") {
+				// Count skipped tests as neither passed nor failed
+				totalTests-- // Adjust total count as SKIP doesn't count
+				output.WriteString("   ⏭️ Row Remap Error Check: Check skipped (nvidia-smi driver version < 550)\n")
+			} else {
+				failedTests++
+				if rowRemap.FailureCount > 0 {
+					output.WriteString(fmt.Sprintf("   ❌ Row Remap Error Check: %d GPU(s) with row remap failures detected (FAILED)\n", rowRemap.FailureCount))
+				} else {
+					output.WriteString("   ❌ Row Remap Error Check: GPU row remap error check failed (FAILED)\n")
+				}
 			}
 		}
 		output.WriteString("\n")

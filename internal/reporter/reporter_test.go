@@ -243,6 +243,14 @@ func TestReporter_AllResultTypes(t *testing.T) {
 			resultKey:  "missing_interface_check",
 			wantStatus: "PASS",
 		},
+		{
+			name: "Row Remap Error Check Result",
+			addFunc: func(r *Reporter) {
+				r.AddRowRemapResult("PASS", nil, 0)
+			},
+			resultKey:  "row_remap_error_check",
+			wantStatus: "PASS",
+		},
 	}
 
 	for _, tt := range tests {

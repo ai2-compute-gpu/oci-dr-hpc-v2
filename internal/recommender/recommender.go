@@ -25,6 +25,7 @@ type TestResult struct {
 	MaxUncorrectable  int         `json:"max_uncorrectable,omitempty"`
 	MaxCorrectable    int         `json:"max_correctable,omitempty"`
 	MissingCount      int         `json:"missing_count,omitempty"`
+	FailureCount      int         `json:"failure_count,omitempty"`
 	ModuleLoaded      bool        `json:"module_loaded,omitempty"`
 	NVLinks           interface{} `json:"nvlinks,omitempty"`
 	Eth0Present       bool        `json:"eth0_present,omitempty"`
@@ -55,6 +56,7 @@ type HostResults struct {
 	MissingInterfaceCheck []TestResult `json:"missing_interface_check,omitempty"`
 	GPUXIDCheck           []TestResult `json:"gpu_xid_check,omitempty"`
 	MaxAccCheck           []TestResult `json:"max_acc_check,omitempty"`
+	RowRemapErrorCheck    []TestResult `json:"row_remap_error_check,omitempty"`
 }
 
 // ReportOutput represents the single report format
@@ -185,6 +187,7 @@ func generateRecommendations(results HostResults) RecommendationReport {
 		{"missing_interface_check", results.MissingInterfaceCheck},
 		{"gpu_xid_check", results.GPUXIDCheck},
 		{"max_acc_check", results.MaxAccCheck},
+		{"row_remap_error_check", results.RowRemapErrorCheck},
 	}
 
 	for _, mapping := range testMappings {
@@ -490,6 +493,25 @@ func generateFallbackRecommendations(results HostResults) RecommendationReport {
 				Issue:      fmt.Sprintf("Missing PCIe interfaces detected (%d interface(s) with revision 'ff')", missingCheck.MissingCount),
 				Suggestion: "Check hardware connections, reseat PCIe cards, and verify all components are properly installed",
 				Commands:   []string{"lspci | grep -i 'rev ff'", "lspci -tv"},
+			}
+			recommendations = append(recommendations, rec)
+			criticalCount++
+		}
+	}
+
+	// Basic Row Remap Error Check recommendations
+	for _, rowRemapCheck := range results.RowRemapErrorCheck {
+		if rowRemapCheck.Status == "FAIL" {
+			rec := Recommendation{
+				Type:       "critical",
+				TestName:   "row_remap_error_check",
+				FaultCode:  "HPCGPU-0013-0001",
+				Issue:      fmt.Sprintf("GPU row remap errors detected (%d GPU(s) with failures)", rowRemapCheck.FailureCount),
+				Suggestion: "Investigate GPU memory health immediately. Consider replacing affected GPUs or terminating the instance if memory errors persist",
+				Commands: []string{
+					"nvidia-smi --query-remapped-rows=gpu_bus_id,remapped_rows.failure --format=csv,noheader",
+					"nvidia-smi -q -d MEMORY",
+				},
 			}
 			recommendations = append(recommendations, rec)
 			criticalCount++

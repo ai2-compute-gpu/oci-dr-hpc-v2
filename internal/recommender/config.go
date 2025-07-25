@@ -172,6 +172,7 @@ func applyVariableSubstitution(template string, testResult TestResult) string {
 	result = strings.ReplaceAll(result, "{max_uncorrectable}", fmt.Sprintf("%d", testResult.MaxUncorrectable))
 	result = strings.ReplaceAll(result, "{max_correctable}", fmt.Sprintf("%d", testResult.MaxCorrectable))
 	result = strings.ReplaceAll(result, "{missing_count}", fmt.Sprintf("%d", testResult.MissingCount))
+	result = strings.ReplaceAll(result, "{failure_count}", fmt.Sprintf("%d", testResult.FailureCount))
 	result = strings.ReplaceAll(result, "{eth0_present}", fmt.Sprintf("%t", testResult.Eth0Present))
 
 	// Replace max_acc_check specific variables

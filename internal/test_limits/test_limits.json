@@ -194,6 +194,14 @@
           "valid_max_acc_values": [0, 44, 128],
           "required_advanced_pci_settings": true
         }
+      },
+      "row_remap_error_check": {
+        "enabled": true,
+        "test_category": "LEVEL_1",
+        "threshold": {
+          "minimum-error": 0,
+          "minimum-nvidia-smi-version": 550
+        }
       }
     },
     "BM.GPU.B200.8": {
@@ -277,6 +285,14 @@
       "max_acc_check": {
         "enabled": false,
         "test_category": "LEVEL_1"
+      },
+      "row_remap_error_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1",
+        "threshold": {
+          "minimum-error": 0,
+          "minimum-nvidia-smi-version": 550
+        }
       }
     },
     "BM.GPU.GB200.4": {
@@ -374,6 +390,14 @@
       "max_acc_check": {
         "enabled": false,
         "test_category": "LEVEL_1"
+      },
+      "row_remap_error_check": {
+        "enabled": false,
+        "test_category": "LEVEL_1",
+        "threshold": {
+          "minimum-error": 0,
+          "minimum-nvidia-smi-version": 550
+        }
       }
     }
   }
