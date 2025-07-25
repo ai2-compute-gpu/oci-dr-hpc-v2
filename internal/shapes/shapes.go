@@ -485,6 +485,21 @@ func (sm *ShapeManager) GetGPUIndices(shapeName string) ([]string, error) {
 	return indices, nil
 }
 
+// GetGPUModuleIDs returns a list of GPU module IDs for a specific shape
+func (sm *ShapeManager) GetGPUModuleIDs(shapeName string) ([]string, error) {
+	gpuSpecs, err := sm.GetGPUSpecs(shapeName)
+	if err != nil {
+		return nil, err
+	}
+
+	var moduleIDs []string
+	for _, gpu := range gpuSpecs {
+		moduleIDs = append(moduleIDs, strconv.Itoa(gpu.ModuleID))
+	}
+
+	return moduleIDs, nil
+}
+
 // HasGPUs returns true if the shape has GPU configurations
 func (sm *ShapeManager) HasGPUs(shapeName string) (bool, error) {
 	hpcShape, err := sm.GetHPCShape(shapeName)

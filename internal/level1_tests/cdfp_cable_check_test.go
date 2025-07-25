@@ -129,8 +129,8 @@ func TestParseGPUInfoWithQuerier(t *testing.T) {
 		name             string
 		pciResult        *executor.NvidiaSMIResult
 		moduleResult     *executor.NvidiaSMIResult
-		expectedPCIs     []string
-		expectedIndices  []string
+		expectedPCIs      []string
+		expectedModuleIDs []string
 		expectError      bool
 		errorContains    string
 	}{
@@ -147,7 +147,7 @@ func TestParseGPUInfoWithQuerier(t *testing.T) {
 				Error:     "",
 			},
 			expectedPCIs:    []string{"0000:0f:00.0", "0000:2d:00.0", "0000:44:00.0"},
-			expectedIndices: []string{"0", "1", "2"},
+			expectedModuleIDs: []string{"0", "1", "2"},
 			expectError:     false,
 		},
 		{
@@ -208,7 +208,7 @@ func TestParseGPUInfoWithQuerier(t *testing.T) {
 				Error:     "",
 			},
 			expectedPCIs:    nil,
-			expectedIndices: nil,
+			expectedModuleIDs: nil,
 			expectError:     false,
 		},
 		{
@@ -224,7 +224,7 @@ func TestParseGPUInfoWithQuerier(t *testing.T) {
 				Error:     "",
 			},
 			expectedPCIs:    []string{"00000f:00.0", "002d:00.0"},
-			expectedIndices: []string{"0", "1"},
+			expectedModuleIDs: []string{"0", "1"},
 			expectError:     false,
 		},
 	}
@@ -236,7 +236,7 @@ func TestParseGPUInfoWithQuerier(t *testing.T) {
 				moduleResult: tt.moduleResult,
 			}
 
-			actualPCIs, actualIndices, err := parseGPUInfoWithQuerier(querier)
+			actualPCIs, actualModuleIDs, err := parseGPUInfoWithQuerier(querier)
 
 			if tt.expectError {
 				if err == nil {
@@ -251,8 +251,8 @@ func TestParseGPUInfoWithQuerier(t *testing.T) {
 				if !reflect.DeepEqual(actualPCIs, tt.expectedPCIs) {
 					t.Errorf("PCI addresses mismatch. Expected: %v, Got: %v", tt.expectedPCIs, actualPCIs)
 				}
-				if !reflect.DeepEqual(actualIndices, tt.expectedIndices) {
-					t.Errorf("GPU indices mismatch. Expected: %v, Got: %v", tt.expectedIndices, actualIndices)
+				if !reflect.DeepEqual(actualModuleIDs, tt.expectedModuleIDs) {
+					t.Errorf("GPU module IDs mismatch. Expected: %v, Got: %v", tt.expectedModuleIDs, actualModuleIDs)
 				}
 			}
 		})
@@ -264,9 +264,9 @@ func TestValidateCDFPCables(t *testing.T) {
 	tests := []struct {
 		name            string
 		expectedPCIs    []string
-		expectedIndices []string
+		expectedModuleIDs []string
 		actualPCIs      []string
-		actualIndices   []string
+		actualModuleIDs   []string
 		expectedStatus  string
 		expectFailures  bool
 		failureContains []string
@@ -274,18 +274,18 @@ func TestValidateCDFPCables(t *testing.T) {
 		{
 			name:            "Perfect match",
 			expectedPCIs:    []string{"0000:0f:00.0", "0000:2d:00.0", "0000:44:00.0"},
-			expectedIndices: []string{"0", "1", "2"},
+			expectedModuleIDs: []string{"2", "4", "3"},
 			actualPCIs:      []string{"0000:0f:00.0", "0000:2d:00.0", "0000:44:00.0"},
-			actualIndices:   []string{"0", "1", "2"},
+			actualModuleIDs:   []string{"2", "4", "3"},
 			expectedStatus:  "PASS",
 			expectFailures:  false,
 		},
 		{
 			name:            "Missing PCI address",
 			expectedPCIs:    []string{"0000:0f:00.0", "0000:2d:00.0", "0000:44:00.0"},
-			expectedIndices: []string{"0", "1", "2"},
+			expectedModuleIDs: []string{"2", "4", "3"},
 			actualPCIs:      []string{"0000:0f:00.0", "0000:2d:00.0"},
-			actualIndices:   []string{"0", "1"},
+			actualModuleIDs:   []string{"2", "4"},
 			expectedStatus:  "FAIL",
 			expectFailures:  true,
 			failureContains: []string{"Expected GPU with PCI Address 0000:44:00.0 not found"},
@@ -293,41 +293,41 @@ func TestValidateCDFPCables(t *testing.T) {
 		{
 			name:            "Module ID mismatch",
 			expectedPCIs:    []string{"0000:0f:00.0", "0000:2d:00.0"},
-			expectedIndices: []string{"0", "1"},
+			expectedModuleIDs: []string{"2", "4"},
 			actualPCIs:      []string{"0000:0f:00.0", "0000:2d:00.0"},
-			actualIndices:   []string{"0", "2"},
+			actualModuleIDs:   []string{"2", "3"},
 			expectedStatus:  "FAIL",
 			expectFailures:  true,
-			failureContains: []string{"Mismatch for PCI 0000:2d:00.0: Expected GPU index 1, found 2"},
+			failureContains: []string{"Mismatch for PCI 0000:2d:00.0: Expected GPU module ID 4, found 3"},
 		},
 		{
 			name:            "Multiple failures",
 			expectedPCIs:    []string{"0000:0f:00.0", "0000:2d:00.0", "0000:44:00.0"},
-			expectedIndices: []string{"0", "1", "2"},
+			expectedModuleIDs: []string{"2", "4", "3"},
 			actualPCIs:      []string{"0000:0f:00.0", "0000:2d:00.0"},
-			actualIndices:   []string{"0", "3"},
+			actualModuleIDs:   []string{"2", "5"},
 			expectedStatus:  "FAIL",
 			expectFailures:  true,
 			failureContains: []string{
-				"Mismatch for PCI 0000:2d:00.0: Expected GPU index 1, found 3",
+				"Mismatch for PCI 0000:2d:00.0: Expected GPU module ID 4, found 5",
 				"Expected GPU with PCI Address 0000:44:00.0 not found",
 			},
 		},
 		{
 			name:            "Empty configurations",
 			expectedPCIs:    []string{},
-			expectedIndices: []string{},
+			expectedModuleIDs: []string{},
 			actualPCIs:      []string{},
-			actualIndices:   []string{},
+			actualModuleIDs:   []string{},
 			expectedStatus:  "PASS",
 			expectFailures:  false,
 		},
 		{
 			name:            "Actual has extra GPUs",
 			expectedPCIs:    []string{"0000:0f:00.0", "0000:2d:00.0"},
-			expectedIndices: []string{"0", "1"},
+			expectedModuleIDs: []string{"2", "4"},
 			actualPCIs:      []string{"0000:0f:00.0", "0000:2d:00.0", "0000:44:00.0"},
-			actualIndices:   []string{"0", "1", "2"},
+			actualModuleIDs:   []string{"2", "4", "3"},
 			expectedStatus:  "PASS",
 			expectFailures:  false,
 		},
@@ -335,7 +335,7 @@ func TestValidateCDFPCables(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := validateCDFPCables(tt.expectedPCIs, tt.expectedIndices, tt.actualPCIs, tt.actualIndices)
+			result := validateCDFPCables(tt.expectedPCIs, tt.expectedModuleIDs, tt.actualPCIs, tt.actualModuleIDs)
 
 			// Check status
 			if result.Status != tt.expectedStatus {
@@ -398,7 +398,7 @@ func TestCDFPCableCheckTestConfig(t *testing.T) {
 	config := &CDFPCableCheckTestConfig{
 		IsEnabled:       true,
 		ExpectedPCIIDs:  []string{"00000000:0f:00.0", "00000000:2d:00.0"},
-		ExpectedIndices: []string{"0", "1"},
+		ExpectedModuleIDs: []string{"0", "1"},
 	}
 
 	if !config.IsEnabled {
@@ -409,8 +409,8 @@ func TestCDFPCableCheckTestConfig(t *testing.T) {
 		t.Errorf("Expected 2 PCI IDs, got %d", len(config.ExpectedPCIIDs))
 	}
 	
-	if len(config.ExpectedIndices) != 2 {
-		t.Errorf("Expected 2 GPU indices, got %d", len(config.ExpectedIndices))
+	if len(config.ExpectedModuleIDs) != 2 {
+		t.Errorf("Expected 2 GPU module IDs, got %d", len(config.ExpectedModuleIDs))
 	}
 }
 
@@ -436,8 +436,8 @@ func TestCDFPCableCheckConfigWithShapes(t *testing.T) {
 		t.Error("Expected PCI IDs to be loaded from shapes.json")
 	}
 
-	if len(config.ExpectedIndices) == 0 {
-		t.Error("Expected GPU indices to be loaded from shapes.json")
+	if len(config.ExpectedModuleIDs) == 0 {
+		t.Error("Expected GPU module IDs to be loaded from shapes.json")
 	}
 
 	// For H100, we should have 8 GPUs
@@ -445,15 +445,15 @@ func TestCDFPCableCheckConfigWithShapes(t *testing.T) {
 		t.Errorf("Expected 8 GPU PCI IDs for H100, got %d", len(config.ExpectedPCIIDs))
 	}
 
-	if len(config.ExpectedIndices) != 8 {
-		t.Errorf("Expected 8 GPU indices for H100, got %d", len(config.ExpectedIndices))
+	if len(config.ExpectedModuleIDs) != 8 {
+		t.Errorf("Expected 8 GPU module IDs for H100, got %d", len(config.ExpectedModuleIDs))
 	}
 
-	// Verify indices are sequential 0-7
-	expectedIndices := []string{"0", "1", "2", "3", "4", "5", "6", "7"}
-	for i, expected := range expectedIndices {
-		if i < len(config.ExpectedIndices) && config.ExpectedIndices[i] != expected {
-			t.Errorf("Expected GPU index %s at position %d, got %s", expected, i, config.ExpectedIndices[i])
+	// Verify module IDs are the expected values for H100: 2, 4, 3, 1, 7, 5, 8, 6
+	expectedModuleIDs := []string{"2", "4", "3", "1", "7", "5", "8", "6"}
+	for i, expected := range expectedModuleIDs {
+		if i < len(config.ExpectedModuleIDs) && config.ExpectedModuleIDs[i] != expected {
+			t.Errorf("Expected GPU module ID %s at position %d, got %s", expected, i, config.ExpectedModuleIDs[i])
 		}
 	}
 
@@ -464,8 +464,8 @@ func TestCDFPCableCheckConfigWithShapes(t *testing.T) {
 		}
 	}
 
-	t.Logf("Successfully loaded %d PCI addresses and %d indices from shapes.json for H100", 
-		len(config.ExpectedPCIIDs), len(config.ExpectedIndices))
+	t.Logf("Successfully loaded %d PCI addresses and %d module IDs from shapes.json for H100", 
+		len(config.ExpectedPCIIDs), len(config.ExpectedModuleIDs))
 }
 
 // TestCDFPCableCheckConfigWithNonGPUShape tests config for a shape without GPUs
@@ -490,8 +490,8 @@ func TestCDFPCableCheckConfigWithNonGPUShape(t *testing.T) {
 		t.Errorf("Expected empty PCI IDs for non-GPU shape, got %d", len(config.ExpectedPCIIDs))
 	}
 
-	if len(config.ExpectedIndices) != 0 {
-		t.Errorf("Expected empty indices for non-GPU shape, got %d", len(config.ExpectedIndices))
+	if len(config.ExpectedModuleIDs) != 0 {
+		t.Errorf("Expected empty module IDs for non-GPU shape, got %d", len(config.ExpectedModuleIDs))
 	}
 }
 
@@ -517,8 +517,8 @@ func TestCDFPCableCheckConfigWithB200(t *testing.T) {
 		t.Errorf("Expected empty PCI IDs for disabled test, got %d", len(config.ExpectedPCIIDs))
 	}
 
-	if len(config.ExpectedIndices) != 0 {
-		t.Errorf("Expected empty indices for disabled test, got %d", len(config.ExpectedIndices))
+	if len(config.ExpectedModuleIDs) != 0 {
+		t.Errorf("Expected empty module IDs for disabled test, got %d", len(config.ExpectedModuleIDs))
 	}
 
 	t.Logf("B200 CDFP test correctly disabled with empty configuration")
