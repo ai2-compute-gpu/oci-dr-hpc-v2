@@ -86,6 +86,7 @@ func runAllLevel1Tests() error {
 		{"missing_interface_check", level1_tests.RunMissingInterfaceCheck},
 		{"gpu_xid_check", level1_tests.RunGPUXIDCheck},
 		{"max_acc_check", level1_tests.RunMaxAccCheck},
+		{"row_remap_error_check", level1_tests.RunRowRemapErrorCheck},
 	}
 
 	var failedTests []string
@@ -162,6 +163,7 @@ func runSpecificTests(testFilter string) error {
 		{"missing_interface_check", "Check for missing PCIe interfaces (revision ff)", level1_tests.RunMissingInterfaceCheck},
 		{"gpu_xid_check", "Check for NVIDIA GPU XID errors in system logs", level1_tests.RunGPUXIDCheck},
 		{"max_acc_check", "Check MAX_ACC_OUT_READ and ADVANCED_PCI_SETTINGS configuration", level1_tests.RunMaxAccCheck},
+		{"row_remap_error_check", "Check for GPU row remap errors using nvidia-smi", level1_tests.RunRowRemapErrorCheck},
 	}
 
 	// If testFilter is empty, show available tests

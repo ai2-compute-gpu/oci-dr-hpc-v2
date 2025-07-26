@@ -388,6 +388,81 @@ func RunNvidiaSMIQueryDetailed() *NvidiaSMIResult {
 	return result
 }
 
+// RunNvidiaSMIRemappedRowsQuery runs nvidia-smi command to query remapped rows
+func RunNvidiaSMIRemappedRowsQuery() *NvidiaSMIResult {
+	result := &NvidiaSMIResult{
+		Available: false,
+		Output:    "",
+		Error:     "",
+	}
+
+	logger.Info("Running nvidia-smi remapped rows query")
+
+	// Check if nvidia-smi exists
+	_, err := exec.LookPath("nvidia-smi")
+	if err != nil {
+		result.Error = "nvidia-smi not found in PATH"
+		logger.Error("nvidia-smi not available for remapped rows query:", result.Error)
+		return result
+	}
+
+	// Execute nvidia-smi --query-remapped-rows=gpu_bus_id,remapped_rows.failure --format=csv,noheader
+	cmd := exec.Command("nvidia-smi", "--query-remapped-rows=gpu_bus_id,remapped_rows.failure", "--format=csv,noheader")
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		result.Error = err.Error()
+		result.Output = string(output)
+		logger.Error("nvidia-smi remapped rows query failed:", err)
+		logger.Error("Remapped rows output:", string(output))
+		return result
+	}
+
+	result.Available = true
+	result.Output = strings.TrimSpace(string(output))
+
+	logger.Info("nvidia-smi remapped rows query completed successfully")
+	logger.Debug("Remapped rows result:", result.Output)
+
+	return result
+}
+
+// GetNvidiaSMIDriverVersion gets the major version number of nvidia-smi driver
+func GetNvidiaSMIDriverVersion() (int, error) {
+	logger.Info("Getting nvidia-smi driver version")
+
+	// Get nvidia-smi driver version
+	result := RunNvidiaSMIQuery("driver_version")
+	if !result.Available {
+		return 0, fmt.Errorf("nvidia-smi not available: %s", result.Error)
+	}
+
+	if result.Output == "" {
+		return 0, fmt.Errorf("no driver version output received")
+	}
+
+	// Get the first line and extract version
+	lines := strings.Split(result.Output, "\n")
+	if len(lines) == 0 {
+		return 0, fmt.Errorf("empty driver version output")
+	}
+
+	versionLine := strings.TrimSpace(lines[0])
+	// Extract numeric part (e.g., "550.54.15" -> 550)
+	parts := strings.Split(versionLine, ".")
+	if len(parts) == 0 {
+		return 0, fmt.Errorf("invalid driver version format: %s", versionLine)
+	}
+
+	majorVersion, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse driver version: %s", parts[0])
+	}
+
+	logger.Infof("nvidia-smi driver version: %d", majorVersion)
+	return majorVersion, nil
+}
+
 // truncateString truncates a string to a maximum length for logging
 func truncateString(s string, maxLen int) string {
 	if len(s) <= maxLen {

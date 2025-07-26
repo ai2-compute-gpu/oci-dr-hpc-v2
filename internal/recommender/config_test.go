@@ -292,6 +292,7 @@ func TestApplyVariableSubstitution(t *testing.T) {
 		MaxUncorrectable:  5,
 		MaxCorrectable:    100,
 		FailedInterfaces:  "rdma2,rdma3",
+		FailureCount:      3,
 		Eth0Present:       true,
 	}
 
@@ -322,6 +323,10 @@ func TestApplyVariableSubstitution(t *testing.T) {
 		{
 			template: "Eth0 present: {eth0_present}",
 			expected: "Eth0 present: true",
+		},
+		{
+			template: "GPU failures: {failure_count}",
+			expected: "GPU failures: 3",
 		},
 		{
 			template: "No variables here",
