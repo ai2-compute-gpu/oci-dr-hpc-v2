@@ -713,10 +713,15 @@ oci-dr-hpc-v2 recommender -r results.json --verbose
 | **`link_check`**           | Check RDMA link state and parameters                                | Uses mlxlink, ibdev2netdev and shapes.json | HPCGPU-0006-0001      |
 | **`eth_link_check`**       | Check state of each 100GbE RoCE NIC (non-RDMA Ethernet interfaces). | Uses mlxlink, ibdev2netdev and shapes.json | HPCGPU-0007-0001      |
 | **`peermem_module_check`** | Check for presence of peermem module.                               | Uses lsmod, shapes.json   | HPCGPU-0008-0001      |
-| **`nvlink_speed_check`**   | Check for NVLink presence and speed.                                | Uses lsmod, shapes.json   | HPCGPU-0009-0001      |
+| **`nvlink_speed_check`**   | Check for NVLink presence and speed.                                | Uses nvidia-smi and shapes.json       | HPCGPU-0009-0001      |
+| **`eth0_presence_check`**  | Check if eth0 network interface is present                          | Uses ip addr show command              | HPCGPU-0010-0001      |
+| **`cdfp_cable_check`**     | Check CDFP cable connections between GPUs                          | Uses nvidia-smi and shapes.json       | HPCGPU-0010-0001      |
+| **`fabricmanager_check`**  | Check if nvidia-fabricmanager service is running                   | Uses systemctl status command          | HPCGPU-0011-0001      |
+| **`hca_error_check`**      | Check for MLX5 HCA fatal errors in system logs                     | Uses dmesg command                     | HPCGPU-0011-0001      |
+| **`missing_interface_check`** | Check for missing PCIe interfaces (revision ff)                 | Uses lspci command                     | HPCGPU-0012-0001      |
+| **`gpu_xid_check`**        | Check for NVIDIA GPU XID errors in system logs                    | Uses dmesg and journalctl              | HPCGPU-0016-0001/0002 |
 | **`max_acc_check`**        | Validate MAX_ACC_OUT_READ and ADVANCED_PCI_SETTINGS for ConnectX-7 NICs | Uses mlxconfig command and shapes.json | HPCGPU-0017-0001 |
-
-{"peermem_module_check", "Check for presence of peermem module", level1_tests.RunPeermemModuleCheck},
+| **`row_remap_error_check`** | Check for GPU row remap errors using nvidia-smi                   | Uses nvidia-smi remapped-rows query   | HPCGPU-0013-0001      |
 ### Custom Script Framework Tests
 
 | Script | Description | Features | Integration |
@@ -738,6 +743,9 @@ oci-dr-hpc-v2 level1 --test=gpu_clk_check --verbose
 
 # Run MAX_ACC_OUT_READ configuration check for ConnectX-7 NICs
 oci-dr-hpc-v2 level1 --test=max_acc_check --verbose
+
+# Run GPU row remap error check
+oci-dr-hpc-v2 level1 --test=row_remap_error_check --verbose
 
 # Output:
 # INFO: === GPU Count Check ===
@@ -770,6 +778,17 @@ oci-dr-hpc-v2 level1 --test=max_acc_check --verbose
 # 
 # This test validates that ConnectX-7 NICs have proper MAX_ACC_OUT_READ values (0, 44, or 128)
 # and ADVANCED_PCI_SETTINGS set to True for optimal performance
+
+# Example Row Remap Error Check Output:
+# INFO: === Row Remap Error Check ===
+# INFO: Starting row remap error check...
+# INFO: Step 1: Checking nvidia-smi driver version...
+# INFO: Driver version 550.90.07 meets minimum requirement (>= 550)
+# INFO: Step 2: Getting expected GPU PCI addresses from shapes...
+# INFO: Step 3: Checking for GPU row remap errors...
+# INFO: Row Remap Error Check: PASS - No row remap errors detected
+# 
+# This test checks for GPU memory row remap failures that indicate hardware issues
 
 # Run custom script with verbose output
 oci-dr-hpc-v2 custom-script \
