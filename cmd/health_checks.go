@@ -48,13 +48,15 @@ a streamlined health check experience.`,
 			resultsFile = tempFile.Name()
 			tempFile.Close()
 			cleanupFile = tempResults // Only cleanup if --temp-results flag is set
+			
+			// For temporary files, never use append mode to avoid JSON parsing issues
+			rep.SetAppendMode(false)
 		} else {
 			resultsFile = outputFile
+			// Set append mode based on CLI flag for user-specified files
+			appendMode := viper.GetBool("append")
+			rep.SetAppendMode(appendMode)
 		}
-
-		// Set append mode based on CLI flag
-		appendMode := viper.GetBool("append")
-		rep.SetAppendMode(appendMode)
 
 		if err := rep.Initialize(resultsFile); err != nil {
 			logger.Errorf("Failed to initialize reporter: %v", err)
