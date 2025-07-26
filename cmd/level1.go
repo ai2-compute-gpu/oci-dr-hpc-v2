@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/oracle/oci-dr-hpc-v2/internal/level1_tests"
 	"github.com/oracle/oci-dr-hpc-v2/internal/logger"
 	"github.com/oracle/oci-dr-hpc-v2/internal/reporter"
 	"github.com/spf13/cobra"

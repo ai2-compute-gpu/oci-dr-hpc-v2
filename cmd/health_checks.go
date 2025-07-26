@@ -140,7 +140,7 @@ func runLevel1HealthTests() error {
 	logger.Info(fmt.Sprintf("Health checks completed in %v", duration))
 
 	if len(failedTests) > 0 {
-		logger.Warn(fmt.Sprintf("Health checks completed with %d issue(s): %v", len(failedTests), failedTests))
+		logger.Error(fmt.Sprintf("Health checks completed with %d issue(s): %v", len(failedTests), failedTests))
 		return fmt.Errorf("health checks detected %d issue(s): %s", len(failedTests), strings.Join(failedTests, ", "))
 	}
 
