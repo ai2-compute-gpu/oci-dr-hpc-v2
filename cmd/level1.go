@@ -67,6 +67,7 @@ func runAllLevel1Tests() error {
 	}{
 		{"gpu_count_check", level1_tests.RunGPUCountCheck},
 		{"pcie_error_check", level1_tests.RunPCIeErrorCheck},
+		{"pcie_width_missing_lanes_check", level1_tests.RunPCIeWidthMissingLanesCheck},
 		{"rdma_nics_count", level1_tests.RunRDMANicsCount},
 		{"rx_discards_check", level1_tests.RunRXDiscardsCheck},
 		{"gid_index_check", level1_tests.RunGIDIndexCheck},
@@ -144,6 +145,7 @@ func runSpecificTests(testFilter string) error {
 	}{
 		{"gpu_count_check", "Check GPU count using nvidia-smi", level1_tests.RunGPUCountCheck},
 		{"pcie_error_check", "Check for PCIe errors in system logs", level1_tests.RunPCIeErrorCheck},
+		{"pcie_width_missing_lanes_check", "Check PCIe link width for missing lanes", level1_tests.RunPCIeWidthMissingLanesCheck},
 		{"rdma_nics_count", "Check RDMA NICs count", level1_tests.RunRDMANicsCount},
 		{"rx_discards_check", "Check Network Interface for rx discard", level1_tests.RunRXDiscardsCheck},
 		{"gid_index_check", "Check device GID Index are in range ", level1_tests.RunGIDIndexCheck},

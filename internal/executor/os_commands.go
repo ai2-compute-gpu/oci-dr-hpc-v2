@@ -638,3 +638,4 @@ func RunWpaCliStatus(interfaceName string) (*OSCommandResult, error) {
 
 	return result, nil
 }
+

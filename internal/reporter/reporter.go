@@ -42,6 +42,17 @@ type PCIeTestResult struct {
 	TimestampUTC string `json:"timestamp_utc"`
 }
 
+// PCIeWidthTestResult represents PCIe width test results
+type PCIeWidthTestResult struct {
+	Status          string         `json:"status"`
+	GPUWidthCounts  map[string]int `json:"gpu_width_counts,omitempty"`
+	RDMAWidthCounts map[string]int `json:"rdma_width_counts,omitempty"`
+	GPUSpeedCounts  map[string]int `json:"gpu_speed_counts,omitempty"`
+	RDMASpeedCounts map[string]int `json:"rdma_speed_counts,omitempty"`
+	StateErrors     []string       `json:"state_errors,omitempty"`
+	TimestampUTC    string         `json:"timestamp_utc"`
+}
+
 // RDMATestResult represents RDMA test results
 type RDMATestResult struct {
 	Status       string `json:"status"`
@@ -180,28 +191,29 @@ type RowRemapErrorTestResult struct {
 
 // HostResults represents test results for a host
 type HostResults struct {
-	GPUCountCheck         []GPUTestResult              `json:"gpu_count_check,omitempty"`
-	GPUModeCheck          []GPUModeTestResult          `json:"gpu_mode_check,omitempty"`
-	PCIeErrorCheck        []PCIeTestResult             `json:"pcie_error_check,omitempty"`
-	RDMANicsCount         []RDMATestResult             `json:"rdma_nics_count,omitempty"`
-	RXDiscardsCheck       []RXDiscardsCheckTestResult  `json:"rx_discards_check,omitempty"`
-	GIDIndexCheck         []GIDIndexTestResult         `json:"gid_index_check,omitempty"`
-	LinkCheck             []LinkTestResult             `json:"link_check,omitempty"`
-	EthLinkCheck          []EthLinkTestResult          `json:"eth_link_check,omitempty"`
-	AuthCheck             []AuthCheckTestResult        `json:"auth_check,omitempty"`
-	SRAMErrorCheck        []SRAMErrorTestResult        `json:"sram_error_check,omitempty"`
-	GPUDriverCheck        []GPUDriverTestResult        `json:"gpu_driver_check,omitempty"`
-	GPUClockCheck         []GPUClockTestResult         `json:"gpu_clk_check,omitempty"`
-	PeerMemModuleCheck    []PeerMemTestResult          `json:"peermem_module_check,omitempty"`
-	NVLinkSpeedCheck      []NVLinkTestResult           `json:"nvlink_speed_check,omitempty"`
-	Eth0PresenceCheck     []Eth0PresenceTestResult     `json:"eth0_presence_check,omitempty"`
-	CDFPCableCheck        []CDFPCableCheckTestResult   `json:"cdfp_cable_check,omitempty"`
-	FabricManagerCheck    []FabricManagerTestResult    `json:"fabricmanager_check,omitempty"`
-	HCAErrorCheck         []HCAErrorTestResult         `json:"hca_error_check,omitempty"`
-	MissingInterfaceCheck []MissingInterfaceTestResult `json:"missing_interface_check,omitempty"`
-	GPUXIDCheck           []GPUXIDTestResult           `json:"gpu_xid_check,omitempty"`
-	MaxAccCheck           []MaxAccTestResult           `json:"max_acc_check,omitempty"`
-	RowRemapErrorCheck    []RowRemapErrorTestResult    `json:"row_remap_error_check,omitempty"`
+	GPUCountCheck              []GPUTestResult              `json:"gpu_count_check,omitempty"`
+	GPUModeCheck               []GPUModeTestResult          `json:"gpu_mode_check,omitempty"`
+	PCIeErrorCheck             []PCIeTestResult             `json:"pcie_error_check,omitempty"`
+	PCIeWidthMissingLanesCheck []PCIeWidthTestResult        `json:"pcie_width_missing_lanes_check,omitempty"`
+	RDMANicsCount              []RDMATestResult             `json:"rdma_nics_count,omitempty"`
+	RXDiscardsCheck            []RXDiscardsCheckTestResult  `json:"rx_discards_check,omitempty"`
+	GIDIndexCheck              []GIDIndexTestResult         `json:"gid_index_check,omitempty"`
+	LinkCheck                  []LinkTestResult             `json:"link_check,omitempty"`
+	EthLinkCheck               []EthLinkTestResult          `json:"eth_link_check,omitempty"`
+	AuthCheck                  []AuthCheckTestResult        `json:"auth_check,omitempty"`
+	SRAMErrorCheck             []SRAMErrorTestResult        `json:"sram_error_check,omitempty"`
+	GPUDriverCheck             []GPUDriverTestResult        `json:"gpu_driver_check,omitempty"`
+	GPUClockCheck              []GPUClockTestResult         `json:"gpu_clk_check,omitempty"`
+	PeerMemModuleCheck         []PeerMemTestResult          `json:"peermem_module_check,omitempty"`
+	NVLinkSpeedCheck           []NVLinkTestResult           `json:"nvlink_speed_check,omitempty"`
+	Eth0PresenceCheck          []Eth0PresenceTestResult     `json:"eth0_presence_check,omitempty"`
+	CDFPCableCheck             []CDFPCableCheckTestResult   `json:"cdfp_cable_check,omitempty"`
+	FabricManagerCheck         []FabricManagerTestResult    `json:"fabricmanager_check,omitempty"`
+	HCAErrorCheck              []HCAErrorTestResult         `json:"hca_error_check,omitempty"`
+	MissingInterfaceCheck      []MissingInterfaceTestResult `json:"missing_interface_check,omitempty"`
+	GPUXIDCheck                []GPUXIDTestResult           `json:"gpu_xid_check,omitempty"`
+	MaxAccCheck                []MaxAccTestResult           `json:"max_acc_check,omitempty"`
+	RowRemapErrorCheck         []RowRemapErrorTestResult    `json:"row_remap_error_check,omitempty"`
 }
 
 // ReportOutput represents the final JSON output structure
@@ -322,6 +334,18 @@ func (r *Reporter) AddGPUModeResult(status string, message string, enabledGPUInd
 func (r *Reporter) AddPCIeResult(status string, err error) {
 	details := map[string]interface{}{}
 	r.AddResult("pcie_error_check", status, details, err)
+}
+
+// AddPCIeWidthResult adds PCIe width missing lanes test results
+func (r *Reporter) AddPCIeWidthResult(status string, gpuWidthCounts, rdmaWidthCounts, gpuSpeedCounts, rdmaSpeedCounts map[string]int, stateErrors []string, err error) {
+	details := map[string]interface{}{
+		"gpu_width_counts":  gpuWidthCounts,
+		"rdma_width_counts": rdmaWidthCounts,
+		"gpu_speed_counts":  gpuSpeedCounts,
+		"rdma_speed_counts": rdmaSpeedCounts,
+		"state_errors":      stateErrors,
+	}
+	r.AddResult("pcie_width_missing_lanes_check", status, details, err)
 }
 
 // AddRDMAResult adds RDMA test results
@@ -557,6 +581,53 @@ func (r *Reporter) GenerateReport() (*ReportOutput, error) {
 			TimestampUTC: result.Timestamp.UTC().Format(time.RFC3339),
 		}
 		report.Localhost.PCIeErrorCheck = []PCIeTestResult{pcieResult}
+	}
+
+	// Process PCIe width missing lanes results
+	if result, exists := r.results["pcie_width_missing_lanes_check"]; exists {
+		var gpuWidthCounts, rdmaWidthCounts, gpuSpeedCounts, rdmaSpeedCounts map[string]int
+		var stateErrors []string
+
+		if gpuCountsVal, ok := result.Details["gpu_width_counts"]; ok {
+			if gpuCounts, ok := gpuCountsVal.(map[string]int); ok {
+				gpuWidthCounts = gpuCounts
+			}
+		}
+
+		if rdmaCountsVal, ok := result.Details["rdma_width_counts"]; ok {
+			if rdmaCounts, ok := rdmaCountsVal.(map[string]int); ok {
+				rdmaWidthCounts = rdmaCounts
+			}
+		}
+
+		if gpuSpeedCountsVal, ok := result.Details["gpu_speed_counts"]; ok {
+			if gpuSpeeds, ok := gpuSpeedCountsVal.(map[string]int); ok {
+				gpuSpeedCounts = gpuSpeeds
+			}
+		}
+
+		if rdmaSpeedCountsVal, ok := result.Details["rdma_speed_counts"]; ok {
+			if rdmaSpeeds, ok := rdmaSpeedCountsVal.(map[string]int); ok {
+				rdmaSpeedCounts = rdmaSpeeds
+			}
+		}
+
+		if stateErrorsVal, ok := result.Details["state_errors"]; ok {
+			if stateErrs, ok := stateErrorsVal.([]string); ok {
+				stateErrors = stateErrs
+			}
+		}
+
+		pcieWidthResult := PCIeWidthTestResult{
+			Status:          result.Status,
+			GPUWidthCounts:  gpuWidthCounts,
+			RDMAWidthCounts: rdmaWidthCounts,
+			GPUSpeedCounts:  gpuSpeedCounts,
+			RDMASpeedCounts: rdmaSpeedCounts,
+			StateErrors:     stateErrors,
+			TimestampUTC:    result.Timestamp.UTC().Format(time.RFC3339),
+		}
+		report.Localhost.PCIeWidthMissingLanesCheck = []PCIeWidthTestResult{pcieWidthResult}
 	}
 
 	// Process RDMA results
@@ -1054,6 +1125,20 @@ func (r *Reporter) formatTable(report *ReportOutput) (string, error) {
 		}
 	}
 
+	// PCIe Width Tests
+	if len(report.Localhost.PCIeWidthMissingLanesCheck) > 0 {
+		for _, pcieWidth := range report.Localhost.PCIeWidthMissingLanesCheck {
+			status := pcieWidth.Status
+			statusSymbol := "✅"
+			if status == "FAIL" {
+				statusSymbol = "❌"
+			}
+			details := "PCIe Width Check: " + status
+			output.WriteString(fmt.Sprintf("│ %-22s │ %-6s │ %s %s    │\n",
+				"PCIe Width Check", statusSymbol, statusSymbol, details))
+		}
+	}
+
 	// RDMA Tests
 	if len(report.Localhost.RDMANicsCount) > 0 {
 		for _, rdma := range report.Localhost.RDMANicsCount {
@@ -1469,6 +1554,38 @@ func (r *Reporter) formatFriendly(report *ReportOutput) (string, error) {
 			} else {
 				failedTests++
 				output.WriteString("   ❌ PCIe Bus: Errors detected (FAILED)\n")
+			}
+		}
+		output.WriteString("\n")
+	}
+
+	// PCIe Width Tests
+	if len(report.Localhost.PCIeWidthMissingLanesCheck) > 0 {
+		output.WriteString("📏 PCIe Width Check\n")
+		output.WriteString("   " + strings.Repeat("-", 30) + "\n")
+		for _, pcieWidth := range report.Localhost.PCIeWidthMissingLanesCheck {
+			totalTests++
+			if pcieWidth.Status == "PASS" {
+				passedTests++
+				output.WriteString("   ✅ PCIe Link Width: All lanes operating at expected width (PASSED)\n")
+				if len(pcieWidth.GPUWidthCounts) > 0 {
+					output.WriteString("      GPU/NVSwitch widths: ")
+					for width, count := range pcieWidth.GPUWidthCounts {
+						output.WriteString(fmt.Sprintf("%dx %s ", count, width))
+					}
+					output.WriteString("\n")
+				}
+				if len(pcieWidth.RDMAWidthCounts) > 0 {
+					output.WriteString("      RDMA widths: ")
+					for width, count := range pcieWidth.RDMAWidthCounts {
+						output.WriteString(fmt.Sprintf("%dx %s ", count, width))
+					}
+					output.WriteString("\n")
+				}
+			} else {
+				failedTests++
+				output.WriteString("   ❌ PCIe Link Width: Missing lanes detected (FAILED)\n")
+				output.WriteString("      ⚠️  Please reboot the host and if the issue persists, send the node to OCI\n")
 			}
 		}
 		output.WriteString("\n")

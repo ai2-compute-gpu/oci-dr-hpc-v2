@@ -284,33 +284,34 @@ func TestGetEnabledTests(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to get enabled tests: %v", err)
 	}
-	if len(enabledTests) != 22 {
-		t.Errorf("Expected 22 enabled tests for H100, got %d", len(enabledTests))
+	if len(enabledTests) != 23 {
+		t.Errorf("Expected 23 enabled tests for H100, got %d", len(enabledTests))
 	}
 
 	expectedTests := map[string]bool{
-		"gid_index_check":         false,
-		"gpu_mode_check":          false,
-		"rx_discards_check":       false,
-		"sram_error_check":        false,
-		"gpu_count_check":         false,
-		"rdma_nic_count":          false,
-		"pcie_error_check":        false,
-		"link_check":              false,
-		"eth_link_check":          false,
-		"auth_check":              false,
-		"gpu_driver_check":        false,
-		"gpu_clk_check":           false,
-		"peermem_module_check":    false,
-		"nvlink_speed_check":      false,
-		"eth0_presence_check":     false,
-		"cdfp_cable_check":        false,
-		"fabricmanager_check":     false,
-		"hca_error_check":         false,
-		"missing_interface_check": false,
-		"gpu_xid_check":           false,
-		"max_acc_check":           false,
-		"row_remap_error_check":   false,
+		"gid_index_check":                  false,
+		"gpu_mode_check":                   false,
+		"rx_discards_check":                false,
+		"sram_error_check":                 false,
+		"gpu_count_check":                  false,
+		"rdma_nic_count":                   false,
+		"pcie_error_check":                 false,
+		"pcie_width_missing_lanes_check":   false,
+		"link_check":                       false,
+		"eth_link_check":                   false,
+		"auth_check":                       false,
+		"gpu_driver_check":                 false,
+		"gpu_clk_check":                    false,
+		"peermem_module_check":             false,
+		"nvlink_speed_check":               false,
+		"eth0_presence_check":              false,
+		"cdfp_cable_check":                 false,
+		"fabricmanager_check":              false,
+		"hca_error_check":                  false,
+		"missing_interface_check":          false,
+		"gpu_xid_check":                    false,
+		"max_acc_check":                    false,
+		"row_remap_error_check":            false,
 	}
 
 	for _, test := range enabledTests {
